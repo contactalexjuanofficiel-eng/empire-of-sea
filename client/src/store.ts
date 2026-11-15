@@ -1,10 +1,14 @@
 // État de l'interface (React) : un petit magasin observable, mis à jour par le moteur de jeu et le réseau.
+import type { ActiveSkillId } from '../../shared/combat';
 import { useSyncExternalStore } from 'react';
 import type { AmmoId, ConsumableId, GoodId } from '../../shared/items';
 import type { ChatChannel, GuildInfo, MapInfo, MissionOffer, Profile } from '../../shared/protocol';
 import { defaultKeys } from './game/Input';
 
 export interface HudState {
+  shield: number; shieldMax: number; energy: number;
+  skillCd: Partial<Record<ActiveSkillId, number>>;
+  boost: { dmg: number; crit: number; speed: number; shield: number };
   hp: number; maxHp: number; sailHp: number;
   speed: number; sail: number; heading: number;
   windDir: number; windStr: number;
@@ -74,7 +78,7 @@ const initial: AppState = {
   zone: 'manche',
   port: null,
   docked: true,
-  hud: { hp: 1, maxHp: 1, sailHp: 1, speed: 0, sail: 0, heading: 0, windDir: 0, windStr: 1, reload: [0, 0], reloadMax: 5, ammo: 'rond', cd: {}, dead: 0, pvp: false, safe: true, powder: 0, burning: false, repairing: false, canDock: null, aim: null, x: 0, z: 0, weather: 'clair', day: 0.5, fishing: false },
+  hud: { hp: 1, maxHp: 1, sailHp: 1, speed: 0, sail: 0, heading: 0, windDir: 0, windStr: 1, reload: [0, 0], reloadMax: 5, ammo: 'rond', cd: {}, dead: 0, pvp: false, safe: true, powder: 0, burning: false, repairing: false, canDock: null, aim: null, x: 0, z: 0, weather: 'clair', day: 0.5, fishing: false, shield: 0, shieldMax: 0, energy: 0, skillCd: {}, boost: { dmg: 0, crit: 0, speed: 0, shield: 0 } },
   nearby: [],
   chat: [],
   notices: [],

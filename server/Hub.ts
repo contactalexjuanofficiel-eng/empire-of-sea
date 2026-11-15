@@ -1,4 +1,5 @@
 // Le Hub relie les connexions WebSocket aux zones, gère le chat, les groupes, les guildes et la sauvegarde.
+import { ACTIVE_SKILL_BY_ID } from '../shared/combat.ts';
 import crypto from 'node:crypto';
 import type { WebSocket } from 'ws';
 import { AMMO, CONSUMABLES } from '../shared/items.ts';
@@ -253,6 +254,9 @@ export class Hub {
         break;
       case 'use':
         if (ship && CONSUMABLES[m.id]) err(zone.useItem(ship, m.id));
+        break;
+      case 'skill':
+        if (ship && ACTIVE_SKILL_BY_ID[m.id]) err(zone.useSkill(ship, m.id));
         break;
       case 'dock':
         err(zone.dock(s));

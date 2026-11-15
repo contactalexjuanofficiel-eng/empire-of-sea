@@ -1,8 +1,9 @@
 import '@fontsource/cinzel/500.css';
 import '@fontsource/cinzel/700.css';
-import '@fontsource/cormorant-garamond/400.css';
-import '@fontsource/cormorant-garamond/500.css';
-import '@fontsource/cormorant-garamond/700.css';
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/roboto-condensed/700.css';
 import './styles.css';
 import { createRoot } from 'react-dom/client';
 import { Game } from './game/Game';

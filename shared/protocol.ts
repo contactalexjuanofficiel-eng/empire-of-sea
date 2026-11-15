@@ -5,6 +5,7 @@ import type { ShipUpgrades, Skills } from './ships.ts';
 import type { EquipId, Fit } from './equipment.ts';
 import type { CaptainCat, DailyKind, FishId, SkinId } from './extras.ts';
 import type { Faction } from './zones.ts';
+import type { ActiveSkillId } from './combat.ts';
 
 export const PROTOCOL_VERSION = 1;
 export const TICK_RATE = 20; // simulations par seconde
@@ -114,6 +115,7 @@ export type C2S =
   | { t: 'fire'; side: Side | 'both'; x: number; z: number }
   | { t: 'ammo'; id: AmmoId }
   | { t: 'use'; id: ConsumableId }
+  | { t: 'skill'; id: ActiveSkillId }
   | { t: 'dock' }
   | { t: 'undock' }
   | ({ t: 'shop' } & ShopAction)
@@ -184,6 +186,12 @@ export interface MeState {
   target: number;
   attacking: boolean;
   fishing: boolean;
+  shield: number;
+  shieldMax: number;
+  energy: number;
+  skillCd: Partial<Record<ActiveSkillId, number>>;
+  /** Effets actifs (secondes restantes). */
+  boost: { dmg: number; crit: number; speed: number; shield: number };
 }
 
 export interface WeatherState { kind: 'clair' | 'brume' | 'tempete'; intensity: number; fog: number }

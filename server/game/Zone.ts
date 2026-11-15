@@ -1,5 +1,6 @@
 // Simulation autoritaire d'une zone maritime : un « shard » indépendant.
 // Le serveur peut faire tourner chaque zone dans son propre processus plus tard (voir docs/ARCHITECTURE.md).
+import { ACTIVE_SKILL_BY_ID, BASE_CRIT, CRIT_MUL, ENERGY_MAX, ENERGY_REGEN, SHIELD_DELAY, SHIELD_RATIO, SHIELD_REGEN, SKILL_CRIT_BONUS, SKILL_DMG_BONUS, type ActiveSkillId } from '../../shared/combat.ts';
 import { AMMO, CONSUMABLES, type AmmoId, type ConsumableId } from '../../shared/items.ts';
 import type { EquipId } from '../../shared/equipment.ts';
 import { clamp, dist2, wrapAngle } from '../../shared/math.ts';
@@ -184,6 +185,9 @@ export class Zone {
     const r = s.hp / s.stats.hp;
     s.stats = stats;
     s.hp = stats.hp * r;
+    const sr = s.shieldMax ? s.shield / s.shieldMax : 1;
+    s.shieldMax = stats.hp * SHIELD_RATIO;
+    s.shield = s.shieldMax * sr;
   }
 
   // ------------------------------------------------------------------ fabrique
@@ -194,7 +198,9 @@ export class Zone {
       input: { sail: 0, rudder: 0 },
       hp: stats.hp, sailHp: stats.sailHp,
       reload: [0, 0], ammo: 'rond', burning: 0, repairing: 0, powder: 0, crewPenalty: 0,
-      cd: {}, fx: { speed: 0, shield: 0, slow: 0, smoke: 0 },
+      cd: {}, fx: { speed: 0, shield: 0, slow: 0, smoke: 0, dmg: 0, crit: 0 },
+      shieldMax: kind === 'player' ? stats.hp * SHIELD_RATIO : 0, shield: kind === 'player' ? stats.hp * SHIELD_RATIO : 0,
+      energy: ENERGY_MAX, skillCd: {},
       sinking: -1, dmgBy: new Map(), lastHit: -999, tier: SHIP_CLASSES[def.cls].tier, dmgMul: 1,
     };
   }
@@ -376,7 +382,7 @@ export class Zone {
     const d = clamp(Math.hypot(ax - s.k.x, az - s.k.z), 30, range);
     const v = Math.sqrt((range * GRAVITY) / 0.866);
     const n = st.balls + (ammoId === 'mitraille' ? 3 : 0);
-    const dmgEach = (st.broadside * s.dmgMul * (s.powder > 0 ? 1.25 : 1)) / n;
+    const dmgEach = (st.broadside * s.dmgMul * (s.powder > 0 ? 1.25 : 1) * (s.fx.dmg > 0 ? 1 + SKILL_DMG_BONUS : 1)) / n;
     const fx = Math.sin(s.k.h), fz = Math.cos(s.k.h);
     const tx = Math.sin(yaw), tz = Math.cos(yaw);
     const balls: Ball[] = [];
@@ -447,6 +453,25 @@ export class Zone {
         if (s.reload[0] <= 0) this.fire(s, ax, az);
       }
     }
+  }
+
+  /** Compétences actives : coûtent de l'énergie et ont un temps de recharge. Renvoie un message d'erreur ou null. */
+  useSkill(s: ShipEnt, id: ActiveSkillId): string | null {
+    const sk = ACTIVE_SKILL_BY_ID[id];
+    if (!sk || !s.link || s.sinking >= 0) return null;
+    if (playerLevel(s.link.profile) < sk.level) return `${sk.name} : niveau ${sk.level} requis.`;
+    if ((s.skillCd[id] ?? 0) > 0) return `${sk.name} : encore ${Math.ceil(s.skillCd[id]!)} s.`;
+    if (s.energy < sk.energy) return `Énergie insuffisante (${sk.energy} requis).`;
+    s.energy -= sk.energy;
+    s.skillCd[id] = sk.cooldown;
+    switch (id) {
+      case 'bordee': s.reload[0] = 0; s.fx.dmg = sk.duration!; break;
+      case 'voiles': s.fx.speed = Math.max(s.fx.speed, sk.duration!); break;
+      case 'reparation': s.hp = Math.min(s.stats.hp, s.hp + s.stats.hp * 0.15 * s.stats.repair); break;
+      case 'rempart': s.shield = Math.min(s.shieldMax, s.shield + s.shieldMax * 0.5); break;
+      case 'precision': s.fx.crit = sk.duration!; break;
+    }
+    return null;
   }
 
   /** Objets de la Boutique de l'Amirauté et équipements de base, utilisés en mer. */
@@ -625,7 +650,10 @@ export class Zone {
     s.reload[0] = Math.max(0, s.reload[0] - dt);
     s.reload[1] = Math.max(0, s.reload[1] - dt);
     for (const k of Object.keys(s.cd) as ConsumableId[]) s.cd[k] = Math.max(0, (s.cd[k] ?? 0) - dt);
-    for (const k of ['speed', 'shield', 'slow', 'smoke'] as const) s.fx[k] = Math.max(0, s.fx[k] - dt);
+    for (const k of ['speed', 'shield', 'slow', 'smoke', 'dmg', 'crit'] as const) s.fx[k] = Math.max(0, s.fx[k] - dt);
+    for (const k of Object.keys(s.skillCd) as ActiveSkillId[]) s.skillCd[k] = Math.max(0, (s.skillCd[k] ?? 0) - dt);
+    s.energy = Math.min(ENERGY_MAX, s.energy + ENERGY_REGEN * dt);
+    if (s.shield < s.shieldMax && this.time - s.lastHit > SHIELD_DELAY) s.shield = Math.min(s.shieldMax, s.shield + s.shieldMax * SHIELD_REGEN * dt);
     s.powder = Math.max(0, s.powder - dt);
     if (s.burning > 0) {
       s.burning -= dt;
@@ -729,8 +757,8 @@ export class Zone {
           if (Math.abs(lat) > halfBeam + 0.8) continue;
           if (owner && !this.canHarm(owner, s)) continue; // les boulets traversent les alliés
           const ammo = AMMO[p.ammo];
-          const crit = Math.random() < 0.07;
-          const hull = p.dmg * ammo.hull * (crit ? 1.6 : 1);
+          const crit = Math.random() < BASE_CRIT + (owner && 'fx' in owner && owner.fx.crit > 0 ? SKILL_CRIT_BONUS : 0);
+          const hull = p.dmg * ammo.hull * (crit ? CRIT_MUL : 1);
           const fire = Math.random() < ammo.fire;
           this.emit({ k: 'hit', pid: p.id, id: s.id, x: r1(p.x), y: r1(p.y), z: r1(p.z), dmg: Math.round(hull * (1 - s.stats.armor)), by: p.owner, fire, crit }, p.x, p.z);
           this.damage(s, hull, p.dmg * ammo.sail * 0.8, p.ammo, owner ?? null, fire);
@@ -793,7 +821,10 @@ export class Zone {
   damage(s: ShipEnt, hull: number, sail: number, ammo: AmmoId, attacker: ShipEnt | FortEnt | null, fire: boolean) {
     if (s.sinking >= 0) return;
     const real = hull * (1 - s.stats.armor) * (s.fx.shield > 0 ? 0.6 : 1);
-    s.hp -= real;
+    // Le bouclier encaisse d'abord ; seul le reste entame la coque.
+    const absorbed = Math.min(s.shield, real);
+    s.shield -= absorbed;
+    s.hp -= real - absorbed;
     s.sailHp = Math.max(0, s.sailHp - sail);
     if (attacker) {
       s.lastHit = this.time;
@@ -1007,6 +1038,11 @@ export class Zone {
         target: link.targetId,
         attacking: link.attacking,
         fishing: link.fishing,
+        shield: me ? Math.round(me.shield) : 0,
+        shieldMax: me ? Math.round(me.shieldMax) : 0,
+        energy: me ? Math.floor(me.energy) : 0,
+        skillCd: me ? Object.fromEntries(Object.entries(me.skillCd).filter(([, v]) => (v ?? 0) > 0).map(([k, v]) => [k, r1(v!)])) : {},
+        boost: me ? { dmg: r1(me.fx.dmg), crit: r1(me.fx.crit), speed: r1(me.fx.speed), shield: r1(me.fx.shield) } : { dmg: 0, crit: 0, speed: 0, shield: 0 },
       };
       link.send({ t: 'snap', st: Math.round(this.time * 1000) / 1000, wind: { dir: Math.round(this.wind.dir * 1000) / 1000, strength: Math.round(this.wind.strength * 100) / 100 }, wx: { ...this.weather, intensity: Math.round(this.weather.intensity * 100) / 100, fog: Math.round(this.weather.fog * 100) / 100 }, day: Math.round(dayFraction * 10000) / 10000, me: meState, e: ents, ev });
     }

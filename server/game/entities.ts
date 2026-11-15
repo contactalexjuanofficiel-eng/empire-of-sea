@@ -1,4 +1,5 @@
 import type { AmmoId, ConsumableId } from '../../shared/items.ts';
+import type { ActiveSkillId } from '../../shared/combat.ts';
 import type { EquipId } from '../../shared/equipment.ts';
 import type { HelmInput, ShipKinematics } from '../../shared/physics.ts';
 import type { ShipDef, ShipStats } from '../../shared/ships.ts';
@@ -39,7 +40,12 @@ export interface ShipEnt {
   crewPenalty: number;
   cd: Partial<Record<ConsumableId, number>>;
   /** Effets temporaires (secondes restantes). */
-  fx: { speed: number; shield: number; slow: number; smoke: number };
+  fx: { speed: number; shield: number; slow: number; smoke: number; dmg: number; crit: number };
+  /** Bouclier (absorbe les dégâts avant la coque), énergie et recharges des compétences actives. */
+  shield: number;
+  shieldMax: number;
+  energy: number;
+  skillCd: Partial<Record<ActiveSkillId, number>>;
   sinking: number; // < 0 : à flot ; >= 0 : secondes écoulées depuis le naufrage
   dmgBy: Map<number, number>;
   lastHit: number;

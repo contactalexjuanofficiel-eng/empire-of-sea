@@ -19,18 +19,27 @@ export class CameraRig {
   /** « dessus » : vue plongeante nord en haut (par défaut) ; « 3d » : derrière le navire. */
   mode: 'dessus' | '3d' = 'dessus';
   readonly pan = new THREE.Vector3();
-  private topDist = 560;
+  private topDist = 380;
+  /** Vue aérienne : orientation (0 = nord en haut) et inclinaison (≈ 55°, façon isométrique). */
+  isoYaw = 0;
+  private isoYawTarget = 0;
+  readonly isoPitch = 1.18;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
   setMode(m: 'dessus' | '3d') { this.mode = m; this.pan.set(0, 0, 0); }
 
   /** Déplace la vue (vue du dessus) : touches caméra ou clic droit glissé. */
-  panBy(dx: number, dz: number) {
+  panBy(sx: number, sz: number) {
+    // Le glissement est exprimé dans le repère de l'écran : on le tourne selon l'orientation de la caméra.
+    const c = Math.cos(this.isoYaw), si = Math.sin(this.isoYaw);
+    const dx = sx * c + sz * si, dz = -sx * si + sz * c;
     this.pan.x = THREE.MathUtils.clamp(this.pan.x + dx, -1500, 1500);
     this.pan.z = THREE.MathUtils.clamp(this.pan.z + dz, -1500, 1500);
   }
-  center() { this.pan.set(0, 0, 0); }
+  center() { this.pan.set(0, 0, 0); this.isoYawTarget = 0; }
+  /** Rotation de la vue aérienne (touches ou clic molette glissé). */
+  rotateIso(d: number) { this.isoYawTarget += d; }
   get viewDist() { return this.mode === 'dessus' ? this.topDist : this.dist; }
 
   rotate(dx: number, dy: number, t: number) {
@@ -40,7 +49,7 @@ export class CameraRig {
   }
 
   zoom(delta: number) {
-    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 180, 1500); return; }
+    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 140, 1300); return; }
     this.targetDist = THREE.MathUtils.clamp(this.targetDist * Math.exp(delta * 0.0012), this.minDist, this.maxDist);
   }
 
@@ -59,18 +68,22 @@ export class CameraRig {
 
   update(dt: number, t: number, target: THREE.Vector3, heading: number, aimMode: boolean) {
     if (this.mode === 'dessus') {
-      // Vue de dessus quasi verticale, nord en haut de l'écran (à peine inclinée pour garder un peu de relief).
-      this.focus.copy(target).add(this.pan);
-      const pitch = 1.45;
+      // Vue aérienne inclinée (façon isométrique) : on voit le navire, une grande partie de l'océan et le relief.
+      this.isoYaw += (this.isoYawTarget - this.isoYaw) * (1 - Math.exp(-dt * 8));
+      const k = 1 - Math.exp(-dt * 10);
+      this.focus.x += (target.x + this.pan.x - this.focus.x) * k;
+      this.focus.z += (target.z + this.pan.z - this.focus.z) * k;
+      this.focus.y = 0;
+      const pitch = this.isoPitch, cp = Math.cos(pitch);
       const pos = this.camera.position;
-      pos.set(this.focus.x, this.focus.y + Math.sin(pitch) * this.topDist, this.focus.z + Math.cos(pitch) * this.topDist);
+      pos.set(this.focus.x + Math.sin(this.isoYaw) * cp * this.topDist, Math.sin(pitch) * this.topDist, this.focus.z + Math.cos(this.isoYaw) * cp * this.topDist);
       if (this.shake > 0) {
         pos.x += (Math.random() - 0.5) * this.shake;
         pos.z += (Math.random() - 0.5) * this.shake;
         this.shake = Math.max(0, this.shake - dt * 3);
       }
       this.camera.lookAt(this.focus.x, this.focus.y, this.focus.z);
-      this.yaw = 0;
+      this.yaw = this.isoYaw;
       return;
     }
     if (this.autoFollow && !aimMode && t - this.lastManual > 4) {

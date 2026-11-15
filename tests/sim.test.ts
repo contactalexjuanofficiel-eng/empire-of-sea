@@ -182,10 +182,10 @@ test('livraison 2 : monstres, coffres, îles fortifiées, boutique, missions, gr
   const me = zone.ships.get(link.entityId)!;
   for (const s of [...zone.ships.values()]) if (s.kind !== 'player') zone.ships.delete(s.id);
   me.k.x = 0; me.k.z = 0;
-  const hp0 = me.hp;
+  const hp0 = me.hp + me.shield;
   const croco = { ...me, id: 999999, kind: 'npc' as const, def: SHIP_BY_ID.crocodile, faction: 'monstre' as const, link: undefined, reload: [0, 0] as [number, number], level: 3 };
   zone.bite(croco, me);
-  assert.ok(me.hp < hp0, 'morsure');
+  assert.ok(me.hp + me.shield < hp0, 'morsure');
   // Boutique : harpon sur une cible.
   zone.spawnNPC(true);
   const npc = [...zone.ships.values()].find((s) => s.kind === 'npc')!;
@@ -220,4 +220,32 @@ test('niveaux élite : un navire élite progresse avec les points élite et a sa
   assert.ok(high.hp > low.hp && high.broadside > low.broadside && high.harpon > low.harpon);
   assert.ok(low.range > computeStats(def).range, 'spécialité de l\'Aigle Blanc : portée');
   assert.deepEqual(eliteBonus(SHIP_BY_ID.bayonnaise, 1e9), {}, 'aucun bonus élite pour un navire ordinaire');
+});
+
+test('bouclier, énergie et compétences actives : vraies mécaniques côté serveur', () => {
+  const zone = new Zone(ZONE_BY_ID['manche-1'], { relation: () => 'neutral' });
+  const link = fakeLink('Bouclier', 21);
+  zone.addPlayer(link, false);
+  const me = zone.ships.get(link.entityId)!;
+  // Le bouclier encaisse avant la coque.
+  assert.ok(me.shieldMax > 0 && me.shield === me.shieldMax);
+  const hp0 = me.hp;
+  zone.damage(me, 50, 0, 'rond', null, false);
+  assert.equal(me.hp, hp0, 'la coque est intacte tant que le bouclier tient');
+  assert.ok(me.shield < me.shieldMax);
+  zone.damage(me, me.shieldMax + 50, 0, 'rond', null, false);
+  assert.ok(me.shield === 0 && me.hp < hp0, 'une fois le bouclier vidé, la coque prend');
+  // Compétence : coûte de l'énergie, puis temps de recharge.
+  const e0 = me.energy;
+  me.reload[0] = 3;
+  assert.equal(zone.useSkill(me, 'bordee'), null);
+  assert.equal(me.reload[0], 0, 'canons rechargés');
+  assert.ok(me.fx.dmg > 0 && me.energy < e0);
+  assert.match(zone.useSkill(me, 'bordee')!, /encore/);
+  // Niveau requis.
+  assert.match(zone.useSkill(me, 'precision')!, /niveau/);
+  // L'énergie se régénère.
+  const e1 = me.energy;
+  for (let i = 0; i < 40; i++) zone.tick(0.05);
+  assert.ok(me.energy > e1);
 });

@@ -1,10 +1,13 @@
-// Interface en mer façon « carte marine » : barre de commandes en haut, graduations de secteurs sur les bords,
-// cible en haut à gauche, mini-carte et onglets à droite, barres de vie / d'expérience et raccourcis en bas.
+// Interface en mer (MMORPG naval) :
+// haut = niveau, expérience, monnaies, ressources et commandes ; gauche = journal (missions, objectifs, événements) ;
+// droite = mini-carte, cible, navires proches ; bas = vie, bouclier, énergie, munitions, compétences, combat.
 import { useEffect, useState } from 'react';
 import { AMMO, AMMO_ORDER, CONSUMABLES, CONSUMABLE_ORDER } from '../../../shared/items';
 import { fmt } from '../../../shared/math';
 import { levelFromXp } from '../../../shared/progression';
 import { DAILY, levelMission } from '../../../shared/extras';
+import { ACTIVE_SKILLS, ENERGY_MAX } from '../../../shared/combat';
+import { BONUS_ZONES } from '../../../shared/zones';
 import { GRADES } from '../../../shared/ranks';
 import { SHIP_BY_ID } from '../../../shared/ships';
 import { FACTION_LABEL, tierRequirement, ZONE_BY_ID } from '../../../shared/zones';
@@ -25,6 +28,7 @@ export function TopNav() {
   const conn = useStore((s) => s.connection);
   const [menu, setMenu] = useState(false);
   if (!p) return null;
+  const lv = levelFromXp(p.xp);
   const btn = (id: string, icon: string, label: string, on: boolean, act: () => void, extra = '') => (
     <button key={id} className={`tn-btn ${on ? 'on' : ''} ${extra}`} onClick={() => { setMenu(false); act(); }}>
       <Icon name={icon} size={22} /><span>{label}</span>
@@ -37,11 +41,19 @@ export function TopNav() {
   ];
   return (
     <div className="topnav">
+      <div className="tn-level" title={`${fmt(lv.into)} / ${fmt(lv.need)} XP`}>
+        <span className="tn-lv">{lv.level}</span>
+        <div className="tn-xp-wrap">
+          <span className="tn-name">{p.name}</span>
+          <div className="tn-xp"><i style={{ width: `${lv.need ? (lv.into / lv.need) * 100 : 100}%` }} /><span>{lv.need ? `${fmt(lv.into)} / ${fmt(lv.need)} XP` : 'Niveau max'}</span></div>
+        </div>
+      </div>
       <div className="tn-res">
         <span title="Pièces d'or"><Icon name="or" className="c-or" size={15} />{fmt(p.or)}</span>
         <span title="Doublons"><Icon name="doublon" className="c-doublon" size={15} />{fmt(p.doublons)}</span>
         <span title="Perles"><Icon name="perle" className="c-perle" size={15} />{fmt(p.perles)}</span>
         <span title="Diamants"><Icon name="diamant" className="c-diamant" size={15} />{fmt(p.diamants ?? 0)}</span>
+        <span className="tn-mats" title="Bois · Toile · Fer · Ferraille"><Icon name="bois" size={14} />{fmt(p.mat.bois)}<Icon name="toile" size={14} />{fmt(p.mat.toile)}<Icon name="fer" size={14} />{fmt(p.mat.fer)}</span>
       </div>
       <nav className="tn-btns">
         <div className="tn-menu-wrap">
@@ -145,13 +157,13 @@ export function MapBlock() {
   );
 }
 
-type SideTab = 'missions' | 'espion' | 'groupe' | 'tableau';
+type SideTab = 'espion' | 'groupe' | 'tableau';
 
-/** Onglets de droite : Missions, Espion (navires proches), Groupe, Tableau (bilan). */
+/** Onglets de droite : navires à proximité, groupe, tableau (bilan). */
 export function SideTabs() {
-  const [tab, setTab] = useState<SideTab>('missions');
+  const [tab, setTab] = useState<SideTab>('espion');
   const [open, setOpen] = useState(true);
-  const tabs: [SideTab, string][] = [['missions', 'Missions'], ['espion', 'Espion'], ['groupe', 'Groupe'], ['tableau', 'Tableau']];
+  const tabs: [SideTab, string][] = [['espion', 'À proximité'], ['groupe', 'Groupe'], ['tableau', 'Tableau']];
   return (
     <div className={`sidetabs ${open ? '' : 'closed'}`}>
       <div className="st-tabs">
@@ -159,11 +171,37 @@ export function SideTabs() {
       </div>
       {open && (
         <div className="st-body">
-          {tab === 'missions' && <TabMissions />}
           {tab === 'espion' && <TabSpy />}
           {tab === 'groupe' && <TabGroup />}
           {tab === 'tableau' && <TabBoard />}
         </div>
+      )}
+    </div>
+  );
+}
+
+type JournalTab = 'missions' | 'objectifs' | 'evenements';
+
+/** Journal de bord (gauche) : missions en cours, objectifs de progression, événements du moment. */
+export function Journal() {
+  const [tab, setTab] = useState<JournalTab>('missions');
+  const [open, setOpen] = useState(true);
+  const tabs: [JournalTab, string][] = [['missions', 'Missions'], ['objectifs', 'Objectifs'], ['evenements', 'Événements']];
+  return (
+    <div className={`journal ${open ? '' : 'closed'}`}>
+      <div className="jr-head">
+        <Icon name="parchemin" size={15} /><b>Journal de bord</b>
+        <button onClick={() => setOpen(!open)} title={open ? 'Replier' : 'Déplier'}>{open ? '−' : '+'}</button>
+      </div>
+      {open && (
+        <>
+          <div className="st-tabs three">{tabs.map(([id, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}</div>
+          <div className="st-body">
+            {tab === 'missions' && <TabMissions />}
+            {tab === 'objectifs' && <TabGoals />}
+            {tab === 'evenements' && <TabEvents />}
+          </div>
+        </>
       )}
     </div>
   );
@@ -175,10 +213,7 @@ function Prog({ v, max, label }: { v: number; max: number; label?: string }) {
 
 function TabMissions() {
   const p = useStore((s) => s.profile)!;
-  const lvl = levelFromXp(p.xp).level;
-  const lm = levelMission(lvl);
-  const lmProg = p.levelMission.level === lvl ? p.levelMission.progress : 0;
-  const req = tierRequirement(p.tier);
+  const none = !p.daily.active.length && !p.missions.length;
   return (
     <>
       {p.daily.active.map((d) => (
@@ -187,9 +222,42 @@ function TabMissions() {
       {p.missions.map((m) => (
         <div key={m.id} className="st-item"><b>{m.title}</b><Prog v={m.progress} max={m.goal} /></div>
       ))}
+      {none && <p className="st-empty">Aucune mission en cours.</p>}
+      <button className="st-link" onClick={() => togglePanel('missions')}>Missions quotidiennes…</button>
+    </>
+  );
+}
+
+function TabGoals() {
+  const p = useStore((s) => s.profile)!;
+  const lvl = levelFromXp(p.xp).level;
+  const lm = levelMission(lvl);
+  const lmProg = p.levelMission.level === lvl ? p.levelMission.progress : 0;
+  const req = tierRequirement(p.tier);
+  return (
+    <>
       <div className="st-item"><b>Mission de niveau {lvl}</b><Prog v={lmProg} max={lm.goal} label={`Navires coulés : ${lmProg} / ${lm.goal}`} /></div>
-      <div className="st-item"><b>Mission de passage — étage {p.tier}</b><Prog v={p.tierKills} max={req.kills} label={`${Math.min(p.tierKills, req.kills)} / ${req.kills} · niveau ${req.level}`} /></div>
-      {!p.daily.active.length && <button className="st-link" onClick={() => togglePanel('missions')}>Lancer une mission quotidienne…</button>}
+      <div className="st-item"><b>Mission de passage — étage {p.tier}</b><Prog v={p.tierKills} max={req.kills} label={`${Math.min(p.tierKills, req.kills)} / ${req.kills} · niveau ${req.level} requis`} /></div>
+      <div className="st-item"><b>Prochain niveau</b><Prog v={levelFromXp(p.xp).into} max={levelFromXp(p.xp).need} /></div>
+    </>
+  );
+}
+
+function TabEvents() {
+  const boss = useStore((s) => s.boss);
+  const maps = useStore((s) => s.maps);
+  const bonusOpen = BONUS_ZONES.some((z) => maps.find((m) => m.id === z.id)?.open);
+  return (
+    <>
+      <div className={`st-item ev ${boss.active ? 'hot' : ''}`}>
+        <b>Boss de la carte</b>
+        {boss.active ? <Prog v={boss.hp ?? 0} max={boss.maxHp ?? 1} label={`${boss.name} · ${fmt(boss.hp ?? 0)}`} /> : <p className="st-empty">Aucun boss en mer.</p>}
+      </div>
+      <div className={`st-item ev ${bonusOpen ? 'hot' : ''}`}>
+        <b>Cartes bonus</b>
+        <p className="st-empty">{bonusOpen ? 'Ouvertes aujourd\'hui !' : 'Ouvertes le dimanche.'}</p>
+      </div>
+      <button className="st-link" onClick={() => togglePanel('evenement')}>Tous les événements…</button>
     </>
   );
 }
@@ -240,66 +308,97 @@ function TabBoard() {
 
 const ITEM_ICON: Record<string, string> = { kit: 'marteau', seau: 'seau', poudre: 'poudre', reparation: 'marteau', vitesse: 'vent', harpon_bronze: 'epee', harpon_argent: 'epee', harpon_or: 'epee', feu_gregeois: 'feu', brulot: 'feu', bouclier: 'guilde', corne: 'drapeau', fumigene: 'vent', lanterne: 'etoile', parchemin: 'parchemin', coffre_amiral: 'coffre' };
 
-/** Bas de l'écran : barre de vie, barre d'expérience et deux rangées de raccourcis. */
+/** Bas de l'écran : vie, bouclier, énergie ; munitions, compétences, objets ; boutons de combat. */
 export function BottomDock() {
   const hud = useStore((s) => s.hud);
   const p = useStore((s) => s.profile);
   const keys = useStore((s) => s.settings.keys);
+  const target = useStore((s) => s.target);
+  const attacking = useStore((s) => s.attacking);
   if (!p) return null;
   const ship = SHIP_BY_ID[p.ships.find((x) => x.uid === p.active)?.def ?? 'bayonnaise'];
-  const lv = levelFromXp(p.xp);
+  const lvl = levelFromXp(p.xp).level;
   const hpR = hud.hp / Math.max(1, hud.maxHp);
   const ready = hud.reload[0] <= 0.05;
   const r = 1 - Math.min(1, hud.reload[0] / Math.max(0.1, hud.reloadMax * 0.65));
   const owned = CONSUMABLE_ORDER.filter((id) => (p.items[id] ?? 0) > 0);
+  const boosts = [hud.boost.dmg > 0 && `Bordée +30 % · ${Math.ceil(hud.boost.dmg)} s`, hud.boost.crit > 0 && `Précision · ${Math.ceil(hud.boost.crit)} s`, hud.boost.speed > 0 && `Vitesse · ${Math.ceil(hud.boost.speed)} s`, hud.boost.shield > 0 && `Airain · ${Math.ceil(hud.boost.shield)} s`, hud.powder > 0 && `Poudre fine · ${Math.ceil(hud.powder)} s`].filter(Boolean) as string[];
   return (
     <div className="bdock">
+      {boosts.length > 0 && <div className="bd-boosts">{boosts.map((b) => <span key={b}>{b}</span>)}</div>}
       <div className="bd-bars">
-        <div className={`bd-hp ${hpR < 0.3 ? 'low' : ''}`}>
+        <div className={`bd-bar hp ${hpR < 0.3 ? 'low' : ''}`} title="Coque (points de vie)">
           <i style={{ width: `${hpR * 100}%` }} />
           <span>{ship.name} — {fmt(hud.hp)} / {fmt(hud.maxHp)}{hud.burning ? ' · en feu !' : ''}{hud.repairing ? ' · réparations' : ''}</span>
         </div>
-        <div className="bd-xp" title={`${fmt(lv.into)} / ${fmt(lv.need)} XP`}>
-          <i style={{ width: `${lv.need ? (lv.into / lv.need) * 100 : 100}%` }} />
-          <span>Niveau {lv.level} · {lv.need ? `${Math.floor((lv.into / lv.need) * 100)} %` : 'max'}</span>
+        <div className="bd-bar shield" title="Bouclier : encaisse les dégâts avant la coque, se recharge 6 s après le dernier coup reçu">
+          <i style={{ width: `${hud.shieldMax ? (hud.shield / hud.shieldMax) * 100 : 0}%` }} />
+          <span>Bouclier {fmt(hud.shield)} / {fmt(hud.shieldMax)}</span>
+        </div>
+        <div className="bd-bar energy" title="Énergie : sert à lancer les compétences, se régénère en continu">
+          <i style={{ width: `${(hud.energy / ENERGY_MAX) * 100}%` }} />
+          <span>Énergie {hud.energy} / {ENERGY_MAX}</span>
         </div>
       </div>
-      <div className="bd-row">
-        <button className={`bd-fire ${ready ? 'ready' : ''}`} onClick={() => game().fire()} title="Tirer une salve vers la cible">
-          <span className="bd-fire-bar" style={{ height: `${r * 100}%` }} />
-          <Icon name="poudre" size={18} />
-          <small>{ready ? 'Prêts' : `${hud.reload[0].toFixed(1)}`}</small>
-        </button>
-        {AMMO_ORDER.map((id, i) => {
-          const a = AMMO[id];
-          const n = id === 'rond' ? '∞' : fmt(p.ammo[id] ?? 0);
-          return (
-            <button key={id} className={`hk ammo-${id} ${hud.ammo === id ? 'on' : ''} ${n === '0' ? 'empty' : ''}`} onClick={() => game().selectAmmo(id)} title={`${a.name} — ${a.desc}`}>
-              <span className="k">{keyLabel(keys[`hot${i + 1}`])}</span>
-              <span className="ball" />
-              <span className="q">{n}</span>
+      <div className="bd-main">
+        <div className="bd-rows">
+          <div className="bd-row">
+            <button className={`bd-fire ${ready ? 'ready' : ''}`} onClick={() => game().fire()} title={`Tirer une salve vers la cible (${keyLabel(keys.fireBoth)})`}>
+              <span className="bd-fire-bar" style={{ height: `${r * 100}%` }} />
+              <Icon name="canon" size={18} />
+              <small>{ready ? 'Feu !' : `${hud.reload[0].toFixed(1)}`}</small>
             </button>
-          );
-        })}
-        <button className={`hk fish ${hud.fishing ? 'on' : ''}`} onClick={() => send({ t: 'fish', on: !hud.fishing })} title={`Pêcher (${keyLabel(keys.fish)}) : navire à l'arrêt, hors des ports`}>
-          <span className="k">{keyLabel(keys.fish)}</span><span className="fish-ico">🎣</span>
-        </button>
-      </div>
-      <div className="bd-row">
-        {Array.from({ length: 10 }, (_, ci) => {
-          const id = owned[ci];
-          if (!id) return <span key={ci} className="hk vide" />;
-          const c = CONSUMABLES[id];
-          const cd = hud.cd[id] ?? 0;
-          return (
-            <button key={id} className={`hk cons ${cd > 0 ? 'cool' : ''}`} onClick={() => game().useItem(id)} title={`${c.name} — ${c.desc}`}>
-              <span className="k">{ci < 3 ? keyLabel(keys[`hot${8 + ci}`]) : ''}</span>
-              <Icon name={ITEM_ICON[id] ?? 'coffre'} size={18} />
-              <span className="q">{p.items[id] ?? 0}</span>
-              {cd > 0 && <span className="cdv">{Math.ceil(cd)}</span>}
+            {AMMO_ORDER.map((id, i) => {
+              const a = AMMO[id];
+              const n = id === 'rond' ? '∞' : fmt(p.ammo[id] ?? 0);
+              return (
+                <button key={id} className={`hk ammo-${id} ${hud.ammo === id ? 'on' : ''} ${n === '0' ? 'empty' : ''}`} onClick={() => game().selectAmmo(id)} title={`${a.name} — ${a.desc}`}>
+                  <span className="k">{keyLabel(keys[`hot${i + 1}`])}</span>
+                  <span className="ball" />
+                  <span className="q">{n}</span>
+                </button>
+              );
+            })}
+            <button className={`hk fish ${hud.fishing ? 'on' : ''}`} onClick={() => send({ t: 'fish', on: !hud.fishing })} title={`Pêcher (${keyLabel(keys.fish)}) : navire à l'arrêt, hors des ports`}>
+              <span className="k">{keyLabel(keys.fish)}</span><span className="fish-ico">🎣</span>
             </button>
-          );
-        })}
+          </div>
+          <div className="bd-row">
+            {ACTIVE_SKILLS.map((sk, i) => {
+              const cd = hud.skillCd[sk.id] ?? 0;
+              const locked = lvl < sk.level;
+              const noEnergy = hud.energy < sk.energy;
+              return (
+                <button key={sk.id} className={`hk skill ${locked ? 'locked' : ''} ${cd > 0 ? 'cool' : ''} ${noEnergy && !cd ? 'low' : ''}`} onClick={() => game().useSkill(sk.id)} title={`${sk.name} — ${sk.desc} Énergie ${sk.energy} · recharge ${sk.cooldown} s${locked ? ` · niveau ${sk.level} requis` : ''}`}>
+                  <span className="k">{keyLabel(keys[`skill${i + 1}`])}</span>
+                  <Icon name={sk.icon} size={18} />
+                  <span className="q">{locked ? `N${sk.level}` : sk.energy}</span>
+                  {cd > 0 && <span className="cdv">{Math.ceil(cd)}</span>}
+                </button>
+              );
+            })}
+            <span className="bd-sep" />
+            {Array.from({ length: 4 }, (_, ci) => {
+              const id = owned[ci];
+              if (!id) return <span key={ci} className="hk vide" />;
+              const c = CONSUMABLES[id];
+              const cd = hud.cd[id] ?? 0;
+              return (
+                <button key={id} className={`hk cons ${cd > 0 ? 'cool' : ''}`} onClick={() => game().useItem(id)} title={`${c.name} — ${c.desc}`}>
+                  <span className="k">{ci < 3 ? keyLabel(keys[`hot${8 + ci}`]) : ''}</span>
+                  <Icon name={ITEM_ICON[id] ?? 'coffre'} size={18} />
+                  <span className="q">{p.items[id] ?? 0}</span>
+                  {cd > 0 && <span className="cdv">{Math.ceil(cd)}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="bd-combat">
+          {attacking ? <button className="cb stop" onClick={() => game().cancelAttack()} title={`Cesser le feu (${keyLabel(keys.cancelAttack)})`}>Cesser le feu</button>
+            : <button className="cb attack" disabled={!target?.hostile} onClick={() => target && game().attack(target.id)} title={`Attaquer la cible (${keyLabel(keys.attack)})`}>Attaquer</button>}
+          <button className={`cb ${hud.canDock ? 'dock' : ''}`} onClick={() => game().goToPort()} title="Accoster, ou rejoindre le port le plus proche">{hud.canDock ? 'Accoster' : 'Vers le port'}</button>
+        </div>
       </div>
     </div>
   );

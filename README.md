@@ -63,15 +63,31 @@ Le jeu se joue **à la souris**, en vue du dessus (la vue 3D derrière le navire
 
 ## Interface en mer
 
-- **Vue de dessus**, nord en haut : clic sur la mer pour naviguer (cercle vert), clic sur un ennemi pour l'attaquer
-  (tir automatique). Molette : zoom ; clic droit glissé : déplacer la vue ; touche V : vue 3D.
-- **Graduations sur les bords** : colonnes numérotées en haut, rangées lettrées à gauche (secteurs de 200 m).
-- **Barre du haut** : ressources, puis Menu, Port, Missions, Cartes bonus, Boutique, Événement, Classements,
-  Tableau, Sortie ; images/seconde et latence à droite.
-- **Haut gauche** : la cible (nom, faction, distance, vie). **Haut droite** : mini-carte, boutons ronds
-  (discussion, cartes, paramètres) et la ligne « (joueurs) carte secteur ⚓ » — l'ancre mène au port le plus proche.
-- **Onglets de droite** : Missions, Espion (navires proches), Groupe, Tableau (bilan du capitaine).
-- **Bas** : barre de vie, barre d'expérience, munitions (1–7) et objets (8–0).
+- **Vue aérienne** (inclinée, nord en haut) : clic sur la mer pour naviguer, clic sur un ennemi pour l'attaquer
+  (tir automatique). Molette : zoom ; clic droit glissé : déplacer la vue ; clic molette glissé ou touches `;` `:`
+  (`,` `.` en QWERTY) : tourner la caméra ; X : recentrer ; V : vue 3D.
+- Sous chaque navire : nom, niveau et barre de vie ; cercle vert en pointillés sous le vôtre, rouge sous la cible.
+- **Haut** : niveau et expérience, or, doublons, perles, diamants, ressources, puis Menu, Port, Missions, Cartes bonus,
+  Boutique, Événement, Classements, Tableau, Sortie. Graduations des secteurs sur les bords (200 m).
+- **Gauche** : journal de bord (missions, objectifs, événements). **Droite** : mini-carte, ligne
+  « (joueurs) carte secteur ⚓ », cible, navires à proximité, groupe, tableau.
+- **Bas** : coque, **bouclier** (encaisse les dégâts avant la coque, se recharge 6 s après le dernier coup) et
+  **énergie** (se régénère, sert aux compétences) ; munitions (1–7), **compétences** (A Z R S D en AZERTY) et objets
+  (8–0) ; boutons Attaquer / Cesser le feu / Accoster.
+
+### Compétences actives
+
+| Touche (AZERTY) | Compétence | Niveau | Énergie | Recharge | Effet |
+|---|---|---|---|---|---|
+| A | Bordée concentrée | 1 | 35 | 25 s | canons rechargés, +30 % de dégâts 8 s |
+| Z | Toutes voiles dehors | 2 | 25 | 30 s | +50 % de vitesse 8 s |
+| R | Charpentiers à l'ouvrage | 4 | 40 | 45 s | +15 % de coque |
+| S | Rempart de bordage | 7 | 50 | 60 s | recharge la moitié du bouclier |
+| D | Tir de précision | 10 | 45 | 50 s | +40 % de coups critiques 10 s |
+
+Charte graphique : bleu abyssal #071725, bleu océan #103B56, bleu marine #162B42, or royal #C9A45C, ivoire #E9E0CC,
+rouge combat #A83232, vert émeraude #34866B, gris acier #65727D, noir profond #090D12 ; titres Cinzel, textes Inter,
+chiffres Roboto Condensed.
 
 ## Cartes
 

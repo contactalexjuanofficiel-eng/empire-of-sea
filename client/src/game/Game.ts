@@ -11,6 +11,7 @@ import { collideShip, GRAVITY, stepShip, type ShipKinematics, type Wind } from '
 import { F_BURNING, F_PVP, F_REPAIRING, F_SAFE, F_SINKING, type EntityMeta, type GameEvent, type MeState, type S2C, type Side, type WeatherState } from '../../../shared/protocol';
 import { computeStats, SHIP_BY_ID, type ShipStats } from '../../../shared/ships';
 import { rowLabel, SECTOR, sectorName } from '../../../shared/sector';
+import { ACTIVE_SKILLS, type ActiveSkillId } from '../../../shared/combat';
 import { DOCK_RADIUS, FACTION_LABEL, START_ZONE, ZONE_BY_ID, type ZoneDef } from '../../../shared/zones';
 import { terrainHeight } from '../../../shared/world';
 import { Connection } from '../net/Connection';
@@ -106,6 +107,8 @@ export class Game {
   private loadingZone = false;
   private navRing!: THREE.Mesh;
   private sectorGrid: THREE.LineSegments | null = null;
+  /** Cercle en pointillés sous mon navire (vert). */
+  private selfRing!: THREE.Mesh;
   private targetRing!: THREE.Mesh;
   selectedId = 0;
   private fpsFrames = 0;
@@ -136,8 +139,9 @@ export class Game {
 
     this.rig = new CameraRig(this.camera);
     this.input = new Input(this.renderer.domElement, store.get().settings.keys);
-    this.input.onDrag = (dx, dy) => {
-      if (this.rig.mode === 'dessus') this.rig.panBy(-dx * this.rig.viewDist * 0.0025, -dy * this.rig.viewDist * 0.0035);
+    this.input.onDrag = (dx, dy, button) => {
+      if (this.rig.mode === 'dessus' && button === 1) this.rig.rotateIso(-dx * 0.006);
+      else if (this.rig.mode === 'dessus') this.rig.panBy(-dx * this.rig.viewDist * 0.0022, -dy * this.rig.viewDist * 0.0032);
       else this.rig.rotate(dx, dy, this.t);
     };
     this.input.onWheel = (d) => this.rig.zoom(d);
@@ -168,8 +172,15 @@ export class Game {
     // Repères : destination (vert) et cible (rouge)
     this.navRing = new THREE.Mesh(new THREE.RingGeometry(6, 8.5, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x5dff8a, transparent: true, opacity: 0.85, depthWrite: false, fog: false }));
     this.targetRing = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff4a3a, transparent: true, opacity: 0.9, depthWrite: false, fog: false }));
-    this.navRing.renderOrder = this.targetRing.renderOrder = 5;
-    this.scene.add(this.navRing, this.targetRing);
+    // Cercles de sélection en pointillés, posés sur l'eau (rouge = cible ennemie, jaune = sélection, vert = moi).
+    this.targetRing.geometry.dispose();
+    this.targetRing.geometry = dashedRing(0.92, 1.0, 28);
+    this.selfRing = new THREE.Mesh(dashedRing(0.95, 1.0, 36), new THREE.MeshBasicMaterial({ color: 0x34866b, transparent: true, opacity: 0.9, depthWrite: false, depthTest: false, fog: false }));
+    (this.targetRing.material as THREE.MeshBasicMaterial).depthTest = false;
+    (this.targetRing.material as THREE.MeshBasicMaterial).side = THREE.DoubleSide;
+    (this.selfRing.material as THREE.MeshBasicMaterial).side = THREE.DoubleSide;
+    this.navRing.renderOrder = this.targetRing.renderOrder = this.selfRing.renderOrder = 5;
+    this.scene.add(this.navRing, this.targetRing, this.selfRing);
 
     this.fx.onMuzzle = (x, y, z, owner) => this.muzzle(x, y, z, owner);
     this.fx.onSplash = (x, z) => this.audio.splash(this.camera.position.distanceTo(this.tmpV.set(x, 0, z)));
@@ -197,7 +208,7 @@ export class Game {
     this.bloom.enabled = s.quality === 'haute';
     this.rig.autoFollow = s.autoCam;
     this.input.setKeys(s.keys);
-    if (this.rig.mode !== s.camMode) this.rig.setMode(s.camMode);
+    if (this.rig.mode !== s.camMode) { this.rig.setMode(s.camMode); this.applyWaterTone(); }
     this.audio.setVolume(s.volume, s.muted);
     this.resize();
   }
@@ -227,8 +238,7 @@ export class Game {
     this.scene.add(this.zoneVis.group);
     this.buildSectorGrid(def.half);
     this.ocean.setDepthMap(this.zoneVis.depthTex, def.half);
-    (this.ocean.uniforms.uDeep.value as THREE.Color).set(def.ambiance.deep);
-    (this.ocean.uniforms.uShallow.value as THREE.Color).set(def.ambiance.shallow);
+    this.applyWaterTone();
     for (const l of this.zoneVis.labels) {
       const el = document.createElement('div');
       el.className = `wlabel wlabel-${l.kind}`;
@@ -550,6 +560,7 @@ export class Game {
     if (a === 'maps') { store.set({ panel: s.panel === 'carte' ? (s.docked ? 'port' : null) : 'carte' }); return; }
     if (a === 'camMode') { const m = s.settings.camMode === 'dessus' ? '3d' : 'dessus'; saveSettings({ ...s.settings, camMode: m }); this.applySettings(); return; }
     if (a === 'camCenter') { this.rig.center(); return; }
+    if (a === 'camRotL' || a === 'camRotR') { this.rig.rotateIso(a === 'camRotL' ? Math.PI / 4 : -Math.PI / 4); return; }
     if (a === 'missions' || a === 'shop' || a === 'captains') {
       const panel = a === 'shop' ? 'boutique' : a === 'captains' ? 'capitaines' : 'missions';
       store.set({ panel: s.panel === panel ? (s.docked ? 'port' : null) : panel });
@@ -568,6 +579,7 @@ export class Game {
       case 'fish': this.net.send({ t: 'fish', on: !this.me.fishing }); break;
       case 'attack': if (this.selectedId) this.attack(this.selectedId); else notify('Cliquez d\'abord sur un navire ennemi pour le cibler.', 'warn'); break;
       case 'cancelAttack': this.cancelAttack(); break;
+      case 'skill1': case 'skill2': case 'skill3': case 'skill4': case 'skill5': this.useSkill(ACTIVE_SKILLS[Number(a.slice(5)) - 1].id); break;
       case 'dock': this.dock(); break;
       case 'pvp': this.net.send({ t: 'pvp', on: !this.me.pvp }); break;
     }
@@ -628,6 +640,17 @@ export class Game {
     this.navRing.userData.pulse = 1;
   }
 
+  /** Couleur de l'eau : en vue aérienne on voit surtout la masse d'eau, on l'éclaircit donc vers un bleu océan lumineux. */
+  private applyWaterTone() {
+    const deep = this.ocean.uniforms.uDeep.value as THREE.Color, shallow = this.ocean.uniforms.uShallow.value as THREE.Color;
+    deep.set(this.zone.ambiance.deep);
+    shallow.set(this.zone.ambiance.shallow);
+    if (this.rig.mode === 'dessus') {
+      deep.offsetHSL(0.0, 0.12, 0.13);
+      shallow.offsetHSL(0.0, 0.08, 0.08);
+    }
+  }
+
   /** Quadrillage des secteurs, très discret, posé sur la mer (visible en vue du dessus). */
   private buildSectorGrid(half: number) {
     if (this.sectorGrid) { this.scene.remove(this.sectorGrid); this.sectorGrid.geometry.dispose(); }
@@ -660,17 +683,25 @@ export class Game {
       const t = -r.origin.y / r.direction.y;
       return { x: r.origin.x + r.direction.x * t, z: r.origin.z + r.direction.z * t };
     };
-    const a = hit(0, H * 0.5), b = hit(W, H * 0.5), c = hit(W * 0.5, 0), d = hit(W * 0.5, H);
-    if (!a || !b || !c || !d) return out;
+    // Graduations seulement quand la vue est orientée nord en haut (sinon les lignes ne sont plus parallèles aux bords).
+    if (Math.abs(Math.atan2(Math.sin(this.rig.isoYaw), Math.cos(this.rig.isoYaw))) > 0.05) return out;
+    // Colonnes : une rangée horizontale de l'écran correspond à une ligne z constante, donc x y varie linéairement.
+    const topY = 66;
+    const a = hit(0, topY), b = hit(W, topY);
+    if (!a || !b) return out;
+    const n = (2 * half) / SECTOR;
     for (let i = Math.ceil((a.x + half) / SECTOR); i <= Math.floor((b.x + half) / SECTOR); i++) {
-      if (i < 0 || i > (2 * half) / SECTOR) continue;
-      const x = -half + i * SECTOR;
-      out.cols.push({ px: ((x - a.x) / (b.x - a.x)) * W, label: String(i + 1) });
+      if (i < 0 || i > n) continue;
+      out.cols.push({ px: ((-half + i * SECTOR - a.x) / (b.x - a.x)) * W, label: String(i + 1) });
     }
-    for (let j = Math.ceil((c.z + half) / SECTOR); j <= Math.floor((d.z + half) / SECTOR); j++) {
-      if (j < 0 || j > (2 * half) / SECTOR) continue;
-      const z = -half + j * SECTOR;
-      out.rows.push({ px: ((z - c.z) / (d.z - c.z)) * H, label: rowLabel(j) });
+    // Rangées : une ligne z constante se projette en ligne horizontale ; on projette simplement un de ses points.
+    const top = hit(W * 0.5, 0), bot = hit(W * 0.5, H);
+    if (!top || !bot) return out;
+    const fx = (top.x + bot.x) / 2;
+    for (let j = Math.ceil((top.z + half) / SECTOR); j <= Math.floor((bot.z + half) / SECTOR); j++) {
+      if (j < 0 || j > n) continue;
+      const v = this.tmpV.set(fx, 0, -half + j * SECTOR).project(this.camera);
+      out.rows.push({ px: (-v.y * 0.5 + 0.5) * H, label: rowLabel(j) });
     }
     return out;
   }
@@ -695,6 +726,7 @@ export class Game {
 
   selectAmmo(id: AmmoId) { this.net.send({ t: 'ammo', id }); }
   useItem(id: ConsumableId) { this.net.send({ t: 'use', id }); }
+  useSkill(id: ActiveSkillId) { this.net.send({ t: 'skill', id }); }
   setSail(level: number) { this.sail = clamp(level, 0, 3); }
   dock() { this.net.send({ t: 'dock' }); }
   undock() { this.net.send({ t: 'undock' }); store.set({ panel: null }); }
@@ -814,6 +846,8 @@ export class Game {
     let focus = new THREE.Vector3();
     let heading = 0;
     if (inGame) {
+      // Le navire de l'écran titre n'a plus rien à faire en jeu (il apparaissait comme un « fantôme » près de Brest).
+      if (this.showcase) { this.scene.remove(this.showcase.root); this.showcase.dispose(); this.showcase = null; this.showcaseKey = ''; }
       if (this.me && !this.me.docked) this.updateInput(dt);
       this.processEvents(renderT);
       this.updateEntities(dt, renderT);
@@ -1183,6 +1217,13 @@ export class Game {
       this.navRing.scale.setScalar(pulse * (1 + this.rig.viewDist / 600));
     }
     const tid = me?.target || this.selectedId;
+    const mine = this.ents.get(this.myId);
+    this.selfRing.visible = show && !!mine?.model && !!this.pred && this.rig.mode === 'dessus';
+    if (this.selfRing.visible && this.pred && mine?.model) {
+      this.selfRing.position.set(this.pred.x, 0.9, this.pred.z);
+      this.selfRing.scale.setScalar(mine.model.dims.L * 0.62);
+      this.selfRing.rotation.y = -this.t * 0.25;
+    }
     const te = tid ? this.ents.get(tid) : undefined;
     if (me && !me.target && this.selectedId && !te) this.selectedId = 0;
     this.targetRing.visible = show && !!te;
@@ -1191,7 +1232,7 @@ export class Game {
       this.targetRing.position.set(te.cur.x, waveHeight(te.cur.x, te.cur.z, this.t) + 1, te.cur.z);
       this.targetRing.scale.setScalar(r * (1 + 0.04 * Math.sin(this.t * 6)));
       this.targetRing.rotation.y = this.t * 0.5;
-      (this.targetRing.material as THREE.MeshBasicMaterial).color.setHex(me?.attacking ? 0xff4a3a : 0xf0c25a);
+      (this.targetRing.material as THREE.MeshBasicMaterial).color.setHex(me?.attacking ? 0xe0463a : 0xe6c04a);
     }
   }
 
@@ -1203,12 +1244,20 @@ export class Game {
       if (!e.label) continue;
       const c = e.cur;
       const d = Math.hypot(cam.x - c.x, cam.z - c.z);
-      const top = e.model ? e.model.dims.L * 0.95 + 8 : e.meta.kind === 'fort' ? 30 : 8;
       const maxD = e.meta.kind === 'loot' ? 900 : e.meta.kind === 'boss' ? 4000 : 1500;
-      const v = this.tmpV.set(c.x, top, c.z).project(this.camera);
+      let v: THREE.Vector3, below = false;
+      if (this.rig.mode === 'dessus') {
+        // Vue aérienne : nom et barre de vie SOUS le navire, au bord de son cercle côté caméra.
+        const R = e.model ? e.model.dims.L * 0.55 + 4 : e.meta.kind === 'fort' ? 24 : 6;
+        v = this.tmpV.set(c.x + Math.sin(this.rig.isoYaw) * R, 0, c.z + Math.cos(this.rig.isoYaw) * R).project(this.camera);
+        below = true;
+      } else {
+        const top = e.model ? e.model.dims.L * 0.95 + 8 : e.meta.kind === 'fort' ? 30 : 8;
+        v = this.tmpV.set(c.x, top, c.z).project(this.camera);
+      }
       if (!show || v.z > 1 || d > maxD || (c.flags & F_SINKING && e.sinkT > 3)) { e.label.style.display = 'none'; continue; }
       e.label.style.display = '';
-      e.label.style.transform = `translate(${((v.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-v.y * 0.5 + 0.5) * H).toFixed(1)}px) translate(-50%, -100%)`;
+      e.label.style.transform = `translate(${((v.x * 0.5 + 0.5) * W).toFixed(1)}px, ${((-v.y * 0.5 + 0.5) * H).toFixed(1)}px) translate(-50%, ${below ? '2px' : '-100%'})`;
       e.label.style.opacity = String(clamp(1.3 - d / maxD, 0.25, 1));
       if (e.hpBar) e.hpBar.style.width = `${Math.max(0, c.hp * 100)}%`;
       const pvp = e.meta.kind === 'player' && (c.flags & F_PVP) && !(c.flags & F_SAFE);
@@ -1274,6 +1323,11 @@ export class Game {
         weather: this.weather.kind,
         day: this.day,
         fishing: !!me?.fishing,
+        shield: me?.shield ?? 0,
+        shieldMax: me?.shieldMax ?? 0,
+        energy: me?.energy ?? 0,
+        skillCd: me?.skillCd ?? {},
+        boost: me?.boost ?? { dmg: 0, crit: 0, speed: 0, shield: 0 },
       },
       nearby: nearby.slice(0, 8),
       attacking: !!me?.attacking,
@@ -1297,4 +1351,20 @@ export class Game {
     }
     return { ents, half: this.zone.half, me: this.pred, camYaw: this.rig.yaw, wind: this.wind, ports: this.zone.ports, docks: this.zoneVis?.world.docks };
   }
+}
+
+/** Anneau en pointillés (rayon 1) : n tirets réguliers, à plat sur l'eau. */
+function dashedRing(rIn: number, rOut: number, n: number) {
+  const pos: number[] = [];
+  const step = (Math.PI * 2) / n, len = step * 0.55, seg = 4;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < seg; j++) {
+      const a0 = i * step + (j / seg) * len, a1 = i * step + ((j + 1) / seg) * len;
+      const p = (r: number, a: number) => [Math.cos(a) * r, 0, Math.sin(a) * r];
+      pos.push(...p(rIn, a0), ...p(rOut, a1), ...p(rOut, a0), ...p(rIn, a0), ...p(rIn, a1), ...p(rOut, a1));
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
 }

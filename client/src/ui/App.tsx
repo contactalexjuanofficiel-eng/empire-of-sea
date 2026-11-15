@@ -1,7 +1,7 @@
 import { useStore } from '../store';
 import { Create } from './Create';
 import { BossBar, Chat, Hints, Notices, SeaPrompts } from './Hud';
-import { BottomDock, MapBlock, Rulers, SideTabs, TargetCard, TopNav } from './Hud2';
+import { BottomDock, Journal, MapBlock, Rulers, SideTabs, TargetCard, TopNav } from './Hud2';
 import { Login } from './Login';
 import { Help, Inventory, GuildPanel, Leaderboard, ProfilePanel, Settings, WorldMap } from './Panels';
 import { PortPanel } from './Port';
@@ -27,8 +27,8 @@ export function App() {
       {!docked && (
         <>
           <Rulers />
-          <TargetCard />
-          <div className="right-col2"><MapBlock /><SideTabs /></div>
+          <div className="leftcol"><Journal /></div>
+          <div className="right-col2"><MapBlock /><TargetCard /><SideTabs /></div>
           <BottomDock />
           <SeaPrompts />
           <Hints />

@@ -177,7 +177,6 @@ export function SeaPrompts() {
           <p>Les chaloupes vous ramènent au port… {Math.ceil(hud.dead)} s</p>
         </div>
       )}
-      {hud.powder > 0 && <div className="buff">Poudre fine · {Math.ceil(hud.powder)} s</div>}
     </>
   );
 }

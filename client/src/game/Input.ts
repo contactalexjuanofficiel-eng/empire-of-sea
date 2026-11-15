@@ -4,6 +4,7 @@ export type Action =
   | 'attack' | 'cancelAttack' | 'fireBoth'
   | 'sailUp' | 'sailDown' | 'left' | 'right'
   | 'hot1' | 'hot2' | 'hot3' | 'hot4' | 'hot5' | 'hot6' | 'hot7' | 'hot8' | 'hot9' | 'hot10'
+  | 'skill1' | 'skill2' | 'skill3' | 'skill4' | 'skill5' | 'camRotL' | 'camRotR'
   | 'fish' | 'missions' | 'shop' | 'captains'
   | 'camUp' | 'camDown' | 'camLeft' | 'camRight' | 'camCenter' | 'camMode'
   | 'dock' | 'maps' | 'inventory' | 'profile' | 'ranking' | 'guild' | 'chat' | 'escape' | 'pvp';
@@ -24,6 +25,13 @@ export const KEY_DEFS: KeyDef[] = [
   { action: 'hot8', label: 'Objet 1', group: 'Barre rapide', def: 'Digit8' },
   { action: 'hot9', label: 'Objet 2', group: 'Barre rapide', def: 'Digit9' },
   { action: 'hot10', label: 'Objet 3', group: 'Barre rapide', def: 'Digit0' },
+  { action: 'skill1', label: 'Compétence 1 — Bordée concentrée', group: 'Compétences', def: 'KeyQ' },
+  { action: 'skill2', label: 'Compétence 2 — Toutes voiles dehors', group: 'Compétences', def: 'KeyW' },
+  { action: 'skill3', label: 'Compétence 3 — Charpentiers', group: 'Compétences', def: 'KeyR' },
+  { action: 'skill4', label: 'Compétence 4 — Rempart de bordage', group: 'Compétences', def: 'KeyS' },
+  { action: 'skill5', label: 'Compétence 5 — Tir de précision', group: 'Compétences', def: 'KeyD' },
+  { action: 'camRotL', label: 'Tourner la caméra (gauche)', group: 'Caméra', def: 'Comma' },
+  { action: 'camRotR', label: 'Tourner la caméra (droite)', group: 'Caméra', def: 'Period' },
   { action: 'camUp', label: 'Caméra haut', group: 'Caméra', def: 'KeyT' },
   { action: 'camDown', label: 'Caméra bas', group: 'Caméra', def: 'KeyG' },
   { action: 'camLeft', label: 'Caméra gauche', group: 'Caméra', def: 'KeyF' },
@@ -131,6 +139,7 @@ export class Input {
     if (a) this.held.delete(a);
   };
   private pDown = (e: PointerEvent) => {
+    if (e.button === 1) e.preventDefault(); // clic molette : rotation de la caméra, pas de défilement automatique
     this.down = { x: e.clientX, y: e.clientY, button: e.button };
     this.moved = 0;
   };
