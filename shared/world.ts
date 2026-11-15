@@ -23,6 +23,8 @@ export interface FortDef {
   islandId: number;
   facing: number;
   name: string;
+  /** Numéro de tour sur une île fortifiée (0 = fort de port). */
+  tower: number;
 }
 
 export interface WreckDef { id: number; x: number; z: number; h: number; name: string }
@@ -76,7 +78,7 @@ export function buildWorld(zone: ZoneDef): ZoneWorld {
     docks[isl.port.id] = { x: isl.x + dx * (isl.r + 170), z: isl.z + dz * (isl.r + 170), h: a };
     for (const off of [-0.75, 0.75]) {
       const fa = a + off;
-      forts.push({ id: fid++, x: isl.x + Math.sin(fa) * isl.r * 0.82, z: isl.z + Math.cos(fa) * isl.r * 0.82, faction: 'france', islandId: isl.id, facing: fa, name: `Fort de ${isl.name}` });
+      forts.push({ id: fid++, x: isl.x + Math.sin(fa) * isl.r * 0.82, z: isl.z + Math.cos(fa) * isl.r * 0.82, faction: 'france', islandId: isl.id, facing: fa, name: `Fort de ${isl.name}`, tower: 0 });
     }
   }
   // Repaires pirates fortifiés sur les plus grandes îles éloignées des ports.
@@ -86,8 +88,13 @@ export function buildWorld(zone: ZoneDef): ZoneWorld {
     .sort((a, b) => b.r - a.r);
   for (let k = 0; k < Math.min(zone.pirateForts, candidates.length); k++) {
     const isl = candidates[k];
-    const a = R() * Math.PI * 2;
-    forts.push({ id: fid++, x: isl.x + Math.sin(a) * isl.r * 0.72, z: isl.z + Math.cos(a) * isl.r * 0.72, faction: 'pirate', islandId: isl.id, facing: a, name: `Repaire de ${isl.name}` });
+    // Île fortifiée : trois tours réparties autour de l'île, reliées par un rempart.
+    const a0 = R() * Math.PI * 2;
+    for (let t = 0; t < 3; t++) {
+      const a = a0 + (t / 3) * Math.PI * 2;
+      const rr = coastRadius(isl, Math.atan2(Math.cos(a), Math.sin(a))) * 0.8;
+      forts.push({ id: fid++, x: isl.x + Math.sin(a) * rr, z: isl.z + Math.cos(a) * rr, faction: 'pirate', islandId: isl.id, facing: a, name: `Tour ${t + 1} — ${isl.name}`, tower: t + 1 });
+    }
   }
 
   const wrecks: WreckDef[] = [];

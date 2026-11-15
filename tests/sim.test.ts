@@ -20,7 +20,7 @@ function fakeLink(name: string, id: number): PlayerLink & { inbox: S2C[] } {
     send: (m) => inbox.push(m), notify: (text) => inbox.push({ t: 'notice', text }), touch: () => {},
     zoneId: 'manche-1', entityId: 100000 + id, docked: true, port: 'brest', input: { sail: 0, rudder: 0 }, seq: 0,
     pvp: false, hpRatio: 1, sailRatio: 1, known: new Set(), deadTimer: 0, groupId: null, guildTag: null,
-    nav: null, targetId: 0, attacking: false,
+    nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0,
   };
 }
 
@@ -75,7 +75,7 @@ test('combat : une bordée touche, coule un PNJ et rapporte or, XP et butin', ()
   npc.stats = { ...npc.stats, speed: 0, turn: 0 };
   me.stats = { ...me.stats, dispersion: 0 };
   const orBefore = link.profile.or, xpBefore = link.profile.xp;
-  zone.fireSide(me, 'babord', 150, 0);
+  zone.fire(me, 150, 0);
   assert.ok(me.reload[0] > 0);
   for (let i = 0; i < 80 && npc.sinking < 0; i++) {
     me.k.speed = 0; link.input = { sail: 0, rudder: 0 };

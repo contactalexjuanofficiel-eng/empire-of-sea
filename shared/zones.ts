@@ -2,7 +2,7 @@
 // (on peut donc les répartir plus tard sur plusieurs processus / machines).
 import type { GoodId } from './items.ts';
 
-export type Faction = 'france' | 'pirate' | 'anglais' | 'barbaresque' | 'flibustier' | 'spectre';
+export type Faction = 'france' | 'pirate' | 'anglais' | 'barbaresque' | 'flibustier' | 'spectre' | 'hollandais' | 'monstre';
 export const FACTION_LABEL: Record<Faction, string> = {
   france: 'Marine royale',
   pirate: 'Pirates',
@@ -10,6 +10,8 @@ export const FACTION_LABEL: Record<Faction, string> = {
   barbaresque: 'Corsaires barbaresques',
   flibustier: 'Flibustiers',
   spectre: 'Spectres',
+  hollandais: 'Marine hollandaise',
+  monstre: 'Monstres marins',
 };
 
 export type Vegetation = 'tempere' | 'atlantique' | 'mediterraneen' | 'tropical' | 'brumeux';
@@ -246,8 +248,20 @@ const WAR_PORTS: Record<string, string[]> = {
 };
 const slug = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 
+/** Ennemis supplémentaires par étage : monstres marins et autres navires, pour varier chaque carte. */
+function extraEnemies(tier: number): EnemySpawn[] {
+  const L = (base: number) => base + tier * 2;
+  const list: EnemySpawn[] = [];
+  if (tier <= 2) list.push({ ship: 'chasse_maree', faction: 'pirate', level: L(0), weight: 3 }, { ship: 'crocodile', faction: 'monstre', level: L(0), weight: 2 });
+  if (tier >= 2 && tier <= 4) list.push({ ship: 'requin', faction: 'monstre', level: L(3), weight: 2 }, { ship: 'hollandais_fregate', faction: 'hollandais', level: L(4), weight: 2 });
+  if (tier >= 4 && tier <= 8) list.push({ ship: 'serpent', faction: 'monstre', level: L(6), weight: 2 }, { ship: 'galion_pirate', faction: 'pirate', level: L(6), weight: 2 });
+  if (tier >= 6) list.push({ ship: 'kraken', faction: 'monstre', level: L(8), weight: 2 });
+  if (tier >= 10) list.push({ ship: 'leviathan', faction: 'monstre', level: L(10), weight: 1 });
+  return list;
+}
+
 export const PAIRED_TIERS = 5;
-export const ZONES: ZoneDef[] = SEAS.flatMap((sea, i) => {
+export const ZONES: ZoneDef[] = SEAS.map((s, i) => ({ ...s, enemies: [...s.enemies, ...extraEnemies(i + 1)] })).flatMap((sea, i) => {
   const tier = i + 1;
   if (tier > PAIRED_TIERS) {
     // Cartes 11 à 20 : une seule carte par étage, numérotées à la suite, combat libre.

@@ -1,7 +1,7 @@
 // Munitions, consommables, marchandises, améliorations et compétences.
 import type { ShipUpgrades, Skills } from './ships.ts';
 
-export type AmmoId = 'rond' | 'chaine' | 'mitraille' | 'rouge' | 'explosif';
+export type AmmoId = 'rond' | 'chaine' | 'mitraille' | 'rouge' | 'explosif' | 'perle' | 'diamant';
 
 export interface AmmoDef {
   id: AmmoId;
@@ -13,20 +13,23 @@ export interface AmmoDef {
   spread: number; // multiplicateur de dispersion
   fire: number; // probabilité d'incendie par impact
   crew: number; // secondes ajoutées au rechargement adverse (mitraille)
-  price: { or?: number; perles?: number } | null; // prix par lot (null = illimité)
+  price: { or?: number; perles?: number; diamants?: number } | null; // prix par lot (null = illimité)
+  elite: number; // multiplicateur des points élite gagnés avec ces boulets
   pack: number;
   desc: string;
   color: number;
 }
 
 export const AMMO: Record<AmmoId, AmmoDef> = {
-  rond: { id: 'rond', name: 'Boulet rond', short: 'Rond', hull: 1, sail: 0.3, range: 1, spread: 1, fire: 0.02, crew: 0, price: null, pack: 0, desc: 'Munition réglementaire, illimitée. Bon équilibre coque/voilure.', color: 0x222222 },
-  chaine: { id: 'chaine', name: 'Boulet ramé', short: 'Ramé', hull: 0.35, sail: 2.4, range: 0.8, spread: 1.3, fire: 0, crew: 0, price: { or: 300 }, pack: 25, desc: 'Deux demi-boulets enchaînés : déchire la voilure et ralentit l\'ennemi.', color: 0x3a3a44 },
-  mitraille: { id: 'mitraille', name: 'Mitraille', short: 'Mitr.', hull: 0.7, sail: 0.6, range: 0.55, spread: 2.4, fire: 0, crew: 2.5, price: { or: 350 }, pack: 25, desc: 'Courte portée. Fauche les servants : rechargement adverse ralenti.', color: 0x555555 },
-  rouge: { id: 'rouge', name: 'Boulet rouge', short: 'Rouge', hull: 0.9, sail: 0.4, range: 0.9, spread: 1, fire: 0.3, crew: 0, price: { or: 500 }, pack: 25, desc: 'Chauffé au fourneau : met le feu au navire touché.', color: 0xff5a1a },
-  explosif: { id: 'explosif', name: 'Obus explosif', short: 'Obus', hull: 1.75, sail: 0.6, range: 0.85, spread: 1.1, fire: 0.12, crew: 0.5, price: { perles: 2 }, pack: 10, desc: 'Projectile creux chargé de poudre. Dévastateur.', color: 0x2a2a2a },
+  rond: { id: 'rond', name: 'Boulet rond', short: 'Rond', hull: 1, sail: 0.3, range: 1, spread: 1, fire: 0.02, elite: 1, crew: 0, price: null, pack: 0, desc: 'Munition réglementaire, illimitée. Bon équilibre coque/voilure.', color: 0x222222 },
+  chaine: { id: 'chaine', name: 'Boulet ramé', short: 'Ramé', hull: 0.35, sail: 2.4, range: 0.8, spread: 1.3, fire: 0, elite: 1, crew: 0, price: { or: 300 }, pack: 25, desc: 'Deux demi-boulets enchaînés : déchire la voilure et ralentit l\'ennemi.', color: 0x3a3a44 },
+  mitraille: { id: 'mitraille', name: 'Mitraille', short: 'Mitr.', hull: 0.7, sail: 0.6, range: 0.55, spread: 2.4, fire: 0, elite: 1, crew: 2.5, price: { or: 350 }, pack: 25, desc: 'Courte portée. Fauche les servants : rechargement adverse ralenti.', color: 0x555555 },
+  rouge: { id: 'rouge', name: 'Boulet rouge', short: 'Rouge', hull: 0.9, sail: 0.4, range: 0.9, spread: 1, fire: 0.3, elite: 1, crew: 0, price: { or: 500 }, pack: 25, desc: 'Chauffé au fourneau : met le feu au navire touché.', color: 0xff5a1a },
+  perle: { id: 'perle', name: 'Boulet de perle', short: 'Perle', hull: 1.35, sail: 0.6, range: 1, spread: 0.9, fire: 0.05, crew: 0.5, elite: 5, price: { perles: 1 }, pack: 10, desc: 'Boulet nacré d\'une précision redoutable. Rapporte 5 fois plus de points élite.', color: 0xf2eee0 },
+  diamant: { id: 'diamant', name: 'Boulet de diamant', short: 'Diam.', hull: 1.7, sail: 0.8, range: 1.05, spread: 0.8, fire: 0.1, crew: 1, elite: 12, price: { diamants: 1 }, pack: 10, desc: 'Le projectile des amiraux : perce toutes les coques. Rapporte 12 fois plus de points élite.', color: 0x9fe8ff },
+  explosif: { id: 'explosif', name: 'Obus explosif', short: 'Obus', hull: 1.75, sail: 0.6, range: 0.85, spread: 1.1, fire: 0.12, elite: 1, crew: 0.5, price: { perles: 2 }, pack: 10, desc: 'Projectile creux chargé de poudre. Dévastateur.', color: 0x2a2a2a },
 };
-export const AMMO_ORDER: AmmoId[] = ['rond', 'chaine', 'mitraille', 'rouge', 'explosif'];
+export const AMMO_ORDER: AmmoId[] = ['rond', 'chaine', 'mitraille', 'rouge', 'explosif', 'perle', 'diamant'];
 
 export type ConsumableId = 'kit' | 'seau' | 'poudre';
 export interface ConsumableDef { id: ConsumableId; name: string; price: { or: number }; key: string; desc: string; cooldown: number }

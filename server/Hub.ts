@@ -8,6 +8,7 @@ import { SHIP_BY_ID } from '../shared/ships.ts';
 import { MAX_TIER, START_ZONE, tierRequirement, ZONE_BY_ID, ZONES } from '../shared/zones.ts';
 import type { Store } from './db.ts';
 import { acceptMission, portPrices, shop } from './game/economy.ts';
+import { dailyAbandon, dailyStart } from './game/progress.ts';
 import { missionOffers } from './game/missions.ts';
 import { allocId, DAY_SECONDS, Zone } from './game/Zone.ts';
 import { activeShip, createCharacter, newProfile, playerLevel, sanitizeProfile } from './profile.ts';
@@ -129,7 +130,7 @@ export class Hub {
       zoneId: profile.zone, entityId: allocId(), docked: true, port: profile.port,
       input: { sail: 0, rudder: 0 }, seq: 0, pvp: false, hpRatio: 1, sailRatio: 1,
       known: new Set(), deadTimer: 0, groupId: null, guildTag: this.guilds.of(name)?.tag ?? null,
-      nav: null, targetId: 0, attacking: false,
+      nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0,
       dirty: false, sentProfileAt: 0, savedAt: performance.now(), lastChat: 0, msgBudget: 80, offers: [], created: profile.created,
     };
     this.sessions.set(accountId, s);
@@ -200,9 +201,22 @@ export class Hub {
         s.nav = null;
         if (s.attacking) s.attacking = false;
         break;
+      case 'fish': {
+        if (!ship || s.docked) return err('Il faut être en mer pour pêcher.');
+        if (m.on && zone.inSafeZone(ship.k.x, ship.k.z)) return err('Pas de pêche dans les eaux du port : éloignez-vous un peu.');
+        s.fishing = !!m.on;
+        s.fishTimer = 0;
+        if (s.fishing) { s.nav = null; s.attacking = false; s.notify('Lignes à l\'eau ! Restez immobile pour pêcher.', 'info'); }
+        break;
+      }
+      case 'daily':
+        if (m.a === 'start') err(dailyStart(s, m.id, zone.def.tier));
+        else dailyAbandon(s, m.id);
+        break;
       case 'move': {
         const half = zone.def.half;
         s.nav = { x: num(m.x, -half, half), z: num(m.z, -half, half) };
+        s.fishing = false;
         break;
       }
       case 'target': {
@@ -217,12 +231,7 @@ export class Hub {
       }
       case 'fire':
         if (!ship || ship.sinking >= 0) return;
-        if (m.side === 'both') {
-          zone.fireSide(ship, 'babord', num(m.x, -1e5, 1e5), num(m.z, -1e5, 1e5));
-          zone.fireSide(ship, 'tribord', num(m.x, -1e5, 1e5), num(m.z, -1e5, 1e5));
-        } else if (m.side === 'babord' || m.side === 'tribord') {
-          zone.fireSide(ship, m.side, num(m.x, -1e5, 1e5), num(m.z, -1e5, 1e5));
-        }
+        zone.fire(ship, num(m.x, -1e5, 1e5), num(m.z, -1e5, 1e5));
         break;
       case 'ammo':
         if (ship && AMMO[m.id] && (m.id === 'rond' || s.profile.ammo[m.id] > 0)) ship.ammo = m.id;

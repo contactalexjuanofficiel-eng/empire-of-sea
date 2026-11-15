@@ -4,7 +4,8 @@ import { fitEffects, MAST_CAPACITY, type Fit } from './equipment.ts';
 
 export type ShipClassId = 'corvette' | 'brick' | 'fregate' | 'fregate_lourde' | 'vaisseau' | 'trois_ponts' | 'amiral';
 export type Rarity = 'commun' | 'peu_commun' | 'rare' | 'epique' | 'legendaire';
-export type FlagStyle = 'royal' | 'tricolore' | 'imperial' | 'pirate' | 'anglais' | 'barbaresque' | 'spectre';
+export type FlagStyle = 'royal' | 'tricolore' | 'imperial' | 'pirate' | 'anglais' | 'barbaresque' | 'spectre' | 'hollandais' | 'aucun';
+export type MonsterKind = 'crocodile' | 'requin' | 'serpent' | 'kraken' | 'leviathan';
 
 export interface ShipClass {
   id: ShipClassId;
@@ -46,6 +47,7 @@ export interface ShipLook {
   flag: FlagStyle;
   emblem?: boolean; // emblème peint sur la grand-voile
   glow?: number; // lueur spectrale (boss)
+  monster?: MonsterKind; // créature marine (modèle 3D spécifique, attaque au contact)
 }
 
 export interface ShipDef {
@@ -62,6 +64,8 @@ export interface ShipDef {
   history: string;
   /** Navire réservé aux PNJ (non achetable). */
   npcOnly?: boolean;
+  /** Navire élite : points élite requis pour le débloquer (gratuit ensuite). */
+  elite?: number;
 }
 
 const N = (d: ShipDef) => d;
@@ -102,11 +106,31 @@ export const SHIPS: ShipDef[] = [
   N({ id: 'flibustier', name: 'Frégate flibustière', cls: 'fregate_lourde', rarity: 'commun', level: 18, price: {}, canons: 40, mod: { hp: 0.9 }, look: { hull: 0x1f1712, stripe: 0x6e1b1b, trim: 0x6b5a3a, sail: 0x6f675a, flag: 'pirate' }, history: '', npcOnly: true }),
   N({ id: 'anglais_3ponts', name: 'Trois-ponts anglais', cls: 'trois_ponts', rarity: 'commun', level: 24, price: {}, canons: 100, mod: { hp: 0.85 }, look: { hull: 0x1a1510, stripe: 0xd8b35a, trim: 0xc9a227, sail: 0xe9e2cf, flag: 'anglais' }, history: '', npcOnly: true }),
   N({ id: 'corsaire_amiral', name: 'Vaisseau amiral pirate', cls: 'amiral', rarity: 'commun', level: 30, price: {}, canons: 96, mod: { hp: 0.8, speed: 1.05 }, look: { hull: 0x140e0a, stripe: 0x6e1b1b, trim: 0x8a6a3a, sail: 0x5f574a, flag: 'pirate' }, history: '', npcOnly: true }),
+  // Autres PNJ
+  N({ id: 'chasse_maree', name: 'Chasse-marée contrebandier', cls: 'corvette', rarity: 'commun', level: 2, price: {}, canons: 10, mod: { hp: 0.6, speed: 1.15, turn: 1.15 }, look: { hull: 0x3a2a1a, stripe: 0x2a3a2a, trim: 0x6b5a3a, sail: 0xa08060, flag: 'pirate' }, history: '', npcOnly: true }),
+  N({ id: 'hollandais_fregate', name: 'Frégate hollandaise', cls: 'fregate', rarity: 'commun', level: 8, price: {}, canons: 30, mod: { hp: 0.95 }, look: { hull: 0x2a1e14, stripe: 0xd07a20, trim: 0xb8892b, sail: 0xe8e0c8, flag: 'hollandais' }, history: '', npcOnly: true }),
+  N({ id: 'galion_pirate', name: 'Galion des Frères de la Côte', cls: 'fregate_lourde', rarity: 'commun', level: 15, price: {}, canons: 44, mod: { hp: 1.05, speed: 0.92 }, look: { hull: 0x3a2412, stripe: 0xc9a227, trim: 0xd4a83a, sail: 0x4a4038, flag: 'pirate' }, history: '', npcOnly: true }),
+  // Monstres marins (attaque au contact, pas de canons)
+  N({ id: 'crocodile', name: 'Crocodile géant', cls: 'corvette', rarity: 'commun', level: 2, price: {}, canons: 0, mod: { hp: 0.55, speed: 0.9, turn: 1.3 }, look: { hull: 0x3d4a22, stripe: 0x2a3418, trim: 0xc9c08a, sail: 0, flag: 'aucun', monster: 'crocodile' }, history: '', npcOnly: true }),
+  N({ id: 'requin', name: 'Requin-marteau géant', cls: 'corvette', rarity: 'commun', level: 6, price: {}, canons: 0, mod: { hp: 0.8, speed: 1.2, turn: 1.4 }, look: { hull: 0x5a6670, stripe: 0xd8dde0, trim: 0x22262a, sail: 0, flag: 'aucun', monster: 'requin' }, history: '', npcOnly: true }),
+  N({ id: 'serpent', name: 'Serpent de mer', cls: 'brick', rarity: 'commun', level: 12, price: {}, canons: 0, mod: { hp: 1.4, speed: 1.05, turn: 1.3 }, look: { hull: 0x1f5a4a, stripe: 0xc8e070, trim: 0xff5030, sail: 0, flag: 'aucun', monster: 'serpent' }, history: '', npcOnly: true }),
+  N({ id: 'kraken', name: 'Kraken', cls: 'vaisseau', rarity: 'commun', level: 22, price: {}, canons: 0, mod: { hp: 1.1, speed: 0.6, turn: 1.5 }, look: { hull: 0x6a2a3a, stripe: 0xd88a8a, trim: 0xffe0a0, sail: 0, flag: 'aucun', monster: 'kraken' }, history: '', npcOnly: true }),
+  N({ id: 'leviathan', name: 'Léviathan', cls: 'trois_ponts', rarity: 'commun', level: 32, price: {}, canons: 0, mod: { hp: 1.2, speed: 0.85, turn: 1.2 }, look: { hull: 0x1a2a40, stripe: 0x6a8ab0, trim: 0x9fe8ff, sail: 0, flag: 'aucun', monster: 'leviathan', glow: 0x2a6aff }, history: '', npcOnly: true }),
+  // Navires élites : débloqués avec les points élite (gagnés surtout en tirant des boulets de perle ou de diamant)
+  N({ id: 'aigle_blanc', name: 'L\'Aigle Blanc', cls: 'fregate', rarity: 'epique', level: 1, price: {}, canons: 36, mod: { hp: 1.25, speed: 1.08, turn: 1.1 }, look: { hull: 0xe8e4d8, stripe: 0xc9a227, trim: 0xf2c75c, sail: 0xffffff, flag: 'royal', emblem: true }, history: 'Frégate d\'apparat entièrement peinte de blanc et d\'or, offerte aux capitaines d\'élite.', elite: 20000 }),
+  N({ id: 'dragon_vert', name: 'Le Dragon Vert', cls: 'fregate_lourde', rarity: 'epique', level: 1, price: {}, canons: 48, mod: { hp: 1.3, speed: 1.06 }, look: { hull: 0x1e5a2a, stripe: 0x9fe070, trim: 0xd4e08a, sail: 0x8ad070, flag: 'royal', emblem: true }, history: 'Coque verte et voiles émeraude : on dit qu\'il porte chance aux corsaires de Saint-Malo.', elite: 60000 }),
+  N({ id: 'salamandre', name: 'La Salamandre d\'Or', cls: 'vaisseau', rarity: 'epique', level: 1, price: {}, canons: 80, mod: { hp: 1.25, reload: 0.9 }, look: { hull: 0xd08a20, stripe: 0x6a3a10, trim: 0xffd36a, sail: 0xf0b050, flag: 'royal', emblem: true }, history: 'Un 80 canons couleur de braise, emblème de François Ier.', elite: 150000 }),
+  N({ id: 'corsaire_noir', name: 'Le Corsaire Noir', cls: 'vaisseau', rarity: 'legendaire', level: 1, price: {}, canons: 84, mod: { hp: 1.3, speed: 1.1, turn: 1.08 }, look: { hull: 0x0c0c0e, stripe: 0xf0d040, trim: 0xf0d040, sail: 0x1a1a1a, flag: 'royal', emblem: true }, history: 'Voiles noires frappées de lys d\'or : la terreur des convois anglais.', elite: 350000 }),
+  N({ id: 'lys_argent', name: 'Le Lys d\'Argent', cls: 'trois_ponts', rarity: 'legendaire', level: 1, price: {}, canons: 110, mod: { hp: 1.3, range: 1.06 }, look: { hull: 0xb8c0c8, stripe: 0x2a3a5a, trim: 0xf0f4ff, sail: 0xe8eef8, flag: 'royal', emblem: true }, history: 'Trois-ponts plaqué d\'argent, vaisseau de parade de la Marine royale.', elite: 700000 }),
+  N({ id: 'licorne', name: 'La Licorne Écarlate', cls: 'trois_ponts', rarity: 'legendaire', level: 1, price: {}, canons: 116, mod: { hp: 1.35, reload: 0.9, speed: 1.06 }, look: { hull: 0x7a1010, stripe: 0x101010, trim: 0xf2c75c, sail: 0xd03020, flag: 'royal', emblem: true }, history: 'Hommage aux nombreuses Licorne de la Marine royale : coque et voiles rouge sang.', elite: 1500000 }),
+  N({ id: 'triton', name: 'Le Triton d\'Émeraude', cls: 'amiral', rarity: 'legendaire', level: 1, price: {}, canons: 120, mod: { hp: 1.35, speed: 1.12, turn: 1.1 }, look: { hull: 0x0e3a3a, stripe: 0x4fffc0, trim: 0xb0ffe0, sail: 0x9fe0d0, flag: 'royal', emblem: true, glow: 0x1a6a5a }, history: 'Navire amiral des abysses, à la coque luisante comme une écaille.', elite: 3000000 }),
+  N({ id: 'etoile_roi', name: 'L\'Étoile du Roi', cls: 'amiral', rarity: 'legendaire', level: 1, price: {}, canons: 130, mod: { hp: 1.45, reload: 0.88, range: 1.08, speed: 1.08 }, look: { hull: 0x101a40, stripe: 0xffd36a, trim: 0xfff0b0, sail: 0xf8f0d0, flag: 'royal', emblem: true, glow: 0x3a3a10 }, history: 'Le chef-d\'œuvre ultime des arsenaux du Roi. Réservé aux plus grands amiraux.', elite: 6000000 }),
   N({ id: 'spectre', name: 'Le Spectre des Brumes', cls: 'trois_ponts', rarity: 'legendaire', level: 25, price: {}, canons: 120, mod: { hp: 6, speed: 0.85, reload: 0.8, range: 1.1 }, look: { hull: 0x0c1412, stripe: 0x1d3b33, trim: 0x4fffc0, sail: 0x5f7a70, flag: 'spectre', glow: 0x3dffb0 }, history: 'Un trois-ponts disparu corps et biens en 1709, qui revient quand le brouillard tombe.', npcOnly: true }),
 ];
 
 export const SHIP_BY_ID: Record<string, ShipDef> = Object.fromEntries(SHIPS.map((s) => [s.id, s]));
-export const PLAYER_SHIPS = SHIPS.filter((s) => !s.npcOnly);
+export const PLAYER_SHIPS = SHIPS.filter((s) => !s.npcOnly && !s.elite);
+export const ELITE_SHIPS = SHIPS.filter((s) => s.elite).sort((a, b) => a.elite! - b.elite!);
 export const STARTER_SHIPS = ['bayonnaise', 'mutine', 'saint_michel'];
 
 export const RARITY_LABEL: Record<Rarity, string> = {
@@ -150,16 +174,19 @@ export interface ShipStats {
   beam: number;
 }
 
-export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: Skills = NO_SKILLS, fit?: Fit): ShipStats {
+/** Bonus multiplicatifs venant du capitaine : grades, ponts forgés, capitaines recrutés, pont décoré. */
+export interface StatBonus { hp?: number; dmg?: number; armor?: number; speed?: number; reload?: number; range?: number }
+
+export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: Skills = NO_SKILLS, fit?: Fit, bonus: StatBonus = {}): ShipStats {
   const c = SHIP_CLASSES[def.cls];
   const m = def.mod;
   const eq = fitEffects(fit, def.canons, MAST_CAPACITY[def.cls]);
-  const hp = c.hp * (m.hp ?? 1) * (1 + 0.08 * up.coque) * (1 + 0.03 * sk.charpenterie) * eq.hp;
-  const speed = c.speed * (m.speed ?? 1) * (1 + 0.04 * up.voiles) * (1 + 0.02 * sk.navigation) * eq.speed;
+  const hp = c.hp * (m.hp ?? 1) * (1 + 0.08 * up.coque) * (1 + 0.03 * sk.charpenterie) * eq.hp * (1 + (bonus.hp ?? 0));
+  const speed = c.speed * (m.speed ?? 1) * (1 + 0.04 * up.voiles) * (1 + 0.02 * sk.navigation) * eq.speed * (1 + (bonus.speed ?? 0));
   const turn = c.turn * (m.turn ?? 1) * (1 + 0.05 * up.voiles) * (1 + 0.03 * sk.navigation);
-  const reload = c.reload * (m.reload ?? 1) * (1 - 0.04 * up.canons) * eq.reload;
-  const range = c.range * (m.range ?? 1) * (1 + 0.05 * up.boulets) * eq.range;
-  const broadside = (def.canons / 2) * 14 * c.caliber * (1 + 0.07 * up.canons) * (1 + 0.03 * sk.artillerie) * eq.damage;
+  const reload = c.reload * (m.reload ?? 1) * (1 - 0.04 * up.canons) * eq.reload * (1 - (bonus.reload ?? 0));
+  const range = c.range * (m.range ?? 1) * (1 + 0.05 * up.boulets) * eq.range * (1 + (bonus.range ?? 0));
+  const broadside = (def.canons / 2) * 14 * c.caliber * (1 + 0.07 * up.canons) * (1 + 0.03 * sk.artillerie) * eq.damage * (1 + (bonus.dmg ?? 0));
   return {
     hp: Math.round(hp),
     sailHp: Math.round(hp * 0.5),
@@ -169,7 +196,7 @@ export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: S
     reload,
     range,
     cargo: Math.round(c.cargo * (m.cargo ?? 1)),
-    armor: Math.min(0.5, c.armor + 0.02 * up.coque),
+    armor: Math.min(0.6, c.armor + 0.02 * up.coque + (bonus.armor ?? 0)),
     broadside,
     balls: Math.min(14, Math.round(4 + def.canons / 10)),
     dispersion: 0.05 * (1 - 0.1 * up.boulets),

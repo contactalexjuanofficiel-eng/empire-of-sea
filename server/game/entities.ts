@@ -64,7 +64,9 @@ export interface LootEnt {
   id: number;
   x: number;
   z: number;
-  kind: 'caisse' | 'tresor';
+  kind: 'caisse' | 'tresor' | 'coffre';
+  xp?: number;
+  ferraille?: number;
   or: number;
   doublons: number;
   perles: number;

@@ -3,6 +3,7 @@
 import type { AmmoId, ConsumableId, GoodId, MaterialId, SkillId, UpgradeSlot } from './items.ts';
 import type { ShipUpgrades, Skills } from './ships.ts';
 import type { EquipId, Fit } from './equipment.ts';
+import type { CaptainCat, DailyKind, FishId, SkinId } from './extras.ts';
 import type { Faction } from './zones.ts';
 
 export const PROTOCOL_VERSION = 1;
@@ -57,6 +58,21 @@ export interface Profile {
   /** Étage de cartes débloqué (1 = Manche) et navires coulés à cet étage pour la mission de passage. */
   tier: number;
   tierKills: number;
+  /** Grades : points de tir et de pêche. */
+  shootXp: number;
+  fishXp: number;
+  fish: Partial<Record<FishId, number>>;
+  /** Points élite (cumulés, jamais dépensés) et ferraille pour la forge. */
+  elite: number;
+  ferraille: number;
+  /** Ponts forgés par le matelot de pont (8 emplacements). */
+  forge: boolean[];
+  skins: SkinId[];
+  skin: SkinId | null;
+  captains: string[];
+  captainsActive: Partial<Record<CaptainCat, string | null>>;
+  daily: { active: { id: DailyKind; progress: number; goal: number; tier: number }[]; cooldown: Partial<Record<DailyKind, number>> };
+  levelMission: { level: number; progress: number };
 }
 
 // --- Messages client -> serveur --------------------------------------------
@@ -72,7 +88,14 @@ export type ShopAction =
   | { a: 'exchange'; what: 'doublons' | 'perles' }
   | { a: 'buyEquip'; item: EquipId; qty: number }
   | { a: 'install'; item: EquipId; qty: number }
-  | { a: 'uninstall'; item: EquipId; qty: number };
+  | { a: 'uninstall'; item: EquipId; qty: number }
+  | { a: 'sellFish' }
+  | { a: 'buySkin'; skin: SkinId }
+  | { a: 'useSkin'; skin: SkinId | null }
+  | { a: 'forge'; slot: number }
+  | { a: 'recruit'; captain: string }
+  | { a: 'assign'; captain: string | null; cat: CaptainCat }
+  | { a: 'eliteShip'; ship: string };
 
 export type C2S =
   | { t: 'hello'; token: string; v: number }
@@ -92,6 +115,8 @@ export type C2S =
   | { t: 'guild'; a: 'create' | 'invite' | 'accept' | 'leave' | 'kick' | 'ally' | 'war' | 'peace' | 'info'; name?: string; tag?: string }
   | { t: 'group'; a: 'invite' | 'accept' | 'leave'; name?: string }
   | { t: 'pvp'; on: boolean }
+  | { t: 'fish'; on: boolean }
+  | { t: 'daily'; a: 'start' | 'abandon'; id: DailyKind }
   | { t: 'ping'; c: number };
 
 export type ChatChannel = 'zone' | 'monde' | 'guilde' | 'groupe' | 'prive' | 'systeme';
@@ -116,7 +141,9 @@ export interface EntityMeta {
   flag?: FlagChoice;
   friend?: boolean; // même groupe / guilde / alliance
   hostile?: boolean;
-  loot?: 'caisse' | 'tresor';
+  loot?: 'caisse' | 'tresor' | 'coffre';
+  skin?: SkinId | null;
+  shootRank?: number;
 }
 
 export interface Ball { x: number; y: number; z: number; vx: number; vy: number; vz: number; d: number }
@@ -147,6 +174,7 @@ export interface MeState {
   nav: [number, number] | null;
   target: number;
   attacking: boolean;
+  fishing: boolean;
 }
 
 export interface WeatherState { kind: 'clair' | 'brume' | 'tempete'; intensity: number; fog: number }

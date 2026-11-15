@@ -18,6 +18,17 @@ export function thinkNPC(z: Zone, s: ShipEnt, dt: number) {
   let sail = 2;
   const tgt = ai.target ? z.ships.get(ai.target) : undefined;
 
+  if (s.def.look.monster && ai.mode !== 'patrouille' && ai.mode !== 'retour' && tgt && tgt.sinking < 0) {
+    // Monstre marin : fonce sur sa proie et mord au contact.
+    const dx = tgt.k.x - s.k.x, dz = tgt.k.z - s.k.z;
+    const d = Math.hypot(dx, dz);
+    desired = avoidLand(z.world, s.k, Math.atan2(dx, dz), (x, w) => z.inSafeZone(x, w));
+    s.input.rudder = clamp(wrapAngle(s.k.h - desired) * 2.2, -1, 1);
+    s.input.sail = 3;
+    if (d < s.stats.length * 0.5 + tgt.stats.length * 0.5 + 12 && s.reload[0] <= 0) z.bite(s, tgt);
+    return;
+  }
+
   if (ai.mode === 'combat' && tgt && tgt.sinking < 0) {
     const dx = tgt.k.x - s.k.x, dz = tgt.k.z - s.k.z;
     const d = Math.hypot(dx, dz);
@@ -103,19 +114,12 @@ export function newWaypoint(z: Zone, s: ShipEnt) {
   ai.wz = ai.homeZ;
 }
 
-function tryFire(z: Zone, s: ShipEnt, tgt: ShipEnt, d: number, bearing: number) {
-  if (d > s.stats.range * 0.98) return;
-  const rel = wrapAngle(bearing - s.k.h);
-  // Bâbord à +PI/2, tribord à -PI/2 par rapport au cap.
-  const sides: [0 | 1, number][] = [[0, Math.PI / 2], [1, -Math.PI / 2]];
-  for (const [i, center] of sides) {
-    if (s.reload[i] > 0) continue;
-    if (Math.abs(wrapAngle(rel - center)) > 0.5) continue;
-    // Anticipation : on vise là où sera la cible à l'arrivée du boulet, avec une erreur selon le niveau.
-    const flight = d / 110;
-    const err = (1 - s.ai!.accuracy) * 60;
-    const ax = tgt.k.x + Math.sin(tgt.k.h) * tgt.k.speed * flight + (Math.random() - 0.5) * err;
-    const az = tgt.k.z + Math.cos(tgt.k.h) * tgt.k.speed * flight + (Math.random() - 0.5) * err;
-    z.fireSide(s, i === 0 ? 'babord' : 'tribord', ax, az);
-  }
+function tryFire(z: Zone, s: ShipEnt, tgt: ShipEnt, d: number, _bearing: number) {
+  if (d > s.stats.range * 0.98 || s.reload[0] > 0) return;
+  // Anticipation : on vise là où sera la cible à l'arrivée du boulet, avec une erreur selon le niveau.
+  const flight = d / 110;
+  const err = (1 - s.ai!.accuracy) * 60;
+  const ax = tgt.k.x + Math.sin(tgt.k.h) * tgt.k.speed * flight + (Math.random() - 0.5) * err;
+  const az = tgt.k.z + Math.cos(tgt.k.h) * tgt.k.speed * flight + (Math.random() - 0.5) * err;
+  z.fire(s, ax, az);
 }

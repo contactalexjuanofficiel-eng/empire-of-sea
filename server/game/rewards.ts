@@ -1,17 +1,22 @@
 // Attribution des récompenses et suivi des missions (toujours côté serveur).
 import { MATERIAL_NAMES, type MaterialId } from '../../shared/items.ts';
 import { EQUIP_NAME, type EquipId } from '../../shared/equipment.ts';
+import { playerBonus } from '../../shared/extras.ts';
 import { fmt } from '../../shared/math.ts';
 import { levelFromXp, rankOf } from '../../shared/progression.ts';
 import type { MissionType } from '../../shared/protocol.ts';
 import type { PlayerLink } from '../types.ts';
 
-export interface Reward { or?: number; xp?: number; rep?: number; doublons?: number; perles?: number; diamants?: number; mat?: Partial<Record<MaterialId, number>>; equip?: Partial<Record<EquipId, number>> }
+export interface Reward { ferraille?: number; or?: number; xp?: number; rep?: number; doublons?: number; perles?: number; diamants?: number; mat?: Partial<Record<MaterialId, number>>; equip?: Partial<Record<EquipId, number>> }
 
 export function grant(link: PlayerLink, r: Reward, reason: string) {
   const p = link.profile;
   const before = levelFromXp(p.xp).level;
   const parts: string[] = [];
+  // Capitaines économiques : bonus d'or et d'expérience.
+  const econ = playerBonus(p).econ;
+  r = { ...r, or: r.or ? r.or * (1 + econ.gold) : r.or, xp: r.xp ? r.xp * (1 + econ.xp) : r.xp };
+  if (r.ferraille) { p.ferraille += Math.round(r.ferraille); parts.push(`+${fmt(r.ferraille)} ferraille`); }
   if (r.or) { p.or += Math.round(r.or); parts.push(`+${fmt(r.or)} or`); }
   if (r.xp) { p.xp += Math.round(r.xp); parts.push(`+${fmt(r.xp)} XP`); }
   if (r.rep) { p.reputation += Math.round(r.rep); parts.push(`+${fmt(r.rep)} réputation`); }

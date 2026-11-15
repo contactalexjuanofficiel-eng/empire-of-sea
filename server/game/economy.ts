@@ -1,4 +1,6 @@
 // Économie : chantier naval, arsenal, améliorations, marché, compétences. Toutes les vérifications sont ici.
+import { CAPTAIN_BY_ID, FORGE, SKINS } from '../../shared/extras.ts';
+import { sellFish } from './progress.ts';
 import { CANNONS, fitCount, isCannon, isMast, MAST_CAPACITY, MASTS } from '../../shared/equipment.ts';
 import { AMMO, CONSUMABLES, GOODS, MAX_SKILL, MAX_UPGRADE, UPGRADE_INFO, upgradeCost, type GoodId } from '../../shared/items.ts';
 import { fmt } from '../../shared/math.ts';
@@ -20,7 +22,9 @@ export function portPrices(zone: ZoneDef, portId: string, t: number, commerce: n
 
 /** Applique un achat. Retourne un message d'erreur, ou null si tout s'est bien passé. */
 export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: number): string | null {
-  if (!link.docked || !link.port) return 'Vous devez être amarré au port.';
+  // Ces actions sont possibles en mer ; les autres demandent d'être à quai.
+  const anywhere = ['buyItem', 'useSkin', 'assign', 'recruit', 'eliteShip', 'buyAmmo'];
+  if (!anywhere.includes(act.a) && (!link.docked || !link.port)) return 'Vous devez être amarré au port.';
   const p = link.profile;
   const lvl = playerLevel(p);
 
@@ -74,9 +78,7 @@ export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: n
     case 'buyAmmo': {
       const a = AMMO[act.ammo];
       if (!a || !a.price) return 'Munition indisponible.';
-      if ((a.price.or ?? 0) > p.or || (a.price.perles ?? 0) > p.perles) return 'Fonds insuffisants.';
-      p.or -= a.price.or ?? 0;
-      p.perles -= a.price.perles ?? 0;
+      if (!pay(p, a.price)) return 'Fonds insuffisants.';
       p.ammo[a.id] = (p.ammo[a.id] ?? 0) + a.pack;
       break;
     }
@@ -103,7 +105,7 @@ export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: n
       const g = GOODS[act.good];
       const qty = Math.max(1, Math.min(500, Math.floor(act.qty) || 1));
       if (!g) return 'Marchandise inconnue.';
-      const price = portPrices(zone, link.port, nowSec, p.skills.commerce)[g.id]!;
+      const price = portPrices(zone, link.port!, nowSec, p.skills.commerce)[g.id]!;
       if (act.buy) {
         const cap = activeStats(p).stats.cargo;
         if (cargoUsed(p) + qty > cap) return `Cale pleine (${cap} tonneaux).`;
@@ -174,11 +176,82 @@ export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: n
       }
       break;
     }
+    case 'sellFish':
+      return sellFish(link, p.skills.commerce) ?? (link.touch(), null);
+    case 'buySkin': {
+      const sk = SKINS[act.skin];
+      if (!sk) return 'Pont inconnu.';
+      if (p.skins.includes(sk.id)) return 'Vous possédez déjà ce pont.';
+      if (!pay(p, sk.price)) return 'Fonds insuffisants.';
+      p.skins.push(sk.id);
+      p.skin = sk.id;
+      link.notify(`${sk.name} installé sur votre navire !`, 'level');
+      break;
+    }
+    case 'useSkin':
+      if (act.skin && !p.skins.includes(act.skin)) return 'Vous ne possédez pas ce pont.';
+      p.skin = act.skin;
+      break;
+    case 'forge': {
+      const i = Math.floor(act.slot);
+      const slot = FORGE[i];
+      if (!slot) return 'Emplacement inconnu.';
+      if (p.forge[i]) return 'Ce pont est déjà forgé.';
+      if (i > 0 && !p.forge[i - 1]) return `Forgez d'abord le pont ${i}.`;
+      if (p.ferraille < slot.ferraille || p.or < slot.or) return `Il faut ${slot.ferraille} ferraille et ${fmt(slot.or)} or.`;
+      p.ferraille -= slot.ferraille;
+      p.or -= slot.or;
+      if (Math.random() < slot.chance) {
+        p.forge[i] = true;
+        link.notify(`Le matelot de pont a réussi ! Pont ${slot.n} forgé : ${slot.label}.`, 'level');
+      } else {
+        link.notify(`La mer est impitoyable : la forge du pont ${slot.n} a échoué, la ferraille est perdue.`, 'warn');
+      }
+      break;
+    }
+    case 'recruit': {
+      const c = CAPTAIN_BY_ID[act.captain];
+      if (!c) return 'Capitaine inconnu.';
+      if (p.captains.includes(c.id)) return 'Ce capitaine sert déjà sous vos ordres.';
+      if (!pay(p, c.price)) return 'Fonds insuffisants.';
+      p.captains.push(c.id);
+      p.captainsActive[c.cat] = c.id;
+      link.notify(`${c.name} rejoint votre état-major !`, 'level');
+      break;
+    }
+    case 'assign': {
+      if (act.captain && !p.captains.includes(act.captain)) return 'Capitaine non recruté.';
+      if (act.captain && CAPTAIN_BY_ID[act.captain].cat !== act.cat) return 'Mauvaise catégorie.';
+      p.captainsActive[act.cat] = act.captain;
+      break;
+    }
+    case 'eliteShip': {
+      const def = SHIP_BY_ID[act.ship];
+      if (!def?.elite) return 'Navire élite inconnu.';
+      if (p.elite < def.elite) return `Il faut ${fmt(def.elite)} points élite.`;
+      const own = p.ships.find((s) => s.def === def.id);
+      if (own) { p.active = own.uid; }
+      else {
+        if (p.ships.length >= 12) return 'Flotte complète.';
+        const s = giveShip(p, def.id);
+        p.active = s.uid;
+        link.notify(`${def.name} rejoint votre flotte d'élite !`, 'level');
+      }
+      link.hpRatio = 1;
+      link.sailRatio = 1;
+      break;
+    }
     default:
       return 'Action inconnue.';
   }
   link.touch();
   return null;
+}
+
+function pay(p: PlayerLink['profile'], price: { or?: number; perles?: number; diamants?: number }) {
+  if ((price.or ?? 0) > p.or || (price.perles ?? 0) > p.perles || (price.diamants ?? 0) > p.diamants) return false;
+  p.or -= price.or ?? 0; p.perles -= price.perles ?? 0; p.diamants -= price.diamants ?? 0;
+  return true;
 }
 
 export function repairCost(link: PlayerLink) {

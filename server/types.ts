@@ -29,6 +29,8 @@ export interface PlayerLink {
   nav: { x: number; z: number } | null;
   targetId: number;
   attacking: boolean;
+  fishing: boolean;
+  fishTimer: number;
 }
 
 export type Relation = 'friend' | 'neutral' | 'war';

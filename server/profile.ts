@@ -2,6 +2,7 @@
 import crypto from 'node:crypto';
 import { AMMO_ORDER, CONSUMABLE_ORDER } from '../shared/items.ts';
 import { EQUIP_ORDER, type EquipId } from '../shared/equipment.ts';
+import { CAPTAIN_BY_ID, DAILY_BY_ID, playerBonus, SKINS } from '../shared/extras.ts';
 import { levelFromXp } from '../shared/progression.ts';
 import type { FlagChoice, OwnedShip, Profile } from '../shared/protocol.ts';
 import { computeStats, NO_SKILLS, NO_UPGRADES, SHIP_BY_ID, SHIP_CLASSES } from '../shared/ships.ts';
@@ -35,7 +36,7 @@ export function newProfile(name: string): Profile {
     mat: { bois: 10, toile: 10, fer: 10 },
     ships: [],
     active: '',
-    ammo: { rond: 0, chaine: 25, mitraille: 25, rouge: 25, explosif: 5 },
+    ammo: { rond: 0, chaine: 25, mitraille: 25, rouge: 25, explosif: 5, perle: 10, diamant: 0 },
     items: { kit: 3, seau: 3, poudre: 1 },
     cargo: {},
     skills: { ...NO_SKILLS },
@@ -47,6 +48,18 @@ export function newProfile(name: string): Profile {
     guild: null,
     tier: 1,
     tierKills: 0,
+    shootXp: 0,
+    fishXp: 0,
+    fish: {},
+    elite: 0,
+    ferraille: 20,
+    forge: [false, false, false, false, false, false, false, false],
+    skins: [],
+    skin: null,
+    captains: [],
+    captainsActive: {},
+    daily: { active: [], cooldown: {} },
+    levelMission: { level: 1, progress: 0 },
   };
 }
 
@@ -71,6 +84,14 @@ export function sanitizeProfile(raw: Profile, name: string): Profile {
   p.zone = migrateZoneId(p.zone);
   p.tier = Math.max(1, Math.floor(raw.tier || 1), ZONE_BY_ID[p.zone].tier);
   p.tierKills = Math.max(0, Math.floor(raw.tierKills || 0));
+  p.forge = Array.from({ length: 8 }, (_, i) => !!raw.forge?.[i]);
+  p.skins = (raw.skins || []).filter((x) => x in SKINS);
+  if (p.skin && !p.skins.includes(p.skin)) p.skin = null;
+  p.captains = (raw.captains || []).filter((x) => CAPTAIN_BY_ID[x]);
+  p.captainsActive = Object.fromEntries(Object.entries(raw.captainsActive || {}).filter(([, v]) => !v || p.captains.includes(v)));
+  p.daily = { active: (raw.daily?.active || []).filter((d) => DAILY_BY_ID[d.id]), cooldown: raw.daily?.cooldown || {} };
+  p.levelMission = raw.levelMission || base.levelMission;
+  p.fish = raw.fish || {};
   for (const m of p.missions) m.zone = migrateZoneId(m.zone);
   if (!ZONE_BY_ID[p.zone].ports.some((x) => x.id === p.port)) p.port = ZONE_BY_ID[p.zone].ports[0].id;
   if (p.created && !p.ships.length) giveShip(p, 'bayonnaise');
@@ -100,7 +121,7 @@ export const skillPointsLeft = (p: Profile) => {
 export function activeStats(p: Profile) {
   const s = activeShip(p);
   const def = SHIP_BY_ID[s.def];
-  return { def, stats: computeStats(def, s.up, p.skills, s.fit), tier: SHIP_CLASSES[def.cls].tier };
+  return { def, stats: computeStats(def, s.up, p.skills, s.fit, playerBonus(p).stat), tier: SHIP_CLASSES[def.cls].tier };
 }
 
 export function cargoUsed(p: Profile) {
