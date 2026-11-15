@@ -3,13 +3,16 @@ import type { SkinId } from '../../../../shared/extras';
 import type { ShipDef } from '../../../../shared/ships';
 import { ModernShipModel } from './ModernShipModel';
 import { MonsterModel } from './MonsterModel';
+import { GltfShipModel, shipAsset } from './GltfShipModel';
 import { RegionalShipModel } from './RegionalShipModel';
 import { ShipModel } from './ShipModel';
 
-export type AnyShipModel = ShipModel | MonsterModel | ModernShipModel | RegionalShipModel;
+export type AnyShipModel = ShipModel | MonsterModel | ModernShipModel | RegionalShipModel | GltfShipModel;
 
 export function makeShipModel(def: ShipDef, flag?: 'royal' | 'tricolore' | 'imperial', skin?: SkinId | null, elite = 0): AnyShipModel {
   if (def.look.monster) return new MonsterModel(def);
+  // Vrai modèle 3D (GLB) quand il est chargé ; sinon navire provisoire, remplacé dès l'arrivée du fichier.
+  if (def.asset) { const sc = shipAsset(def.asset); if (sc) return new GltfShipModel(def, sc); }
   if (def.modern) return new ModernShipModel(def);
   if (def.regional) return new RegionalShipModel(def);
   return new ShipModel(def, flag, skin, elite);

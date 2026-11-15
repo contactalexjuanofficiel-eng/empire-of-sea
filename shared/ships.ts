@@ -80,6 +80,8 @@ export interface ShipDef {
   rig?: 'carre' | 'barque' | 'goelette' | 'dundee';
   noPorts?: boolean;
   modern?: ModernSpec;
+  /** Vrai modèle 3D (fichier client/public/models/<asset>.glb modélisé sous Blender). */
+  asset?: string;
   /** Forme 3D régionale (jonque, galère, felouque, drakkar) au lieu du gréement européen. */
   regional?: 'jonque' | 'galere' | 'felouque' | 'drakkar';
   /** Classe de combat imposée (sinon déduite de la classe de coque et des caractéristiques). */

@@ -23,6 +23,7 @@ import { Effects, WakeTrail } from './render/Effects';
 import { Ocean } from './render/Ocean';
 import { ShipModel } from './render/ShipModel';
 import { makeShipModel, type AnyShipModel } from './render/factory';
+import { GltfShipModel, onShipAssetLoaded } from './render/GltfShipModel';
 import { ModernShipModel } from './render/ModernShipModel';
 import { shipBonus } from '../../../shared/extras';
 import { GRADES } from '../../../shared/ranks';
@@ -145,6 +146,14 @@ export class Game {
       else this.rig.rotate(dx, dy, this.t);
     };
     this.input.onWheel = (d) => this.rig.zoom(d);
+    // Un modèle GLB vient d'arriver : on reconstruit les navires qui l'utilisent (ils réapparaissent au prochain instantané).
+    onShipAssetLoaded(() => {
+      for (const e of [...this.ents.values()]) {
+        if (!e.model || !SHIP_BY_ID[e.meta.ship ?? '']?.asset || e.model instanceof GltfShipModel) continue;
+        this.removeEnt(e);
+        this.ents.delete(e.id);
+      }
+    });
     this.input.onClick = (x, y) => this.click(x, y);
     this.input.on((a) => this.action(a));
 
