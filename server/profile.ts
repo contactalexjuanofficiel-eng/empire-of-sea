@@ -1,4 +1,5 @@
 // Profil joueur côté serveur : création, validation au chargement, statistiques du navire actif.
+import { TUTORIAL } from '../shared/tutorial.ts';
 import { ACTIVE_SKILLS, SKILL_MAX_LEVEL } from '../shared/combat.ts';
 import { seasonId } from '../shared/season.ts';
 import crypto from 'node:crypto';
@@ -66,6 +67,7 @@ export function newProfile(name: string): Profile {
     fishClaimed: 0,
     activeOther: '',
     skillLv: {},
+    tutorial: 0,
     season: { id: seasonId(), points: 0 },
     levelMission: { level: 1, progress: 0 },
   };
@@ -101,6 +103,8 @@ export function sanitizeProfile(raw: Profile, name: string): Profile {
   p.levelMission = raw.levelMission || base.levelMission;
   p.fish = raw.fish || {};
   p.buffs = raw.buffs || {};
+  // Les capitaines déjà installés (créés avant le tutoriel) ne le voient pas.
+  p.tutorial = typeof raw.tutorial === 'number' ? Math.max(0, Math.min(TUTORIAL.length, Math.floor(raw.tutorial))) : (raw.created ? TUTORIAL.length : 0);
   p.skillLv = Object.fromEntries(ACTIVE_SKILLS.map((k) => [k.id, Math.max(1, Math.min(SKILL_MAX_LEVEL, Math.floor(Number(raw.skillLv?.[k.id]) || 1)))]));
   p.season = raw.season && typeof raw.season.id === 'string' ? { id: raw.season.id, points: Math.max(0, Math.floor(raw.season.points || 0)) } : { id: seasonId(), points: 0 };
   for (const m of p.missions) m.zone = migrateZoneId(m.zone);

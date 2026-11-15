@@ -61,6 +61,12 @@ Le jeu se joue **à la souris**, en vue du dessus (la vue 3D derrière le navire
 
 **Toutes les touches se modifient dans Paramètres** (cliquez sur une touche puis appuyez sur la nouvelle).
 
+## Tutoriel
+
+Au premier lancement, un encart guide le nouveau capitaine en 6 étapes, validées par le serveur et récompensées :
+prendre la mer, naviguer, choisir une cible, couler un ennemi, lancer une compétence, rentrer au port
+(3 200 or, 470 XP et 3 perles au total). Bouton « Passer » pour les habitués.
+
 ## Jouer sur téléphone ou tablette
 
 1. Lancez le serveur sur le PC (`npm.cmd start`) : il affiche une ligne « 📱 Sur téléphone (même Wi-Fi) : http://192.168.x.x:8080 ».

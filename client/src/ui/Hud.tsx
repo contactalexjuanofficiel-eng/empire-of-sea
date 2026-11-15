@@ -184,8 +184,9 @@ export function SeaPrompts() {
 export function Hints() {
   const [show, setShow] = useState(true);
   const docked = useStore((s) => s.docked);
+  const tuto = useStore((s) => (s.profile?.tutorial ?? 99) < 6);
   useEffect(() => { const t = setTimeout(() => setShow(false), 25000); return () => clearTimeout(t); }, []);
-  if (!show || docked) return null;
+  if (!show || docked || tuto) return null;
   return (
     <div className="hints" onClick={() => setShow(false)}>
       <b>Commandes</b> · <b>clic sur la mer</b> : naviguer · <b>clic sur un ennemi</b> : attaquer · molette : zoom · clic droit glissé : déplacer la vue · munitions <kbd>1</kbd>–<kbd>7</kbd> · objets <kbd>8</kbd> <kbd>9</kbd> <kbd>0</kbd> · <kbd>N</kbd> pêcher · toutes les touches se règlent dans Paramètres

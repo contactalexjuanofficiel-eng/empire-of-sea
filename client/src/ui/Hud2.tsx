@@ -13,7 +13,8 @@ import { ROLES, SHIP_BY_ID, shipRole } from '../../../shared/ships';
 import { FACTION_LABEL, tierRequirement, ZONE_BY_ID } from '../../../shared/zones';
 import { keyLabel } from '../game/Input';
 import { store, useStore, type Panel } from '../store';
-import { game, Icon, send } from './common';
+import { game, Icon, Price, send } from './common';
+import { TUTORIAL } from '../../../shared/tutorial';
 import { Minimap } from './Hud';
 
 const togglePanel = (p: Panel) => store.set((s) => ({ panel: s.panel === p ? (s.docked ? 'port' : null) : p }));
@@ -425,6 +426,25 @@ export function BottomDock() {
           <button className={`cb ${hud.canDock ? 'dock' : ''}`} onClick={() => game().goToPort()} title="Accoster, ou rejoindre le port le plus proche">{hud.canDock ? 'Accoster' : 'Vers le port'}</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Encart du tutoriel : étape en cours, progression, récompense, bouton pour passer. */
+export function TutorialBox() {
+  const p = useStore((s) => s.profile);
+  if (!p || p.tutorial >= TUTORIAL.length) return null;
+  const st = TUTORIAL[p.tutorial];
+  return (
+    <div className="tuto" role="status">
+      <div className="tuto-head">
+        <span className="tuto-step num">{p.tutorial + 1} / {TUTORIAL.length}</span>
+        <b>{st.title}</b>
+        <button className="tuto-skip" onClick={() => { if (confirm('Passer le tutoriel ?')) send({ t: 'tuto', a: 'skip' }); }}>Passer</button>
+      </div>
+      <p>{st.text}</p>
+      <div className="tuto-pips">{TUTORIAL.map((_, i) => <i key={i} className={i < p.tutorial ? 'done' : i === p.tutorial ? 'on' : ''} />)}</div>
+      <div className="tuto-reward">Récompense : <Price p={{ or: st.reward.or, perles: st.reward.perles }} /> · <span className="num">{st.reward.xp} XP</span></div>
     </div>
   );
 }

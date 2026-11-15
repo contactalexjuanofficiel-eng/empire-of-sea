@@ -1,7 +1,7 @@
 import { useStore } from '../store';
 import { Create } from './Create';
 import { BossBar, Chat, Hints, Notices, SeaPrompts } from './Hud';
-import { BottomDock, Journal, MapBlock, Rulers, SideTabs, TargetCard, TopNav } from './Hud2';
+import { BottomDock, Journal, MapBlock, Rulers, SideTabs, TargetCard, TopNav, TutorialBox } from './Hud2';
 import { Login } from './Login';
 import { Help, Inventory, GuildPanel, Leaderboard, ProfilePanel, Settings, WorldMap } from './Panels';
 import { PortPanel } from './Port';
@@ -24,6 +24,7 @@ export function App() {
     <div className={`hud ${docked ? 'is-docked' : 'at-sea'}`}>
       <TopNav />
       <BossBar />
+      <TutorialBox />
       {!docked && (
         <>
           <Rulers />

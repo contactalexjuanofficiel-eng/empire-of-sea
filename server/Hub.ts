@@ -13,7 +13,8 @@ import { SHIP_BY_ID } from '../shared/ships.ts';
 import { BONUS_ZONES, isBonusDay, MAX_TIER, START_ZONE, tierRequirement, ZONE_BY_ID, ZONES } from '../shared/zones.ts';
 import type { Store } from './db.ts';
 import { acceptMission, portPrices, shop } from './game/economy.ts';
-import { dailyAbandon, dailyStart } from './game/progress.ts';
+import { dailyAbandon, dailyStart, tutorialEvent } from './game/progress.ts';
+import { TUTORIAL } from '../shared/tutorial.ts';
 import { missionOffers } from './game/missions.ts';
 import { allocId, DAY_SECONDS, Zone } from './game/Zone.ts';
 import { activeShip, createCharacter, newProfile, playerLevel, sanitizeProfile } from './profile.ts';
@@ -244,9 +245,13 @@ export class Hub {
         const half = zone.def.half;
         s.nav = { x: num(m.x, -half, half), z: num(m.z, -half, half) };
         s.fishing = false;
+        tutorialEvent(s, 'move');
         if (s.followLeader) { s.followLeader = null; s.notify('Vous quittez la formation de l\'escadre.'); this.sendGroup(s); }
         break;
       }
+      case 'tuto':
+        if (m.a === 'skip' && s.profile.tutorial < TUTORIAL.length) { s.profile.tutorial = TUTORIAL.length; s.touch(); }
+        break;
       case 'fleet': {
         const g = s.groupId ? this.groups.get(s.groupId) : undefined;
         if (!m.follow) { s.followLeader = null; this.sendGroup(s); break; }
@@ -265,6 +270,7 @@ export class Hub {
         s.targetId = id;
         s.attacking = !!m.attack && !!ship && zone.canHarm(ship, t);
         if (m.attack && !s.attacking) err('Cette cible ne peut pas être attaquée.');
+        if (s.attacking) tutorialEvent(s, 'attack');
         if (s.attacking) s.nav = null;
         break;
       }
@@ -280,14 +286,14 @@ export class Hub {
         if (ship && CONSUMABLES[m.id]) err(zone.useItem(ship, m.id));
         break;
       case 'skill':
-        if (ship && ACTIVE_SKILL_BY_ID[m.id]) err(zone.useSkill(ship, m.id));
+        if (ship && ACTIVE_SKILL_BY_ID[m.id]) { const e = zone.useSkill(ship, m.id); err(e); if (!e) tutorialEvent(s, 'skill'); }
         break;
       case 'dock':
         err(zone.dock(s));
-        if (s.docked) this.sendPort(s);
+        if (s.docked) { this.sendPort(s); tutorialEvent(s, 'dock'); }
         break;
       case 'undock':
-        if (s.docked) err(zone.undock(s));
+        if (s.docked) { err(zone.undock(s)); if (!s.docked) tutorialEvent(s, 'undock'); }
         break;
       case 'pvp': {
         if (zone.def.pvp === 'libre') { err('Cette zone est en guerre ouverte : le combat entre joueurs est permanent.'); return; }

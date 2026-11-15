@@ -343,3 +343,22 @@ test('raid de guilde : les points vont aux guildes, la gagnante prend la carte ;
   assert.equal(z.raidActive, false);
   assert.equal(hub.owners.get(zid), 'ROI');
 });
+
+test('tutoriel : les étapes se valident dans l\'ordre et rapportent leur récompense', async () => {
+  const { TUTORIAL } = await import('../shared/tutorial.ts');
+  const { tutorialEvent } = await import('../server/game/progress.ts');
+  const link = fakeLink('Novice', 61);
+  link.profile.tutorial = 0;
+  const or0 = link.profile.or;
+  tutorialEvent(link, 'move'); // pas encore : il faut d'abord prendre la mer
+  assert.equal(link.profile.tutorial, 0);
+  for (const st of TUTORIAL) tutorialEvent(link, st.kind);
+  assert.equal(link.profile.tutorial, TUTORIAL.length);
+  assert.ok(link.profile.or > or0);
+  // Un ancien capitaine (profil sans champ tutoriel) ne le voit pas ; un nouveau le commence.
+  const { sanitizeProfile, newProfile } = await import('../server/profile.ts');
+  const old = { ...link.profile } as Partial<typeof link.profile>;
+  delete old.tutorial;
+  assert.equal(sanitizeProfile(old as typeof link.profile, 'Novice').tutorial, TUTORIAL.length);
+  assert.equal(sanitizeProfile(newProfile('Nouveau'), 'Nouveau').tutorial, 0);
+});

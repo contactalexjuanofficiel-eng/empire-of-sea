@@ -1,5 +1,6 @@
 // Progression secondaire, toujours calculée par le serveur :
 // grades de tir, points élite, missions quotidiennes, missions de niveau, pêche.
+import { TUTORIAL, type TutoKind } from '../../shared/tutorial.ts';
 import { SEASON_POINTS } from '../../shared/season.ts';
 import { addSeasonPoints } from '../profile.ts';
 import { AMMO, type AmmoId } from '../../shared/items.ts';
@@ -36,6 +37,7 @@ export function onPlayerKill(link: PlayerLink) {
 }
 
 export function onNpcKill(link: PlayerLink, s: ShipEnt) {
+  tutorialEvent(link, 'kill');
   addSeasonPoints(link.profile, s.kind === 'boss' ? SEASON_POINTS.boss : SEASON_POINTS.npc);
   if (s.faction === 'pirate' || s.faction === 'flibustier') dailyProgress(link, 'pirates', 1);
   if (s.faction === 'anglais' || s.faction === 'flibustier' || s.def.id === 'galion_pirate') dailyProgress(link, 'flibustiers', 1);
@@ -130,4 +132,15 @@ export function sellFish(link: PlayerLink, commerce: number) {
   p.or += total;
   link.notify(`Poissons vendus au marché : +${fmt(total)} or`, 'gain');
   return null;
+}
+
+/** Tutoriel : valide l'étape en cours si l'action correspond, et donne sa récompense. */
+export function tutorialEvent(link: PlayerLink, kind: TutoKind) {
+  const p = link.profile;
+  const step = TUTORIAL[p.tutorial];
+  if (!step || step.kind !== kind) return;
+  p.tutorial++;
+  grant(link, step.reward, `Tutoriel — ${step.title}`);
+  if (p.tutorial >= TUTORIAL.length) link.notify('Tutoriel terminé ! Bon vent, capitaine : la mer est à vous.', 'level');
+  link.touch();
 }

@@ -83,6 +83,8 @@ export interface Profile {
   activeOther: string;
   /** Niveau des compétences actives fabriquées à l'atelier (1 à 5). */
   skillLv: Partial<Record<ActiveSkillId, number>>;
+  /** Tutoriel : prochaine étape à accomplir (= TUTORIAL.length quand il est terminé ou passé). */
+  tutorial: number;
   /** Points de la saison compétitive (mois en cours). */
   season: { id: string; points: number };
 }
@@ -130,6 +132,7 @@ export type C2S =
   | { t: 'guild'; a: 'create' | 'invite' | 'accept' | 'leave' | 'kick' | 'ally' | 'war' | 'peace' | 'info'; name?: string; tag?: string }
   | { t: 'group'; a: 'invite' | 'accept' | 'leave'; name?: string }
   | { t: 'fleet'; follow: boolean }
+  | { t: 'tuto'; a: 'skip' }
   | { t: 'pvp'; on: boolean }
   | { t: 'fish'; on: boolean }
   | { t: 'daily'; a: 'start' | 'abandon'; id: DailyKind }
