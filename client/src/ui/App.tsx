@@ -1,6 +1,6 @@
 import { useStore } from '../store';
 import { Create } from './Create';
-import { BossBar, Chat, Hints, MenuButtons, Minimap, Missions, Nearby, Notices, SeaPrompts, ShipStatus, TopBar, Weapons } from './Hud';
+import { BossBar, Chat, Hints, MapBadge, MenuButtons, Minimap, Missions, Nearby, Notices, SeaPrompts, ShipStatus, TargetFrame, TopBar, Weapons } from './Hud';
 import { Login } from './Login';
 import { Help, Inventory, GuildPanel, Leaderboard, ProfilePanel, Settings, WorldMap } from './Panels';
 import { PortPanel } from './Port';
@@ -22,7 +22,8 @@ export function App() {
       <BossBar />
       {!docked && (
         <>
-          <div className="right-col"><Minimap /><Nearby /></div>
+          <div className="right-col"><Minimap /><MapBadge /><Nearby /></div>
+          <TargetFrame />
           <Missions />
           <div className="bottom-center"><ShipStatus /><Weapons /></div>
           <SeaPrompts />

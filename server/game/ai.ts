@@ -1,6 +1,7 @@
 // Intelligence des navires PNJ : patrouille, approche, manœuvre pour présenter le flanc, tir avec anticipation, fuite.
 // Les PNJ sont toujours identifiés comme tels côté client : ils ne se font jamais passer pour des joueurs.
 import { clamp, dist2, wrapAngle } from '../../shared/math.ts';
+import { avoidLand } from '../../shared/autopilot.ts';
 import { terrainHeight } from '../../shared/world.ts';
 import type { ShipEnt } from './entities.ts';
 import type { Zone } from './Zone.ts';
@@ -49,7 +50,7 @@ export function thinkNPC(z: Zone, s: ShipEnt, dt: number) {
     sail = s.kind === 'boss' ? 2 : 2;
   }
 
-  desired = avoidLand(z, s, desired);
+  desired = avoidLand(z.world, s.k, desired, (x, w) => z.inSafeZone(x, w));
   const diff = wrapAngle(s.k.h - desired);
   s.input.rudder = clamp(diff * 2.2, -1, 1);
   s.input.sail = sail;
@@ -100,24 +101,6 @@ export function newWaypoint(z: Zone, s: ShipEnt) {
   }
   ai.wx = ai.homeX;
   ai.wz = ai.homeZ;
-}
-
-function avoidLand(z: Zone, s: ShipEnt, desired: number): number {
-  const look = 90 + s.k.speed * 5;
-  const probe = (a: number, dd: number) => terrainHeight(z.world, s.k.x + Math.sin(a) * dd, s.k.z + Math.cos(a) * dd) > -4;
-  if (!probe(desired, look) && !probe(desired, look * 0.5)) {
-    // On évite aussi les zones portuaires protégées.
-    const ax = s.k.x + Math.sin(desired) * look, az = s.k.z + Math.cos(desired) * look;
-    if (!z.inSafeZone(ax, az)) return desired;
-  }
-  for (let k = 1; k <= 6; k++) {
-    for (const sgn of [1, -1]) {
-      const a = desired + sgn * k * 0.4;
-      const ax = s.k.x + Math.sin(a) * look, az = s.k.z + Math.cos(a) * look;
-      if (!probe(a, look) && !probe(a, look * 0.5) && !z.inSafeZone(ax, az)) return a;
-    }
-  }
-  return desired + Math.PI;
 }
 
 function tryFire(z: Zone, s: ShipEnt, tgt: ShipEnt, d: number, bearing: number) {

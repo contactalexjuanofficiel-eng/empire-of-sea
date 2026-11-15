@@ -2,6 +2,7 @@
 // Règle d'or : le client n'envoie que des INTENTIONS ; le serveur décide de tout (positions, dégâts, or, XP).
 import type { AmmoId, ConsumableId, GoodId, MaterialId, SkillId, UpgradeSlot } from './items.ts';
 import type { ShipUpgrades, Skills } from './ships.ts';
+import type { EquipId, Fit } from './equipment.ts';
 import type { Faction } from './zones.ts';
 
 export const PROTOCOL_VERSION = 1;
@@ -11,7 +12,7 @@ export const VIEW_RADIUS = 1900; // rayon d'intérêt : on ne reçoit que ce qui
 export type FlagChoice = 'royal' | 'tricolore' | 'imperial';
 export type Side = 'babord' | 'tribord';
 
-export interface OwnedShip { uid: string; def: string; up: ShipUpgrades; name?: string }
+export interface OwnedShip { uid: string; def: string; up: ShipUpgrades; name?: string; fit?: Fit }
 
 export type MissionType = 'chasse' | 'livraison' | 'exploration' | 'tresor' | 'boss';
 export interface MissionOffer {
@@ -37,6 +38,9 @@ export interface Profile {
   or: number;
   doublons: number;
   perles: number;
+  diamants: number;
+  /** Équipement en stock (non installé). */
+  equip: Partial<Record<EquipId, number>>;
   mat: Record<MaterialId, number>;
   ships: OwnedShip[];
   active: string; // uid du navire actif
@@ -50,6 +54,9 @@ export interface Profile {
   discovered: string[];
   stats: { kills: number; pvp: number; deaths: number; damage: number; treasures: number; trades: number; boss: number; profit: number };
   guild: string | null;
+  /** Étage de cartes débloqué (1 = Manche) et navires coulés à cet étage pour la mission de passage. */
+  tier: number;
+  tierKills: number;
 }
 
 // --- Messages client -> serveur --------------------------------------------
@@ -62,12 +69,17 @@ export type ShopAction =
   | { a: 'repair' }
   | { a: 'trade'; good: GoodId; qty: number; buy: boolean }
   | { a: 'skill'; skill: SkillId }
-  | { a: 'exchange'; what: 'doublons' };
+  | { a: 'exchange'; what: 'doublons' | 'perles' }
+  | { a: 'buyEquip'; item: EquipId; qty: number }
+  | { a: 'install'; item: EquipId; qty: number }
+  | { a: 'uninstall'; item: EquipId; qty: number };
 
 export type C2S =
   | { t: 'hello'; token: string; v: number }
   | { t: 'create'; portrait: number; flag: FlagChoice; ship: string }
   | { t: 'input'; sail: number; rudder: number; seq: number }
+  | { t: 'move'; x: number; z: number }
+  | { t: 'target'; id: number; attack: boolean }
   | { t: 'fire'; side: Side | 'both'; x: number; z: number }
   | { t: 'ammo'; id: AmmoId }
   | { t: 'use'; id: ConsumableId }
@@ -129,6 +141,12 @@ export interface MeState {
   powder: number;
   pvp: boolean;
   safe: boolean;
+  /** Barre et voilure réellement appliquées (pilote automatique compris). */
+  helm: [number, number];
+  auto: boolean;
+  nav: [number, number] | null;
+  target: number;
+  attacking: boolean;
 }
 
 export interface WeatherState { kind: 'clair' | 'brume' | 'tempete'; intensity: number; fog: number }
@@ -147,7 +165,10 @@ export type S2C =
   | { t: 'group'; members: string[]; leader: string | null; invite?: string }
   | { t: 'boss'; active: boolean; hp?: number; maxHp?: number; name?: string; x?: number; z?: number }
   | { t: 'pong'; c: number; st: number }
+  | { t: 'maps'; list: MapInfo[] }
   | { t: 'err'; text: string };
+
+export interface MapInfo { id: string; players: number; owner: string | null }
 
 export interface GuildInfo {
   id: string;

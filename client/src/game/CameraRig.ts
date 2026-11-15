@@ -16,8 +16,22 @@ export class CameraRig {
   minDist = 30;
   maxDist = 420;
   shake = 0;
+  /** « dessus » : vue plongeante nord en haut (par défaut) ; « 3d » : derrière le navire. */
+  mode: 'dessus' | '3d' = 'dessus';
+  readonly pan = new THREE.Vector3();
+  private topDist = 340;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
+
+  setMode(m: 'dessus' | '3d') { this.mode = m; this.pan.set(0, 0, 0); }
+
+  /** Déplace la vue (vue du dessus) : touches caméra ou clic droit glissé. */
+  panBy(dx: number, dz: number) {
+    this.pan.x = THREE.MathUtils.clamp(this.pan.x + dx, -1500, 1500);
+    this.pan.z = THREE.MathUtils.clamp(this.pan.z + dz, -1500, 1500);
+  }
+  center() { this.pan.set(0, 0, 0); }
+  get viewDist() { return this.mode === 'dessus' ? this.topDist : this.dist; }
 
   rotate(dx: number, dy: number, t: number) {
     this.targetYaw -= dx * 0.005;
@@ -26,6 +40,7 @@ export class CameraRig {
   }
 
   zoom(delta: number) {
+    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 140, 1100); return; }
     this.targetDist = THREE.MathUtils.clamp(this.targetDist * Math.exp(delta * 0.0012), this.minDist, this.maxDist);
   }
 
@@ -43,6 +58,21 @@ export class CameraRig {
   }
 
   update(dt: number, t: number, target: THREE.Vector3, heading: number, aimMode: boolean) {
+    if (this.mode === 'dessus') {
+      // Vue plongeante, nord en haut de l'écran, légèrement inclinée pour garder le relief des navires.
+      this.focus.copy(target).add(this.pan);
+      const pitch = 1.12;
+      const pos = this.camera.position;
+      pos.set(this.focus.x, this.focus.y + Math.sin(pitch) * this.topDist, this.focus.z + Math.cos(pitch) * this.topDist);
+      if (this.shake > 0) {
+        pos.x += (Math.random() - 0.5) * this.shake;
+        pos.z += (Math.random() - 0.5) * this.shake;
+        this.shake = Math.max(0, this.shake - dt * 3);
+      }
+      this.camera.lookAt(this.focus.x, this.focus.y, this.focus.z);
+      this.yaw = 0;
+      return;
+    }
     if (this.autoFollow && !aimMode && t - this.lastManual > 4) {
       // Revient doucement derrière le navire.
       const behind = heading + Math.PI;

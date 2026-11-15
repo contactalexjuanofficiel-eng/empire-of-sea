@@ -5,7 +5,7 @@ import { AMMO, CONSUMABLES } from '../shared/items.ts';
 import { levelFromXp } from '../shared/progression.ts';
 import { PROTOCOL_VERSION, TICK_RATE, type C2S, type ChatChannel, type GuildInfo, type LeaderEntry, type MissionOffer, type Profile, type S2C } from '../shared/protocol.ts';
 import { SHIP_BY_ID } from '../shared/ships.ts';
-import { ZONE_BY_ID, ZONES } from '../shared/zones.ts';
+import { MAX_TIER, START_ZONE, tierRequirement, ZONE_BY_ID, ZONES } from '../shared/zones.ts';
 import type { Store } from './db.ts';
 import { acceptMission, portPrices, shop } from './game/economy.ts';
 import { missionOffers } from './game/missions.ts';
@@ -39,6 +39,9 @@ export class Hub {
   private groups = new Map<string, Group>();
   private groupInvites = new Map<string, string>();
   private timer: NodeJS.Timeout | null = null;
+  /** Guilde qui contrôle chaque carte (dernier boss vaincu). */
+  readonly owners = new Map<string, string>();
+  private mapsTimer = 0;
   private last = performance.now();
 
   constructor(private store: Store) {
@@ -47,6 +50,13 @@ export class Hub {
       this.zones.set(def.id, new Zone(def, {
         relation: (a, b) => this.relation(a, b),
         broadcastChat: (text) => this.systemAll(text),
+        onKill: (z, l) => this.tierProgress(z, l as Session),
+        onConquest: (z, l) => {
+          const tag = this.guilds.of(l.name)?.tag ?? null;
+          if (!tag) return;
+          this.owners.set(z.def.id, tag);
+          this.systemAll(`La guilde [${tag}] prend le contrôle de la carte ${z.def.code} (${z.def.name}) !`);
+        },
       }));
     }
   }
@@ -71,6 +81,12 @@ export class Hub {
     for (const z of this.zones.values()) {
       z.tick(dt);
       z.broadcast((t / DAY_SECONDS + z.def.ambiance.timeOffset) % 1);
+    }
+    this.mapsTimer -= dt;
+    if (this.mapsTimer <= 0) {
+      this.mapsTimer = 3;
+      const list = [...this.zones.values()].map((z) => ({ id: z.def.id, players: z.links.size, owner: this.owners.get(z.def.id) ?? null }));
+      for (const s of this.sessions.values()) s.send({ t: 'maps', list });
     }
     for (const s of this.sessions.values()) {
       s.msgBudget = Math.min(80, s.msgBudget + 60 * dt);
@@ -113,6 +129,7 @@ export class Hub {
       zoneId: profile.zone, entityId: allocId(), docked: true, port: profile.port,
       input: { sail: 0, rudder: 0 }, seq: 0, pvp: false, hpRatio: 1, sailRatio: 1,
       known: new Set(), deadTimer: 0, groupId: null, guildTag: this.guilds.of(name)?.tag ?? null,
+      nav: null, targetId: 0, attacking: false,
       dirty: false, sentProfileAt: 0, savedAt: performance.now(), lastChat: 0, msgBudget: 80, offers: [], created: profile.created,
     };
     this.sessions.set(accountId, s);
@@ -132,7 +149,7 @@ export class Hub {
   }
 
   private enter(s: Session) {
-    const zone = this.zones.get(s.profile.zone) ?? this.zones.get('manche')!;
+    const zone = this.zones.get(s.profile.zone) ?? this.zones.get(START_ZONE)!;
     zone.addPlayer(s, true);
     s.send({ t: 'welcome', id: s.entityId, name: s.name, profile: s.profile, zone: zone.def.id, port: s.port, st: zone.time });
     this.sendPort(s);
@@ -177,9 +194,27 @@ export class Hub {
 
     switch (m.t) {
       case 'input':
+        // Reprise en main au clavier : le pilote automatique se coupe (l'attaque continue de tirer).
         s.input = { sail: Math.round(num(m.sail, 0, 3)), rudder: num(m.rudder, -1, 1) };
         s.seq = Math.floor(num(m.seq, 0, 1e9));
+        s.nav = null;
+        if (s.attacking) s.attacking = false;
         break;
+      case 'move': {
+        const half = zone.def.half;
+        s.nav = { x: num(m.x, -half, half), z: num(m.z, -half, half) };
+        break;
+      }
+      case 'target': {
+        const id = Math.floor(num(m.id, 0, 1e12));
+        const t = zone.ships.get(id) ?? zone.forts.get(id);
+        if (!id || !t) { s.targetId = 0; s.attacking = false; break; }
+        s.targetId = id;
+        s.attacking = !!m.attack && !!ship && zone.canHarm(ship, t);
+        if (m.attack && !s.attacking) err('Cette cible ne peut pas être attaquée.');
+        if (s.attacking) s.nav = null;
+        break;
+      }
       case 'fire':
         if (!ship || ship.sinking >= 0) return;
         if (m.side === 'both') {
@@ -223,23 +258,24 @@ export class Hub {
         break;
       case 'travel': {
         const def = ZONE_BY_ID[String(m.zone)];
-        if (!def) return err('Zone inconnue.');
-        if (!s.docked) return err('Le voyage se prépare au port.');
+        if (!def) return err('Carte inconnue.');
         if (def.id === s.zoneId) return;
-        const lvl = playerLevel(s.profile);
-        if (lvl < def.levels[0] - 1) return err(`${def.name} est réservée aux capitaines de niveau ${def.levels[0] - 1} et plus.`);
-        if (s.profile.or < def.travelCost) return err('Fonds insuffisants pour la traversée.');
-        s.profile.or -= def.travelCost;
+        if (def.tier > s.profile.tier) return err(`Carte ${def.code} verrouillée : accomplissez la mission de passage de l'étage ${s.profile.tier}.`);
+        if (s.deadTimer > 0) return;
+        if (ship && zone.time - ship.lastHit < 10) return err('Impossible de changer de carte en plein combat.');
+        const atSea = !s.docked && !!ship;
         zone.removePlayer(s);
+        s.nav = null; s.targetId = 0; s.attacking = false;
         const dest = this.zones.get(def.id)!;
         s.port = def.ports.find((p) => p.main)?.id ?? def.ports[0].id;
         s.profile.zone = def.id;
         s.profile.port = s.port;
         dest.addPlayer(s, true);
+        if (atSea) dest.arriveAtSea(s);
         s.touch();
         s.send({ t: 'zone', zone: def.id, port: s.port, id: s.entityId });
-        this.sendPort(s);
-        s.notify(`Après une longue traversée, vous arrivez à ${def.ports.find((p) => p.id === s.port)!.name} (${def.name}).`, 'event');
+        if (!atSea) this.sendPort(s);
+        s.notify(`Carte ${def.code} — ${def.name} : vous arrivez devant ${def.ports.find((p) => p.id === s.port)!.name}.`, 'event');
         break;
       }
       case 'chat':
@@ -252,6 +288,25 @@ export class Hub {
         this.group(s, m.a, m.name);
         break;
     }
+  }
+
+  /** Mission de passage : couler assez d'ennemis à son étage le plus haut pour débloquer le suivant. */
+  private tierProgress(z: Zone, s: Session) {
+    const p = s.profile;
+    if (z.def.tier !== p.tier || p.tier >= MAX_TIER) return;
+    p.tierKills++;
+    const req = tierRequirement(p.tier);
+    if (p.tierKills >= req.kills && playerLevel(p) >= req.level) {
+      p.tier++;
+      p.tierKills = 0;
+      const next = ZONES.filter((x) => x.tier === p.tier).map((x) => x.code).join(' et ');
+      s.notify(`Mission de passage accomplie ! Nouvelle(s) carte(s) débloquée(s) : ${next}.`, 'level');
+      p.or += 1000 * p.tier;
+      this.system(`${s.name} a débloqué la carte ${next}.`);
+    } else if (p.tierKills === req.kills) {
+      s.notify(`Mission de passage : il vous faut atteindre le niveau ${req.level} pour monter de carte.`, 'warn');
+    }
+    s.touch();
   }
 
   // ------------------------------------------------------------------ chat

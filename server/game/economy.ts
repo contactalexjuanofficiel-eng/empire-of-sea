@@ -1,4 +1,5 @@
 // Économie : chantier naval, arsenal, améliorations, marché, compétences. Toutes les vérifications sont ici.
+import { CANNONS, fitCount, isCannon, isMast, MAST_CAPACITY, MASTS } from '../../shared/equipment.ts';
 import { AMMO, CONSUMABLES, GOODS, MAX_SKILL, MAX_UPGRADE, UPGRADE_INFO, upgradeCost, type GoodId } from '../../shared/items.ts';
 import { fmt } from '../../shared/math.ts';
 import type { MissionOffer, ShopAction } from '../../shared/protocol.ts';
@@ -128,10 +129,49 @@ export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: n
       break;
     }
     case 'exchange': {
-      // Change : 10 doublons -> 1 perle (aucun achat en argent réel dans le prototype).
-      if (p.doublons < 10) return 'Il faut 10 doublons.';
-      p.doublons -= 10;
-      p.perles += 1;
+      // Change : 10 doublons -> 1 perle, 10 perles -> 1 diamant (aucun achat en argent réel).
+      if (act.what === 'perles') {
+        if (p.perles < 10) return 'Il faut 10 perles.';
+        p.perles -= 10;
+        p.diamants += 1;
+      } else {
+        if (p.doublons < 10) return 'Il faut 10 doublons.';
+        p.doublons -= 10;
+        p.perles += 1;
+      }
+      break;
+    }
+    case 'buyEquip': {
+      const qty = Math.max(1, Math.min(200, Math.floor(act.qty) || 1));
+      const d = isCannon(act.item) ? CANNONS[act.item] : isMast(act.item) ? MASTS[act.item] : null;
+      if (!d) return 'Équipement inconnu.';
+      const c = { or: (d.price.or ?? 0) * qty, perles: (d.price.perles ?? 0) * qty, diamants: (d.price.diamants ?? 0) * qty };
+      if (c.or > p.or || c.perles > p.perles || c.diamants > p.diamants) return 'Fonds insuffisants.';
+      p.or -= c.or; p.perles -= c.perles; p.diamants -= c.diamants;
+      p.equip[act.item] = (p.equip[act.item] ?? 0) + qty;
+      break;
+    }
+    case 'install':
+    case 'uninstall': {
+      const id = act.item;
+      if (!isCannon(id) && !isMast(id)) return 'Équipement inconnu.';
+      const s = activeShip(p);
+      const def = SHIP_BY_ID[s.def];
+      s.fit = s.fit ?? {};
+      let qty = Math.max(1, Math.min(500, Math.floor(act.qty) || 1));
+      if (act.a === 'install') {
+        const cap = isCannon(id) ? def.canons : MAST_CAPACITY[def.cls];
+        const free = cap - fitCount(s.fit, isCannon(id) ? 'canon' : 'mat');
+        qty = Math.min(qty, free, p.equip[id] ?? 0);
+        if (qty <= 0) return free <= 0 ? 'Capacité du navire atteinte : retirez d\'abord de l\'équipement.' : 'Rien en stock.';
+        p.equip[id] = (p.equip[id] ?? 0) - qty;
+        s.fit[id] = (s.fit[id] ?? 0) + qty;
+      } else {
+        qty = Math.min(qty, s.fit[id] ?? 0);
+        if (qty <= 0) return 'Rien à retirer.';
+        s.fit[id] = (s.fit[id] ?? 0) - qty;
+        p.equip[id] = (p.equip[id] ?? 0) + qty;
+      }
       break;
     }
     default:

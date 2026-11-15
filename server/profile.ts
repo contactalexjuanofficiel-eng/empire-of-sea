@@ -1,12 +1,23 @@
 // Profil joueur côté serveur : création, validation au chargement, statistiques du navire actif.
 import crypto from 'node:crypto';
 import { AMMO_ORDER, CONSUMABLE_ORDER } from '../shared/items.ts';
+import { EQUIP_ORDER, type EquipId } from '../shared/equipment.ts';
 import { levelFromXp } from '../shared/progression.ts';
 import type { FlagChoice, OwnedShip, Profile } from '../shared/protocol.ts';
 import { computeStats, NO_SKILLS, NO_UPGRADES, SHIP_BY_ID, SHIP_CLASSES } from '../shared/ships.ts';
-import { START_ZONE, ZONE_BY_ID } from '../shared/zones.ts';
+import { migrateZoneId, START_ZONE, ZONE_BY_ID } from '../shared/zones.ts';
 
 export const newUid = () => crypto.randomBytes(6).toString('hex');
+
+function cleanCounts(o: unknown): Partial<Record<EquipId, number>> {
+  const out: Partial<Record<EquipId, number>> = {};
+  if (!o || typeof o !== 'object') return out;
+  for (const id of EQUIP_ORDER) {
+    const v = Math.floor(Number((o as Record<string, unknown>)[id]) || 0);
+    if (v > 0) out[id] = v;
+  }
+  return out;
+}
 
 export function newProfile(name: string): Profile {
   return {
@@ -19,6 +30,8 @@ export function newProfile(name: string): Profile {
     or: 2500,
     doublons: 10,
     perles: 2,
+    diamants: 0,
+    equip: { c30: 10, pin: 4 },
     mat: { bois: 10, toile: 10, fer: 10 },
     ships: [],
     active: '',
@@ -32,6 +45,8 @@ export function newProfile(name: string): Profile {
     discovered: [],
     stats: { kills: 0, pvp: 0, deaths: 0, damage: 0, treasures: 0, trades: 0, boss: 0, profit: 0 },
     guild: null,
+    tier: 1,
+    tierKills: 0,
   };
 }
 
@@ -50,8 +65,13 @@ export function sanitizeProfile(raw: Profile, name: string): Profile {
   p.items = { ...base.items, ...(raw.items || {}) };
   p.skills = { ...NO_SKILLS, ...(raw.skills || {}) };
   p.stats = { ...base.stats, ...(raw.stats || {}) };
-  p.ships = (raw.ships || []).filter((s) => SHIP_BY_ID[s.def] && !SHIP_BY_ID[s.def].npcOnly).map((s) => ({ ...s, up: { ...NO_UPGRADES, ...s.up } }));
-  if (!ZONE_BY_ID[p.zone]) p.zone = START_ZONE;
+  p.ships = (raw.ships || []).filter((s) => SHIP_BY_ID[s.def] && !SHIP_BY_ID[s.def].npcOnly).map((s) => ({ ...s, up: { ...NO_UPGRADES, ...s.up }, fit: cleanCounts(s.fit) }));
+  p.equip = cleanCounts(raw.equip);
+  p.diamants = Math.max(0, Math.floor(raw.diamants || 0));
+  p.zone = migrateZoneId(p.zone);
+  p.tier = Math.max(1, Math.floor(raw.tier || 1), ZONE_BY_ID[p.zone].tier);
+  p.tierKills = Math.max(0, Math.floor(raw.tierKills || 0));
+  for (const m of p.missions) m.zone = migrateZoneId(m.zone);
   if (!ZONE_BY_ID[p.zone].ports.some((x) => x.id === p.port)) p.port = ZONE_BY_ID[p.zone].ports[0].id;
   if (p.created && !p.ships.length) giveShip(p, 'bayonnaise');
   if (!p.ships.some((s) => s.uid === p.active)) p.active = p.ships[0]?.uid ?? '';
@@ -80,7 +100,7 @@ export const skillPointsLeft = (p: Profile) => {
 export function activeStats(p: Profile) {
   const s = activeShip(p);
   const def = SHIP_BY_ID[s.def];
-  return { def, stats: computeStats(def, s.up, p.skills), tier: SHIP_CLASSES[def.cls].tier };
+  return { def, stats: computeStats(def, s.up, p.skills, s.fit), tier: SHIP_CLASSES[def.cls].tier };
 }
 
 export function cargoUsed(p: Profile) {

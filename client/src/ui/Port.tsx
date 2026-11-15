@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { AMMO, AMMO_ORDER, CONSUMABLES, CONSUMABLE_ORDER, GOODS, GOOD_ORDER, MAX_SKILL, MAX_UPGRADE, MATERIAL_NAMES, SKILL_INFO, UPGRADE_INFO, upgradeCost, type SkillId, type UpgradeSlot } from '../../../shared/items';
 import { fmt } from '../../../shared/math';
+import { CANNON_ORDER, CANNONS, EQUIP_NAME, EQUIP_ORDER, fitCount, isCannon, MAST_CAPACITY, MAST_ORDER, MASTS, type EquipId } from '../../../shared/equipment';
 import { levelFromXp } from '../../../shared/progression';
 import type { MissionOffer } from '../../../shared/protocol';
 import { computeStats, PLAYER_SHIPS, RARITY_COLOR, RARITY_LABEL, SHIP_BY_ID, SHIP_CLASSES } from '../../../shared/ships';
@@ -12,7 +13,8 @@ import { Frame, game, Icon, Price, send, StatBar } from './common';
 const TABS: [string, string, string][] = [
   ['capitainerie', 'parchemin', 'Capitainerie'],
   ['chantier', 'marteau', 'Chantier naval'],
-  ['arsenal', 'canon', 'Arsenal'],
+  ['equipement', 'canon', 'Équipement'],
+  ['arsenal', 'poudre', 'Arsenal'],
   ['ameliorations', 'etoile', 'Améliorations'],
   ['marche', 'balance', 'Marché'],
 ];
@@ -36,6 +38,7 @@ export function PortPanel() {
         <div className="port-content">
           {tab === 'capitainerie' && <Capitainerie />}
           {tab === 'chantier' && <Chantier />}
+          {tab === 'equipement' && <Equipement />}
           {tab === 'arsenal' && <Arsenal />}
           {tab === 'ameliorations' && <Ameliorations />}
           {tab === 'marche' && <Marche />}
@@ -112,8 +115,9 @@ function Chantier() {
   const sel = SHIP_BY_ID[preview] && !SHIP_BY_ID[preview].npcOnly ? SHIP_BY_ID[preview] : SHIP_BY_ID[activeDef];
   useEffect(() => { if (!SHIP_BY_ID[preview] || SHIP_BY_ID[preview].npcOnly) store.set({ preview: activeDef }); }, [preview, activeDef]);
   const owned = p.ships.find((s) => s.def === sel.id);
-  const st = computeStats(sel, owned?.up, p.skills);
-  const cur = computeStats(SHIP_BY_ID[activeDef], p.ships.find((s) => s.uid === p.active)?.up, p.skills);
+  const st = computeStats(sel, owned?.up, p.skills, owned?.fit);
+  const curShip = p.ships.find((s) => s.uid === p.active);
+  const cur = computeStats(SHIP_BY_ID[activeDef], curShip?.up, p.skills, curShip?.fit);
   const cls = SHIP_CLASSES[sel.cls];
   const afford = (sel.price.or ?? 0) <= p.or && (sel.price.doublons ?? 0) <= p.doublons && (sel.price.perles ?? 0) <= p.perles;
   const byClass = Object.values(SHIP_CLASSES).map((c) => ({ c, ships: PLAYER_SHIPS.filter((s) => s.cls === c.id) }));
@@ -170,6 +174,59 @@ function Chantier() {
   );
 }
 
+/** Équipement : stock à gauche, installé sur le navire au milieu, attributs à droite. Clic = transférer. */
+function Equipement() {
+  const p = useStore((s) => s.profile)!;
+  const [kind, setKind] = useState<'canon' | 'mat'>('canon');
+  const [qty, setQty] = useState(10);
+  const ship = p.ships.find((s) => s.uid === p.active)!;
+  const def = SHIP_BY_ID[ship.def];
+  const st = computeStats(def, ship.up, p.skills, ship.fit);
+  const ids = kind === 'canon' ? CANNON_ORDER : MAST_ORDER;
+  const cap = kind === 'canon' ? def.canons : MAST_CAPACITY[def.cls];
+  const used = fitCount(ship.fit, kind);
+  const item = (id: EquipId, n: number, where: 'stock' | 'navire') => (
+    <button key={id + where} className={`eq-item tier-${id}`} title={`${EQUIP_NAME(id)} — cliquez pour ${where === 'stock' ? 'installer' : 'retirer'} (${qty} à la fois)`}
+      onClick={() => send({ t: 'shop', a: where === 'stock' ? 'install' : 'uninstall', item: id, qty })}>
+      <Icon name={kind === 'canon' ? 'canon' : 'voile'} size={34} />
+      <span>{EQUIP_NAME(id)}</span>
+      <span className="q">{n}</span>
+    </button>
+  );
+  return (
+    <div>
+      <div className="eq-tabs">
+        <button className={`btn ${kind === 'canon' ? 'on' : ''}`} onClick={() => setKind('canon')}>Canons</button>
+        <button className={`btn ${kind === 'mat' ? 'on' : ''}`} onClick={() => setKind('mat')}>Mâts</button>
+        <span className="muted" style={{ marginLeft: 'auto' }}>Transférer par :</span>
+        {[1, 10, 50].map((q) => <button key={q} className={`btn small ${qty === q ? 'on' : ''}`} onClick={() => setQty(q)}>{q}</button>)}
+      </div>
+      <div className="equip">
+        <div className="eq-col">
+          <h4>Stockage</h4>
+          <div className="eq-items">{ids.filter((id) => (p.equip[id] ?? 0) > 0).map((id) => item(id, p.equip[id]!, 'stock'))}</div>
+          {!ids.some((id) => (p.equip[id] ?? 0) > 0) && <p className="muted small">Rien en stock. Achetez à l'Arsenal ou coulez des PNJ pour en récupérer.</p>}
+        </div>
+        <div className="eq-col">
+          <h4>Transféré au navire</h4>
+          <div className="eq-items">{ids.filter((id) => (ship.fit?.[id] ?? 0) > 0).map((id) => item(id, ship.fit![id]!, 'navire'))}</div>
+          {cap - used > 0 && <p className="muted small">{cap - used} emplacement(s) avec {kind === 'canon' ? 'les canons d\'origine (18 livres)' : 'la mâture d\'origine'}.</p>}
+        </div>
+        <div className="eq-col eq-attrs">
+          <h4>Attributs — {def.name}</h4>
+          <div className="kv"><span>Capacité canons</span><b>{fitCount(ship.fit, 'canon')} / {def.canons}</b></div>
+          <div className="kv"><span>Capacité mâts</span><b>{fitCount(ship.fit, 'mat')} / {MAST_CAPACITY[def.cls]}</b></div>
+          <div className="kv"><span>Dégâts par bordée</span><b>{fmt(st.broadside)}</b></div>
+          <div className="kv"><span>Portée</span><b>{Math.round(st.range)} m</b></div>
+          <div className="kv"><span>Rechargement</span><b>{st.reload.toFixed(1)} s</b></div>
+          <div className="kv"><span>Vitesse</span><b>{(st.speed * 0.7).toFixed(1)} nœuds</b></div>
+          <div className="kv"><span>Santé</span><b>{fmt(st.hp)}</b></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Arsenal() {
   const p = useStore((s) => s.profile)!;
   return (
@@ -184,6 +241,22 @@ function Arsenal() {
               <div className="sr-txt"><b>{a.name}</b><small>{a.desc}</small><small className="muted">Coque ×{a.hull} · Voilure ×{a.sail} · Portée ×{a.range}{a.fire ? ` · Incendie ${Math.round(a.fire * 100)} %` : ''}</small></div>
               <span className="have">{id === 'rond' ? '∞' : p.ammo[id]}</span>
               {a.price ? <button className="btn-gold" onClick={() => send({ t: 'shop', a: 'buyAmmo', ammo: id })}>+{a.pack} <Price p={a.price} /></button> : <span className="muted">Illimité</span>}
+            </div>
+          );
+        })}
+      </section>
+      <section>
+        <h3>Canons et mâts</h3>
+        {EQUIP_ORDER.map((id) => {
+          const d = isCannon(id) ? CANNONS[id] : MASTS[id as keyof typeof MASTS];
+          return (
+            <div key={id} className="shop-row">
+              <Icon name={isCannon(id) ? 'canon' : 'voile'} size={26} />
+              <div className="sr-txt"><b>{d.name}</b><small>{d.desc}</small>
+                {isCannon(id) && <small className="muted">Dégâts ×{CANNONS[id].damage} · portée ×{CANNONS[id].range} · rechargement ×{CANNONS[id].reload}</small>}</div>
+              <span className="have">{p.equip[id] ?? 0}</span>
+              <button className="btn-gold" onClick={() => send({ t: 'shop', a: 'buyEquip', item: id, qty: 1 })}>+1 <Price p={d.price} /></button>
+              <button className="btn" onClick={() => send({ t: 'shop', a: 'buyEquip', item: id, qty: 10 })}>+10</button>
             </div>
           );
         })}
@@ -204,8 +277,9 @@ function Arsenal() {
         })}
         <div className="shop-row">
           <Icon name="perle" size={26} />
-          <div className="sr-txt"><b>Bureau de change</b><small>Échangez 10 doublons contre 1 perle.</small></div>
-          <button className="btn" onClick={() => send({ t: 'shop', a: 'exchange', what: 'doublons' })}>Échanger</button>
+          <div className="sr-txt"><b>Bureau de change</b><small>10 doublons = 1 perle · 10 perles = 1 diamant.</small></div>
+          <button className="btn" onClick={() => send({ t: 'shop', a: 'exchange', what: 'doublons' })}>→ Perle</button>
+          <button className="btn" onClick={() => send({ t: 'shop', a: 'exchange', what: 'perles' })}>→ Diamant</button>
         </div>
       </section>
     </div>

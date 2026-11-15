@@ -25,6 +25,10 @@ export interface PlayerLink {
   deadTimer: number;
   groupId: string | null;
   guildTag: string | null;
+  /** Destination cliquée sur la mer (pilote automatique), cible sélectionnée, attaque en cours. */
+  nav: { x: number; z: number } | null;
+  targetId: number;
+  attacking: boolean;
 }
 
 export type Relation = 'friend' | 'neutral' | 'war';

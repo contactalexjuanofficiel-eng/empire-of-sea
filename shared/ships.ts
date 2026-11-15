@@ -1,5 +1,6 @@
 // Catalogue des navires : 7 classes historiques et des bâtiments nommés d'après de vrais navires de la marine française.
 // Source de vérité unique pour le client (affichage, modèles 3D) et le serveur (simulation, achats).
+import { fitEffects, MAST_CAPACITY, type Fit } from './equipment.ts';
 
 export type ShipClassId = 'corvette' | 'brick' | 'fregate' | 'fregate_lourde' | 'vaisseau' | 'trois_ponts' | 'amiral';
 export type Rarity = 'commun' | 'peu_commun' | 'rare' | 'epique' | 'legendaire';
@@ -99,6 +100,8 @@ export const SHIPS: ShipDef[] = [
   N({ id: 'anglais_74', name: 'Vaisseau anglais', cls: 'vaisseau', rarity: 'commun', level: 14, price: {}, canons: 74, mod: { hp: 0.85 }, look: { hull: 0x1a1510, stripe: 0xd8b35a, trim: 0xb8892b, sail: 0xe9e2cf, flag: 'anglais' }, history: '', npcOnly: true }),
   N({ id: 'barbaresque', name: 'Chébec barbaresque', cls: 'brick', rarity: 'commun', level: 10, price: {}, canons: 24, mod: { speed: 1.1, turn: 1.1, hp: 1.3 }, look: { hull: 0x5a3b1f, stripe: 0x1e5a3a, trim: 0xc9a227, sail: 0xe6d8b0, flag: 'barbaresque' }, history: '', npcOnly: true }),
   N({ id: 'flibustier', name: 'Frégate flibustière', cls: 'fregate_lourde', rarity: 'commun', level: 18, price: {}, canons: 40, mod: { hp: 0.9 }, look: { hull: 0x1f1712, stripe: 0x6e1b1b, trim: 0x6b5a3a, sail: 0x6f675a, flag: 'pirate' }, history: '', npcOnly: true }),
+  N({ id: 'anglais_3ponts', name: 'Trois-ponts anglais', cls: 'trois_ponts', rarity: 'commun', level: 24, price: {}, canons: 100, mod: { hp: 0.85 }, look: { hull: 0x1a1510, stripe: 0xd8b35a, trim: 0xc9a227, sail: 0xe9e2cf, flag: 'anglais' }, history: '', npcOnly: true }),
+  N({ id: 'corsaire_amiral', name: 'Vaisseau amiral pirate', cls: 'amiral', rarity: 'commun', level: 30, price: {}, canons: 96, mod: { hp: 0.8, speed: 1.05 }, look: { hull: 0x140e0a, stripe: 0x6e1b1b, trim: 0x8a6a3a, sail: 0x5f574a, flag: 'pirate' }, history: '', npcOnly: true }),
   N({ id: 'spectre', name: 'Le Spectre des Brumes', cls: 'trois_ponts', rarity: 'legendaire', level: 25, price: {}, canons: 120, mod: { hp: 6, speed: 0.85, reload: 0.8, range: 1.1 }, look: { hull: 0x0c1412, stripe: 0x1d3b33, trim: 0x4fffc0, sail: 0x5f7a70, flag: 'spectre', glow: 0x3dffb0 }, history: 'Un trois-ponts disparu corps et biens en 1709, qui revient quand le brouillard tombe.', npcOnly: true }),
 ];
 
@@ -147,15 +150,16 @@ export interface ShipStats {
   beam: number;
 }
 
-export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: Skills = NO_SKILLS): ShipStats {
+export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: Skills = NO_SKILLS, fit?: Fit): ShipStats {
   const c = SHIP_CLASSES[def.cls];
   const m = def.mod;
-  const hp = c.hp * (m.hp ?? 1) * (1 + 0.08 * up.coque) * (1 + 0.03 * sk.charpenterie);
-  const speed = c.speed * (m.speed ?? 1) * (1 + 0.04 * up.voiles) * (1 + 0.02 * sk.navigation);
+  const eq = fitEffects(fit, def.canons, MAST_CAPACITY[def.cls]);
+  const hp = c.hp * (m.hp ?? 1) * (1 + 0.08 * up.coque) * (1 + 0.03 * sk.charpenterie) * eq.hp;
+  const speed = c.speed * (m.speed ?? 1) * (1 + 0.04 * up.voiles) * (1 + 0.02 * sk.navigation) * eq.speed;
   const turn = c.turn * (m.turn ?? 1) * (1 + 0.05 * up.voiles) * (1 + 0.03 * sk.navigation);
-  const reload = c.reload * (m.reload ?? 1) * (1 - 0.04 * up.canons);
-  const range = c.range * (m.range ?? 1) * (1 + 0.05 * up.boulets);
-  const broadside = (def.canons / 2) * 14 * c.caliber * (1 + 0.07 * up.canons) * (1 + 0.03 * sk.artillerie);
+  const reload = c.reload * (m.reload ?? 1) * (1 - 0.04 * up.canons) * eq.reload;
+  const range = c.range * (m.range ?? 1) * (1 + 0.05 * up.boulets) * eq.range;
+  const broadside = (def.canons / 2) * 14 * c.caliber * (1 + 0.07 * up.canons) * (1 + 0.03 * sk.artillerie) * eq.damage;
   return {
     hp: Math.round(hp),
     sailHp: Math.round(hp * 0.5),

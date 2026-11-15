@@ -1,7 +1,9 @@
 // Simulation autoritaire d'une zone maritime : un « shard » indépendant.
 // Le serveur peut faire tourner chaque zone dans son propre processus plus tard (voir docs/ARCHITECTURE.md).
 import { AMMO, type AmmoId, type ConsumableId } from '../../shared/items.ts';
+import type { EquipId } from '../../shared/equipment.ts';
 import { clamp, dist2, wrapAngle } from '../../shared/math.ts';
+import { combatHelm, steerTo } from '../../shared/autopilot.ts';
 import { collideShip, elevationFor, GRAVITY, stepShip, type Wind } from '../../shared/physics.ts';
 import {
   F_BURNING, F_PVP, F_REPAIRING, F_SAFE, F_SINKING, VIEW_RADIUS,
@@ -36,6 +38,10 @@ const NPC_NAMES: Record<string, string[]> = {
 export interface ZoneHooks {
   relation(a: PlayerLink, b: PlayerLink): Relation;
   broadcastChat?(text: string): void;
+  /** Un boss vient d'être vaincu : la guilde du meilleur capitaine prend le contrôle de la carte. */
+  onConquest?(zone: Zone, link: PlayerLink): void;
+  /** Un PNJ a été coulé par ce joueur (mission de passage d'étage). */
+  onKill?(zone: Zone, link: PlayerLink): void;
 }
 
 export class Zone {
@@ -53,7 +59,9 @@ export class Zone {
   private weatherTimer = 120;
   private nextWeather: WeatherState['kind'] = 'clair';
   time = 0;
-  private spawnTimer = 0;
+  /** Réapparition des PNJ : chaque navire coulé revient 5 minutes plus tard (type tiré au sort). */
+  private respawns: number[] = [];
+  static NPC_RESPAWN = 300;
   private bossTimer = 150;
   bossId = 0;
   private bossAge = 0;
@@ -76,6 +84,12 @@ export class Zone {
   }
 
   // ------------------------------------------------------------------ joueurs
+  /** Place un navire en mer près du port principal (changement de carte en pleine mer). */
+  arriveAtSea(link: PlayerLink) {
+    link.port = this.def.ports.find((p) => p.main)?.id ?? this.def.ports[0].id;
+    this.undock(link);
+  }
+
   addPlayer(link: PlayerLink, docked: boolean) {
     link.zoneId = this.def.id;
     link.known.clear();
@@ -132,6 +146,9 @@ export class Zone {
     link.sailRatio = s.sailHp / s.stats.sailHp;
     this.ships.delete(s.id);
     link.docked = true;
+    link.nav = null;
+    link.attacking = false;
+    link.targetId = 0;
     link.port = port.id;
     link.profile.port = port.id;
     // Livraisons à destination de ce port.
@@ -233,6 +250,18 @@ export class Zone {
     this.weatherTimer = 200;
   }
 
+  /** Équipement trouvé dans les épaves : plus la carte est haute, plus les gros calibres sont fréquents. */
+  private equipDrop(luck: number): Partial<Record<EquipId, number>> {
+    const t = this.def.tier, R = Math.random, out: Partial<Record<EquipId, number>> = {};
+    if (R() < 0.25 * luck) out.c30 = 1 + Math.floor(R() * (2 + t));
+    if (R() < 0.12 * luck) out.pin = 1 + Math.floor(R() * 3);
+    if (t >= 2 && R() < 0.05 * luck * t / 2) out.c50 = 1 + Math.floor(R() * 2);
+    if (t >= 3 && R() < 0.04 * luck * t / 3) out.chene = 1 + Math.floor(R() * 2);
+    if (t >= 5 && R() < 0.02 * luck * t / 5) out.c60 = 1;
+    if (t >= 6 && R() < 0.02 * luck * t / 6) out.riga = 1;
+    return out;
+  }
+
   private spawnTreasure(wreckId: number) {
     const w = this.world.wrecks.find((x) => x.id === wreckId);
     if (!w) return;
@@ -241,6 +270,8 @@ export class Zone {
     this.loot.set(id, {
       id, x: w.x + Math.sin(w.h) * 22, z: w.z + Math.cos(w.h) * 22, kind: 'tresor',
       or: Math.round((500 + Math.random() * 900) * (1 + lvl * 0.3)), doublons: 2 + Math.floor(Math.random() * 6), perles: Math.random() < 0.35 ? 1 + Math.floor(Math.random() * 3) : 0,
+      diamants: Math.random() < 0.08 * this.def.tier ? 1 : 0,
+      equip: this.equipDrop(1.5),
       mat: { bois: 3 + Math.floor(Math.random() * 6), toile: 3 + Math.floor(Math.random() * 6), fer: 2 + Math.floor(Math.random() * 5) },
       expires: Infinity, wreck: wreckId,
     });
@@ -330,6 +361,42 @@ export class Zone {
     this.emit({ k: 'shot', id: s.id, side, pid: pid0, ammo: ammoId, t: this.time, balls: balls.map(round) }, s.k.x, s.k.z);
   }
 
+  /**
+   * Pilotage d'un navire de joueur : clavier, pilote automatique (clic sur la mer) ou manœuvre d'attaque.
+   * L'attaque automatique tire dès qu'un bord est pointé vers la cible et rechargé.
+   */
+  private pilot(s: ShipEnt, link: PlayerLink) {
+    const tgt = link.targetId ? this.ships.get(link.targetId) ?? this.forts.get(link.targetId) : undefined;
+    const tShip = tgt && 'k' in tgt ? tgt : null;
+    const tx = tShip ? tShip.k.x : tgt ? (tgt as FortEnt).def.x : 0;
+    const tz = tShip ? tShip.k.z : tgt ? (tgt as FortEnt).def.z : 0;
+    const alive = tgt && (tShip ? tShip.sinking < 0 : (tgt as FortEnt).down <= 0);
+    if (link.targetId && (!alive || dist2(s.k.x, s.k.z, tx, tz) > 2600 * 2600)) {
+      link.targetId = 0;
+      link.attacking = false;
+    }
+    const range = s.stats.range * AMMO[s.ammo].range;
+    if (link.nav) {
+      const h = steerTo(this.world, s.k, link.nav.x, link.nav.z);
+      if (h) link.input = h;
+      else { link.nav = null; link.input = { sail: 0, rudder: 0 }; }
+    } else if (link.attacking && alive) {
+      link.input = combatHelm(this.world, s.k, s.stats, tx, tz, range);
+    }
+    s.input = link.input;
+    if (link.attacking && alive && tgt && this.canHarm(s, tgt)) {
+      const d = Math.sqrt(dist2(s.k.x, s.k.z, tx, tz));
+      if (d <= range * 1.02) {
+        const flight = d / 110;
+        const ax = tShip ? tx + Math.sin(tShip.k.h) * tShip.k.speed * flight : tx;
+        const az = tShip ? tz + Math.cos(tShip.k.h) * tShip.k.speed * flight : tz;
+        const rel = wrapAngle(Math.atan2(ax - s.k.x, az - s.k.z) - s.k.h);
+        if (s.reload[0] <= 0 && Math.abs(wrapAngle(rel - Math.PI / 2)) <= 0.6) this.fireSide(s, 'babord', ax, az);
+        if (s.reload[1] <= 0 && Math.abs(wrapAngle(rel + Math.PI / 2)) <= 0.6) this.fireSide(s, 'tribord', ax, az);
+      }
+    }
+  }
+
   useItem(s: ShipEnt, id: ConsumableId): string | null {
     const p = s.link!.profile;
     if (s.sinking >= 0) return null;
@@ -359,7 +426,7 @@ export class Zone {
         if (link.deadTimer <= 0) this.respawn(link);
       }
       const s = this.ships.get(link.entityId);
-      if (s && s.sinking < 0) s.input = link.input;
+      if (s && s.sinking < 0) this.pilot(s, link);
     }
 
     for (const s of [...this.ships.values()]) this.updateShip(s, dt);
@@ -393,11 +460,9 @@ export class Zone {
     // Population de PNJ.
     let npcs = 0;
     for (const s of this.ships.values()) if (s.kind === 'npc') npcs++;
-    this.spawnTimer -= dt;
-    if (npcs < this.def.npcCount && this.spawnTimer <= 0) {
-      this.spawnNPC();
-      this.spawnTimer = 4;
-    }
+    const due = this.respawns.filter((t) => t <= this.time).length;
+    if (due) this.respawns = this.respawns.filter((t) => t > this.time);
+    for (let k = 0; k < due && npcs < this.def.npcCount; k++, npcs++) this.spawnNPC();
     // Boss de zone.
     if (this.def.boss) {
       if (this.bossId) {
@@ -587,7 +652,7 @@ export class Zone {
         if (dist2(s.k.x, s.k.z, l.x, l.z) > r * r) continue;
         this.loot.delete(l.id);
         const link = s.link!;
-        grant(link, { or: l.or, doublons: l.doublons, perles: l.perles, mat: l.mat }, l.kind === 'tresor' ? 'Trésor récupéré' : 'Butin repêché');
+        grant(link, { or: l.or, doublons: l.doublons, perles: l.perles, diamants: l.diamants, equip: l.equip, mat: l.mat }, l.kind === 'tresor' ? 'Trésor récupéré' : 'Butin repêché');
         if (l.kind === 'tresor') {
           link.profile.stats.treasures++;
           progressMission(link, 'tresor', String(l.wreck), 1);
@@ -673,25 +738,33 @@ export class Zone {
       const link = this.links.get(id);
       if (!link) continue;
       const share = Math.min(1, 0.3 + 0.7 * (d / total));
-      const r = { or: base.or * share, xp: base.xp * share, rep: base.rep * share, doublons: base.doublons * share, perles: base.perles * share };
+      const mul = this.def.rewardMul;
+      const r = { or: base.or * share * mul, xp: base.xp * share * mul, rep: base.rep * share, doublons: base.doublons * share, perles: base.perles * share };
       grant(link, r, s.kind === 'boss' ? `${s.name} est vaincu !` : `${s.name} coulé`);
       if (killer?.id === id || d / total > 0.3) {
         link.profile.stats.kills++;
         if (s.kind === 'boss') link.profile.stats.boss++;
         progressMission(link, 'chasse', s.faction, 1);
+        this.hooks.onKill?.(this, link);
       }
     }
     if (s.kind === 'boss') {
+      let best: PlayerLink | null = null, bd = 0;
+      for (const [id, d] of s.dmgBy) { const l = this.links.get(id); if (l && d > bd) { bd = d; best = l; } }
+      if (best) this.hooks.onConquest?.(this, best);
       this.bossId = 0;
       for (const l of this.links.values()) { l.send({ t: 'boss', active: false }); l.notify(`${s.name} sombre dans les abysses ! La brume se dissipe.`, 'event'); }
       this.hooks.broadcastChat?.(`${s.name} a été vaincu dans ${this.def.name} !`);
     }
+    if (s.kind === 'npc') this.respawns.push(this.time + Zone.NPC_RESPAWN);
     // Épave flottante à repêcher.
     const id = allocId();
     const R = Math.random;
     this.loot.set(id, {
       id, x: s.k.x + (R() - 0.5) * 20, z: s.k.z + (R() - 0.5) * 20, kind: 'caisse',
-      or: Math.round(base.or * 0.25 * (0.6 + R() * 0.8)), doublons: R() < 0.12 ? 1 + Math.floor(R() * 3) : 0, perles: R() < 0.04 ? 1 : 0,
+      or: Math.round(base.or * 0.25 * (0.6 + R() * 0.8)), doublons: R() < 0.12 ? 1 + Math.floor(R() * 3) : 0, perles: R() < 0.06 + 0.02 * this.def.tier ? 1 + Math.floor(R() * this.def.tier / 3) : 0,
+      diamants: s.kind === 'boss' ? 3 + this.def.tier : R() < 0.01 * this.def.tier ? 1 : 0,
+      equip: this.equipDrop(s.kind === 'boss' ? 6 : 1),
       mat: { bois: Math.floor(R() * 3 * s.tier), toile: Math.floor(R() * 3 * s.tier), fer: Math.floor(R() * 2 * s.tier) },
       expires: this.time + 90,
     });
@@ -773,6 +846,11 @@ export class Zone {
         powder: me ? r1(me.powder) : 0,
         pvp: link.pvp,
         safe: me ? this.inSafeZone(me.k.x, me.k.z) : true,
+        helm: me ? [me.input.sail, Math.round(me.input.rudder * 100) / 100] : [0, 0],
+        auto: !!link.nav || link.attacking,
+        nav: link.nav ? [Math.round(link.nav.x), Math.round(link.nav.z)] : null,
+        target: link.targetId,
+        attacking: link.attacking,
       };
       link.send({ t: 'snap', st: Math.round(this.time * 1000) / 1000, wind: { dir: Math.round(this.wind.dir * 1000) / 1000, strength: Math.round(this.wind.strength * 100) / 100 }, wx: { ...this.weather, intensity: Math.round(this.weather.intensity * 100) / 100, fog: Math.round(this.weather.fog * 100) / 100 }, day: Math.round(dayFraction * 10000) / 10000, me: meState, e: ents, ev });
     }

@@ -1,11 +1,12 @@
 // Attribution des récompenses et suivi des missions (toujours côté serveur).
 import { MATERIAL_NAMES, type MaterialId } from '../../shared/items.ts';
+import { EQUIP_NAME, type EquipId } from '../../shared/equipment.ts';
 import { fmt } from '../../shared/math.ts';
 import { levelFromXp, rankOf } from '../../shared/progression.ts';
 import type { MissionType } from '../../shared/protocol.ts';
 import type { PlayerLink } from '../types.ts';
 
-export interface Reward { or?: number; xp?: number; rep?: number; doublons?: number; perles?: number; mat?: Partial<Record<MaterialId, number>> }
+export interface Reward { or?: number; xp?: number; rep?: number; doublons?: number; perles?: number; diamants?: number; mat?: Partial<Record<MaterialId, number>>; equip?: Partial<Record<EquipId, number>> }
 
 export function grant(link: PlayerLink, r: Reward, reason: string) {
   const p = link.profile;
@@ -16,6 +17,12 @@ export function grant(link: PlayerLink, r: Reward, reason: string) {
   if (r.rep) { p.reputation += Math.round(r.rep); parts.push(`+${fmt(r.rep)} réputation`); }
   if (r.doublons) { p.doublons += Math.round(r.doublons); parts.push(`+${fmt(r.doublons)} doublons`); }
   if (r.perles) { p.perles += Math.round(r.perles); parts.push(`+${fmt(r.perles)} perles`); }
+  if (r.diamants) { p.diamants += Math.round(r.diamants); parts.push(`+${fmt(r.diamants)} diamant${r.diamants > 1 ? 's' : ''}`); }
+  if (r.equip) for (const [k, v] of Object.entries(r.equip) as [EquipId, number][]) {
+    if (!v) continue;
+    p.equip[k] = (p.equip[k] ?? 0) + v;
+    parts.push(`+${v} ${EQUIP_NAME(k).toLowerCase()}`);
+  }
   if (r.mat) for (const [k, v] of Object.entries(r.mat) as [MaterialId, number][]) {
     if (!v) continue;
     p.mat[k] += Math.round(v);

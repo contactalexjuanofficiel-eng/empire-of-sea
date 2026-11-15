@@ -1,7 +1,8 @@
 // État de l'interface (React) : un petit magasin observable, mis à jour par le moteur de jeu et le réseau.
 import { useSyncExternalStore } from 'react';
 import type { AmmoId, ConsumableId, GoodId } from '../../shared/items';
-import type { ChatChannel, GuildInfo, MissionOffer, Profile } from '../../shared/protocol';
+import type { ChatChannel, GuildInfo, MapInfo, MissionOffer, Profile } from '../../shared/protocol';
+import { defaultKeys } from './game/Input';
 
 export interface HudState {
   hp: number; maxHp: number; sailHp: number;
@@ -20,7 +21,8 @@ export interface NearbyShip { id: number; name: string; kind: string; level: num
 export interface ChatLine { id: number; ch: ChatChannel; from: string; text: string; tag?: string | null }
 export interface Notice { id: number; text: string; kind: string; t: number }
 export type Panel = null | 'port' | 'inventaire' | 'profil' | 'classement' | 'guilde' | 'carte' | 'aide' | 'parametres';
-export interface Settings { quality: 'haute' | 'moyenne' | 'basse'; volume: number; muted: boolean; autoCam: boolean; labels: boolean }
+export interface TargetInfo { id: number; name: string; kind: string; level: number; hp: number; dist: number; hostile: boolean; faction: string; ship?: string }
+export interface Settings { quality: 'haute' | 'moyenne' | 'basse'; volume: number; muted: boolean; autoCam: boolean; labels: boolean; camMode: 'dessus' | '3d'; autoAttack: boolean; keys: Record<string, string> }
 
 export interface AppState {
   screen: 'login' | 'create' | 'loading' | 'game';
@@ -46,11 +48,18 @@ export interface AppState {
   settings: Settings;
   chatFocus: number;
   fps: number;
+  maps: MapInfo[];
+  target: TargetInfo | null;
+  attacking: boolean;
 }
 
 const loadSettings = (): Settings => {
-  const d: Settings = { quality: 'moyenne', volume: 0.7, muted: false, autoCam: true, labels: true };
-  try { return { ...d, ...JSON.parse(localStorage.getItem('edm.settings') || '{}') }; } catch { return d; }
+  const d: Settings = { quality: 'moyenne', volume: 0.7, muted: false, autoCam: true, labels: true, camMode: 'dessus', autoAttack: true, keys: defaultKeys() };
+  try {
+    const s = { ...d, ...JSON.parse(localStorage.getItem('edm.settings') || '{}') } as Settings;
+    s.keys = { ...defaultKeys(), ...(s.keys || {}) };
+    return s;
+  } catch { return d; }
 };
 
 const initial: AppState = {
@@ -77,6 +86,9 @@ const initial: AppState = {
   settings: loadSettings(),
   chatFocus: 0,
   fps: 0,
+  maps: [],
+  target: null,
+  attacking: false,
 };
 
 type Listener = () => void;

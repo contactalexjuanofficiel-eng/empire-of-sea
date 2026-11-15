@@ -18,8 +18,9 @@ function fakeLink(name: string, id: number): PlayerLink & { inbox: S2C[] } {
   return {
     inbox, accountId: id, name, profile,
     send: (m) => inbox.push(m), notify: (text) => inbox.push({ t: 'notice', text }), touch: () => {},
-    zoneId: 'manche', entityId: 100000 + id, docked: true, port: 'brest', input: { sail: 0, rudder: 0 }, seq: 0,
+    zoneId: 'manche-1', entityId: 100000 + id, docked: true, port: 'brest', input: { sail: 0, rudder: 0 }, seq: 0,
     pvp: false, hpRatio: 1, sailRatio: 1, known: new Set(), deadTimer: 0, groupId: null, guildTag: null,
+    nav: null, targetId: 0, attacking: false,
   };
 }
 
@@ -49,16 +50,16 @@ test('monde : génération déterministe, ports sur la terre, collisions avec le
     assert.ok(a.islands.length >= z.ports.length + 10, `${z.id} : assez d'îles`);
     for (const p of z.ports) assert.ok(islandHeight(a.islands.find((i) => i.port?.id === p.id)!, p.x, p.z) > 2);
   }
-  const w = buildWorld(ZONE_BY_ID.manche);
+  const w = buildWorld(ZONE_BY_ID['manche-1']);
   const isl = w.islands[0];
   const st = computeStats(SHIP_BY_ID.bayonnaise);
   const k = { x: isl.x + isl.r * 0.3, z: isl.z, h: 0, speed: 10 };
-  const shock = collideShip(k, st, w, ZONE_BY_ID.manche.half);
+  const shock = collideShip(k, st, w, ZONE_BY_ID['manche-1'].half);
   assert.ok(shock > 0, 'un navire sur la terre est repoussé');
 });
 
 test('combat : une bordée touche, coule un PNJ et rapporte or, XP et butin', () => {
-  const zone = new Zone(ZONE_BY_ID.manche, { relation: () => 'neutral' });
+  const zone = new Zone(ZONE_BY_ID['manche-1'], { relation: () => 'neutral' });
   const link = fakeLink('Testeur', 1);
   zone.addPlayer(link, true);
   assert.equal(zone.undock(link), null);
@@ -87,7 +88,7 @@ test('combat : une bordée touche, coule un PNJ et rapporte or, XP et butin', ()
 });
 
 test('PvP : interdit par défaut en Manche, autorisé quand les deux hissent le pavillon rouge, jamais au port', () => {
-  const zone = new Zone(ZONE_BY_ID.manche, { relation: () => 'neutral' });
+  const zone = new Zone(ZONE_BY_ID['manche-1'], { relation: () => 'neutral' });
   const a = fakeLink('Alpha', 2), b = fakeLink('Bravo', 3);
   zone.addPlayer(a, false);
   zone.addPlayer(b, false);
@@ -96,14 +97,14 @@ test('PvP : interdit par défaut en Manche, autorisé quand les deux hissent le 
   assert.equal(zone.canHarm(sa, sb), false);
   a.pvp = b.pvp = true;
   assert.equal(zone.canHarm(sa, sb), true);
-  const brest = ZONE_BY_ID.manche.ports[0];
+  const brest = ZONE_BY_ID['manche-1'].ports[0];
   sb.k.x = brest.x; sb.k.z = brest.z + 400;
   assert.equal(zone.canHarm(sa, sb), false, 'zone portuaire protégée');
 });
 
 test('économie : achats vérifiés côté serveur (niveau, fonds, port)', () => {
   const link = fakeLink('Marchand', 4);
-  const z = ZONE_BY_ID.manche;
+  const z = ZONE_BY_ID['manche-1'];
   link.docked = false;
   assert.match(shop(link, z, { a: 'buyShip', ship: 'cygne' }, 0)!, /amarré/);
   link.docked = true;
@@ -125,4 +126,43 @@ test('économie : achats vérifiés côté serveur (niveau, fonds, port)', () =>
   const before = link.profile.mat.bois;
   assert.equal(shop(link, z, { a: 'upgrade', slot: 'coque' }, 0), null);
   assert.ok(link.profile.mat.bois < before);
+});
+
+test('souris : navigation au clic et attaque automatique d\'un PNJ ciblé', () => {
+  const zone = new Zone(ZONE_BY_ID['manche-1'], { relation: () => 'neutral' });
+  const link = fakeLink('Clic', 7);
+  zone.addPlayer(link, false);
+  const me = zone.ships.get(link.entityId)!;
+  for (const s of [...zone.ships.values()]) if (s.kind !== 'player') zone.ships.delete(s.id);
+  me.k.x = 0; me.k.z = 0; me.k.h = 0; me.k.speed = 0;
+  // « Va ici » : le navire avance seul et s'arrête à destination.
+  link.nav = { x: 0, z: 400 };
+  for (let i = 0; i < 20 * 60 && link.nav; i++) zone.tick(0.05);
+  assert.equal(link.nav, null, 'arrivé');
+  assert.ok(Math.hypot(me.k.x, me.k.z - 400) < 60);
+  // Attaque : on cible un PNJ immobile à 250 m ; le navire manœuvre et tire seul.
+  zone.spawnNPC(true);
+  const npc = [...zone.ships.values()].find((s) => s.kind === 'npc')!;
+  npc.k.x = me.k.x + 250; npc.k.z = me.k.z; npc.stats = { ...npc.stats, speed: 0, turn: 0 }; npc.dmgMul = 0;
+  link.targetId = npc.id; link.attacking = true;
+  const hp0 = npc.hp;
+  for (let i = 0; i < 20 * 40 && npc.hp === hp0; i++) zone.tick(0.05);
+  assert.ok(npc.hp < hp0, 'le PNJ a été touché par l\'attaque automatique');
+});
+
+test('cartes et équipement : 20 cartes, ports propres, canons installés plus puissants', () => {
+  assert.equal(ZONES.length, 20);
+  assert.deepEqual(ZONES.map((z) => z.code).slice(0, 12), ['1/1', '1/2', '2/1', '2/2', '3/1', '3/2', '4/1', '4/2', '5/1', '5/2', '11', '12']);
+  assert.equal(ZONES.at(-1)!.code, '20');
+  assert.notDeepEqual(ZONE_BY_ID['manche-1'].ports.map((p) => p.name), ZONE_BY_ID['manche-2'].ports.map((p) => p.name));
+  const def = SHIP_BY_ID.bayonnaise;
+  const base = computeStats(def).broadside;
+  assert.ok(computeStats(def, undefined, undefined, { c60: 20 }).broadside > computeStats(def, undefined, undefined, { c30: 20 }).broadside);
+  assert.ok(computeStats(def, undefined, undefined, { c30: 20 }).broadside > base);
+  const link = fakeLink('Armurier', 8);
+  link.profile.perles = 10;
+  assert.equal(shop(link, ZONE_BY_ID['manche-1'], { a: 'buyEquip', item: 'c50', qty: 5 }, 0), null);
+  assert.equal(shop(link, ZONE_BY_ID['manche-1'], { a: 'install', item: 'c50', qty: 50 }, 0), null);
+  assert.equal(link.profile.ships[0].fit?.c50, 5);
+  assert.match(shop(link, ZONE_BY_ID['manche-1'], { a: 'buyEquip', item: 'c60', qty: 1 }, 0)!, /Fonds/);
 });

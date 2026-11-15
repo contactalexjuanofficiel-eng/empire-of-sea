@@ -47,21 +47,32 @@ Aperçu d'une heure précise (purement visuel) : `http://localhost:8080/?heure=0
 
 ## Commandes
 
-| Action | Touches (AZERTY / QWERTY) |
+Le jeu se joue **à la souris**, en vue du dessus (la vue 3D derrière le navire reste disponible dans les Paramètres).
+
+| Action | Commande |
 |---|---|
-| Voilure + / − (4 allures) | `Z` / `S` (`W` / `S`) ou `↑` / `↓` |
-| Barre à bâbord / tribord | `Q` / `D` (`A` / `D`) ou `←` / `→` |
-| Viser | la souris sur l'eau : arc balistique et cible (or = prêt, rouge = rechargement) |
-| Tirer la bordée visée | **clic gauche** |
-| Double bordée | `Espace` |
-| Bordée bâbord / tribord | `A` / `E` (`Q` / `E`) |
-| Caméra | clic droit (ou gauche) glissé · molette pour le zoom · `V` suivi auto |
-| Munitions | `1` boulet rond · `2` ramé · `3` mitraille · `4` boulet rouge · `5` obus |
-| Équipements | `R` kit de réparation · `F` pompes (incendie) · `G` poudre fine |
-| Accoster au port | `P` (près d'un quai) |
-| Pavillon de combat (PvP) | `B` |
-| Carte du monde / Inventaire / Profil / Guilde / Classement | `M` / `I` / `C` / `U` / `K` |
-| Chat | `Entrée` (`/mp Nom message` pour un message privé) |
+| Naviguer | **clic gauche sur la mer** (le navire contourne les îles ; repère vert) |
+| Attaquer | **clic gauche sur un ennemi** : avec l'attaque automatique, le navire présente le flanc et tire seul |
+| Zoom / déplacer la vue | molette · clic droit glissé · touches caméra (T, G, F, H, 9 pour recentrer) |
+| Barre rapide | 1 à 5 : munitions · 6 : réparation · 7 : pompes · 8 : poudre fine |
+| Attaquer / annuler l'attaque | A / E (QWERTY : Q / E) |
+| Cartes / Inventaire / Profil / Guilde / Classements | M / I / C / U / K |
+| Accoster | P · pavillon de combat : B · chat : Entrée |
+
+**Toutes les touches se modifient dans Paramètres** (cliquez sur une touche puis appuyez sur la nouvelle).
+
+## Cartes
+
+20 cartes : **1/1 à 5/2** par paires (/1 calme, /2 de guerre avec PvP libre et meilleur butin), puis **11 à 20**.
+Chaque carte a ses propres ports français. La **mission de passage** de chaque étage (couler des ennemis à son
+étage le plus haut et atteindre le niveau requis) débloque l'étage suivant. La guilde qui abat le boss d'une carte
+en prend le contrôle (son blason s'affiche dans la grille des cartes). Les PNJ coulés réapparaissent 5 minutes plus tard.
+
+## Équipement
+
+Canons de **30 livres** (or), **50 livres** (perles) et **60 livres** (diamants), mâts de pin, de chêne et de Riga :
+achat à l'Arsenal, installation au port (onglet Équipement) dans la limite de capacité du navire, et butin des PNJ
+(plus riche sur les cartes hautes). Bureau de change : 10 doublons = 1 perle, 10 perles = 1 diamant.
 
 ## Ce que contient cette première version
 

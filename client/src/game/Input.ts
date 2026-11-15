@@ -1,33 +1,82 @@
-// Entrées clavier et souris. On utilise les codes physiques (e.code) : ZQSD sur AZERTY = WASD sur QWERTY.
+// Entrées clavier et souris. Les touches sont configurables (Paramètres) ; on enregistre le code physique
+// de la touche (e.code), donc les raccourcis restent à la même place sur AZERTY et QWERTY.
 export type Action =
-  | 'sailUp' | 'sailDown' | 'left' | 'right' | 'fireBoth' | 'fireBabord' | 'fireTribord'
-  | 'ammo1' | 'ammo2' | 'ammo3' | 'ammo4' | 'ammo5' | 'kit' | 'seau' | 'poudre'
-  | 'dock' | 'map' | 'inventory' | 'profile' | 'ranking' | 'guild' | 'chat' | 'escape' | 'pvp' | 'camera';
+  | 'attack' | 'cancelAttack' | 'fireBoth' | 'fireBabord' | 'fireTribord'
+  | 'sailUp' | 'sailDown' | 'left' | 'right'
+  | 'hot1' | 'hot2' | 'hot3' | 'hot4' | 'hot5' | 'hot6' | 'hot7' | 'hot8'
+  | 'camUp' | 'camDown' | 'camLeft' | 'camRight' | 'camCenter' | 'camMode'
+  | 'dock' | 'maps' | 'inventory' | 'profile' | 'ranking' | 'guild' | 'chat' | 'escape' | 'pvp';
 
-const BIND: Record<string, Action> = {
-  KeyW: 'sailUp', ArrowUp: 'sailUp', KeyS: 'sailDown', ArrowDown: 'sailDown',
-  KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
-  Space: 'fireBoth', KeyQ: 'fireBabord', KeyE: 'fireTribord',
-  Digit1: 'ammo1', Digit2: 'ammo2', Digit3: 'ammo3', Digit4: 'ammo4', Digit5: 'ammo5',
-  KeyR: 'kit', KeyF: 'seau', KeyG: 'poudre',
-  KeyP: 'dock', KeyM: 'map', KeyI: 'inventory', KeyC: 'profile', KeyK: 'ranking', KeyU: 'guild',
-  Enter: 'chat', Escape: 'escape', KeyB: 'pvp', KeyV: 'camera',
-};
+export interface KeyDef { action: Action; label: string; group: string; def: string }
+
+export const KEY_DEFS: KeyDef[] = [
+  { action: 'attack', label: 'Attaquer la cible', group: 'Combat', def: 'KeyA' },
+  { action: 'cancelAttack', label: 'Annuler l\'attaque', group: 'Combat', def: 'KeyE' },
+  { action: 'fireBoth', label: 'Double bordée', group: 'Combat', def: 'Space' },
+  { action: 'fireBabord', label: 'Bordée bâbord', group: 'Combat', def: '' },
+  { action: 'fireTribord', label: 'Bordée tribord', group: 'Combat', def: '' },
+  { action: 'hot1', label: 'Barre rapide 1', group: 'Barre rapide', def: 'Digit1' },
+  { action: 'hot2', label: 'Barre rapide 2', group: 'Barre rapide', def: 'Digit2' },
+  { action: 'hot3', label: 'Barre rapide 3', group: 'Barre rapide', def: 'Digit3' },
+  { action: 'hot4', label: 'Barre rapide 4', group: 'Barre rapide', def: 'Digit4' },
+  { action: 'hot5', label: 'Barre rapide 5', group: 'Barre rapide', def: 'Digit5' },
+  { action: 'hot6', label: 'Barre rapide 6', group: 'Barre rapide', def: 'Digit6' },
+  { action: 'hot7', label: 'Barre rapide 7', group: 'Barre rapide', def: 'Digit7' },
+  { action: 'hot8', label: 'Barre rapide 8', group: 'Barre rapide', def: 'Digit8' },
+  { action: 'camUp', label: 'Caméra haut', group: 'Caméra', def: 'KeyT' },
+  { action: 'camDown', label: 'Caméra bas', group: 'Caméra', def: 'KeyG' },
+  { action: 'camLeft', label: 'Caméra gauche', group: 'Caméra', def: 'KeyF' },
+  { action: 'camRight', label: 'Caméra droite', group: 'Caméra', def: 'KeyH' },
+  { action: 'camCenter', label: 'Centrer la caméra', group: 'Caméra', def: 'Digit9' },
+  { action: 'camMode', label: 'Vue du dessus / vue 3D', group: 'Caméra', def: 'KeyV' },
+  { action: 'sailUp', label: 'Voilure +', group: 'Navigation au clavier', def: 'ArrowUp' },
+  { action: 'sailDown', label: 'Voilure −', group: 'Navigation au clavier', def: 'ArrowDown' },
+  { action: 'left', label: 'Barre à bâbord', group: 'Navigation au clavier', def: 'ArrowLeft' },
+  { action: 'right', label: 'Barre à tribord', group: 'Navigation au clavier', def: 'ArrowRight' },
+  { action: 'dock', label: 'Accoster', group: 'Autres', def: 'KeyP' },
+  { action: 'maps', label: 'Cartes', group: 'Autres', def: 'KeyM' },
+  { action: 'inventory', label: 'Inventaire', group: 'Autres', def: 'KeyI' },
+  { action: 'profile', label: 'Profil', group: 'Autres', def: 'KeyC' },
+  { action: 'ranking', label: 'Classements', group: 'Autres', def: 'KeyK' },
+  { action: 'guild', label: 'Guilde', group: 'Autres', def: 'KeyU' },
+  { action: 'pvp', label: 'Pavillon de combat', group: 'Autres', def: 'KeyB' },
+  { action: 'chat', label: 'Chat', group: 'Autres', def: 'Enter' },
+];
+
+export const defaultKeys = (): Record<string, string> => Object.fromEntries(KEY_DEFS.map((k) => [k.action, k.def]));
+
+/** Libellé lisible d'une touche, selon la disposition du clavier quand le navigateur la connaît. */
+let layout: Map<string, string> | null = null;
+try {
+  (navigator as unknown as { keyboard?: { getLayoutMap(): Promise<Map<string, string>> } }).keyboard?.getLayoutMap().then((m) => { layout = m; }).catch(() => {});
+} catch { /* non disponible */ }
+export function keyLabel(code: string) {
+  if (!code) return '—';
+  if (code.startsWith('Digit')) return code.slice(5);
+  const special: Record<string, string> = { Space: 'Espace', Enter: 'Entrée', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Escape: 'Échap', ShiftLeft: 'Maj', ControlLeft: 'Ctrl', Tab: 'Tab' };
+  if (special[code]) return special[code];
+  const l = layout?.get(code);
+  if (l) return l.toUpperCase();
+  return code.replace(/^Key/, '').replace(/^Numpad/, 'Pavé ');
+}
 
 export class Input {
   readonly held = new Set<Action>();
   private listeners: ((a: Action) => void)[] = [];
+  private bind = new Map<string, Action>();
   mouseX = 0;
   mouseY = 0;
   dragging = false;
   private down: { x: number; y: number; button: number } | null = null;
   private moved = 0;
-  onDrag: ((dx: number, dy: number) => void) | null = null;
+  onDrag: ((dx: number, dy: number, button: number) => void) | null = null;
   onWheel: ((d: number) => void) | null = null;
   onClick: ((x: number, y: number) => void) | null = null;
-  enabled = true;
+  /** Capture de la prochaine touche (écran de configuration des touches). */
+  capture: ((code: string) => void) | null = null;
 
-  constructor(private el: HTMLElement) {
+  constructor(private el: HTMLElement, keys: Record<string, string>) {
+    this.setKeys(keys);
     window.addEventListener('keydown', this.keyDown);
     window.addEventListener('keyup', this.keyUp);
     window.addEventListener('blur', () => this.held.clear());
@@ -38,26 +87,42 @@ export class Input {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
+  setKeys(keys: Record<string, string>) {
+    this.bind.clear();
+    for (const k of KEY_DEFS) {
+      const code = keys[k.action] ?? k.def;
+      if (code) this.bind.set(code, k.action);
+    }
+    this.bind.set('Escape', 'escape');
+  }
+
   on(fn: (a: Action) => void) { this.listeners.push(fn); }
 
   private typing(e: KeyboardEvent) {
     const t = e.target as HTMLElement | null;
-    return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
   }
 
   private keyDown = (e: KeyboardEvent) => {
+    if (this.capture) {
+      e.preventDefault();
+      const c = this.capture;
+      this.capture = null;
+      c(e.code);
+      return;
+    }
     if (this.typing(e)) {
       if (e.code === 'Escape') (e.target as HTMLElement).blur();
       return;
     }
-    const a = BIND[e.code];
+    const a = this.bind.get(e.code);
     if (!a) return;
-    if (a === 'fireBoth' || a === 'chat' || a.startsWith('ammo')) e.preventDefault();
+    if (a === 'fireBoth' || a === 'chat' || a.startsWith('hot') || a.startsWith('cam')) e.preventDefault();
     if (!this.held.has(a) && !e.repeat) for (const l of this.listeners) l(a);
     this.held.add(a);
   };
   private keyUp = (e: KeyboardEvent) => {
-    const a = BIND[e.code];
+    const a = this.bind.get(e.code);
     if (a) this.held.delete(a);
   };
   private pDown = (e: PointerEvent) => {
@@ -70,14 +135,14 @@ export class Input {
     this.mouseY = e.clientY;
     if (this.down) {
       this.moved += Math.abs(dx) + Math.abs(dy);
-      if (this.moved > 5 || this.down.button === 2) {
+      if (this.moved > 6 || this.down.button === 2) {
         this.dragging = true;
-        this.onDrag?.(dx, dy);
+        this.onDrag?.(dx, dy, this.down.button);
       }
     }
   };
   private pUp = (e: PointerEvent) => {
-    if (this.down && this.down.button === 0 && this.moved <= 5 && e.target === this.el) this.onClick?.(e.clientX, e.clientY);
+    if (this.down && this.down.button === 0 && this.moved <= 6 && e.target === this.el) this.onClick?.(e.clientX, e.clientY);
     this.down = null;
     this.dragging = false;
   };

@@ -1,4 +1,5 @@
 import type { AmmoId, ConsumableId } from '../../shared/items.ts';
+import type { EquipId } from '../../shared/equipment.ts';
 import type { HelmInput, ShipKinematics } from '../../shared/physics.ts';
 import type { ShipDef, ShipStats } from '../../shared/ships.ts';
 import type { FortDef } from '../../shared/world.ts';
@@ -67,6 +68,8 @@ export interface LootEnt {
   or: number;
   doublons: number;
   perles: number;
+  diamants: number;
+  equip: Partial<Record<EquipId, number>>;
   mat: { bois: number; toile: number; fer: number };
   expires: number;
   wreck?: number;

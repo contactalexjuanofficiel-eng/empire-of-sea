@@ -6,8 +6,9 @@ import { SAIL_NAMES } from '../../../shared/physics';
 import { levelFromXp, rankOf } from '../../../shared/progression';
 import type { ChatChannel } from '../../../shared/protocol';
 import { SHIP_BY_ID } from '../../../shared/ships';
-import { ZONE_BY_ID } from '../../../shared/zones';
+import { FACTION_LABEL, ZONE_BY_ID } from '../../../shared/zones';
 import { store, useStore, type Panel } from '../store';
+import { keyLabel } from '../game/Input';
 import { game, Icon, PORTRAITS, send } from './common';
 
 const knots = (v: number) => (v * 0.7).toFixed(1);
@@ -34,10 +35,11 @@ export function TopBar() {
         <span title="Pièces d'or"><Icon name="or" className="c-or" />{fmt(p.or)}</span>
         <span title="Doublons"><Icon name="doublon" className="c-doublon" />{fmt(p.doublons)}</span>
         <span title="Perles"><Icon name="perle" className="c-perle" />{fmt(p.perles)}</span>
+        <span title="Diamants"><Icon name="diamant" className="c-diamant" />{fmt(p.diamants ?? 0)}</span>
         <span title="Bois · Toile · Fer (ressources de construction)" className="mats"><Icon name="bois" />{p.mat.bois}<Icon name="toile" />{p.mat.toile}<Icon name="fer" />{p.mat.fer}</span>
       </div>
       <div className="zone-name">
-        <Icon name="globe" /> {ZONE_BY_ID[zone]?.name}
+        <Icon name="globe" /> {ZONE_BY_ID[zone]?.code} · {ZONE_BY_ID[zone]?.name}
         <span className={`net net-${conn}`} title="Latence">{conn === 'on' ? `${ping} ms · ${fps} i/s` : conn === 'lost' ? 'Connexion perdue…' : '…'}</span>
       </div>
     </div>
@@ -109,13 +111,14 @@ export function ShipStatus() {
 export function Weapons() {
   const hud = useStore((s) => s.hud);
   const p = useStore((s) => s.profile);
+  const keys = useStore((s) => s.settings.keys);
   if (!p) return null;
   const r = (i: 0 | 1) => 1 - Math.min(1, hud.reload[i] / Math.max(0.1, hud.reloadMax));
   return (
     <div className="weapons">
       <div className="reloads">
         {(['babord', 'tribord'] as const).map((side, i) => (
-          <button key={side} className={`reload ${hud.aim === side ? 'aimed' : ''} ${hud.reload[i] <= 0.05 ? 'ready' : ''}`} onClick={() => game().fire(side)} title={`Bordée ${side} (${i === 0 ? 'A/Q' : 'E'})`}>
+          <button key={side} className={`reload ${hud.aim === side ? 'aimed' : ''} ${hud.reload[i] <= 0.05 ? 'ready' : ''}`} onClick={() => game().fire(side)} title={`Bordée ${side === 'babord' ? 'bâbord' : 'tribord'}`}>
             <span className="rl-label">{side === 'babord' ? 'Bâbord' : 'Tribord'}</span>
             <span className="rl-bar"><i style={{ width: `${r(i as 0 | 1) * 100}%` }} /></span>
             <span className="rl-t">{hud.reload[i] > 0.05 ? `${hud.reload[i].toFixed(1)} s` : 'Prêt'}</span>
@@ -128,7 +131,7 @@ export function Weapons() {
           const n = id === 'rond' ? '∞' : String(p.ammo[id] ?? 0);
           return (
             <button key={id} className={`slot ammo-${id} ${hud.ammo === id ? 'on' : ''} ${n === '0' ? 'empty' : ''}`} onClick={() => game().selectAmmo(id)} title={`${a.name} — ${a.desc}`}>
-              <span className="k">{i + 1}</span>
+              <span className="k">{keyLabel(keys[`hot${i + 1}`])}</span>
               <span className="ball" />
               <span className="nm">{a.short}</span>
               <span className="q">{n}</span>
@@ -136,12 +139,12 @@ export function Weapons() {
           );
         })}
         <span className="sep" />
-        {CONSUMABLE_ORDER.map((id) => {
+        {CONSUMABLE_ORDER.map((id, ci) => {
           const c = CONSUMABLES[id];
           const cd = hud.cd[id] ?? 0;
           return (
             <button key={id} className={`slot cons ${cd > 0 ? 'cool' : ''}`} onClick={() => game().useItem(id)} title={`${c.name} — ${c.desc}`}>
-              <span className="k">{c.key}</span>
+              <span className="k">{keyLabel(keys[`hot${6 + ci}`])}</span>
               <Icon name={id === 'kit' ? 'marteau' : id === 'seau' ? 'seau' : 'poudre'} size={20} />
               <span className="q">{p.items[id] ?? 0}</span>
               {cd > 0 && <span className="cdv">{Math.ceil(cd)}</span>}
@@ -235,7 +238,7 @@ export function Minimap() {
       <canvas ref={ref} width={220} height={220} />
       <div className="mm-tools">
         <button onClick={() => setZoom((z) => (z >= 4 ? 1 : z * 2))} title="Zoom de la carte">{zoom === 1 ? '+' : `×${zoom}`}</button>
-        <button onClick={() => store.set({ panel: 'carte' })} title="Carte du monde (M)"><Icon name="carte" size={14} /></button>
+        <button onClick={() => store.set({ panel: 'carte' })} title="Cartes"><Icon name="carte" size={14} /></button>
       </div>
     </div>
   );
@@ -371,7 +374,39 @@ export function Hints() {
   if (!show || docked) return null;
   return (
     <div className="hints" onClick={() => setShow(false)}>
-      <b>Commandes</b> · <kbd>Z</kbd>/<kbd>S</kbd> voilure · <kbd>Q</kbd>/<kbd>D</kbd> barre · visez avec la souris et <b>cliquez</b> pour tirer la bordée · <kbd>Espace</kbd> double bordée · clic droit glissé : caméra · molette : zoom · <kbd>1</kbd>–<kbd>5</kbd> munitions · <kbd>R</kbd> réparer · <kbd>P</kbd> accoster
+      <b>Commandes</b> · <b>clic sur la mer</b> : naviguer · <b>clic sur un ennemi</b> : attaquer · molette : zoom · clic droit glissé : déplacer la vue · barre rapide <kbd>1</kbd>–<kbd>8</kbd> · toutes les touches se règlent dans Paramètres
+    </div>
+  );
+}
+
+/** Indicateur de carte (ex. « 3/1 ») sous la mini-carte : ouvre la grille des cartes. */
+export function MapBadge() {
+  const zone = useStore((s) => s.zone);
+  const maps = useStore((s) => s.maps);
+  const z = ZONE_BY_ID[zone];
+  const n = maps.find((m) => m.id === zone)?.players ?? 1;
+  if (!z) return null;
+  return (
+    <button className={`map-badge ${z.pvp === 'libre' ? 'war' : ''}`} onClick={() => store.set({ panel: 'carte' })} title="Cartes (changer de carte)">
+      <span className="mb-pl">({n})</span><b>{z.code}</b><span className="mb-name">{z.name}</span>
+    </button>
+  );
+}
+
+/** Cadre de la cible sélectionnée. */
+export function TargetFrame() {
+  const t = useStore((s) => s.target);
+  const attacking = useStore((s) => s.attacking);
+  if (!t) return null;
+  return (
+    <div className={`target-frame ${t.hostile ? 'ennemi' : ''} ${attacking ? 'attacking' : ''}`}>
+      <div className="tf-head"><span className="nb-lv">{t.level}</span><b>{t.name}</b>{t.kind !== 'player' && <em>PNJ</em>}</div>
+      <div className="tf-sub">{t.kind === 'player' ? 'Capitaine' : FACTION_LABEL[t.faction as keyof typeof FACTION_LABEL] ?? ''}{t.ship && SHIP_BY_ID[t.ship] ? ` · ${SHIP_BY_ID[t.ship].name}` : ''} · {Math.round(t.dist)} m</div>
+      <div className="bar bar-hp"><i style={{ width: `${t.hp * 100}%` }} /><span>{Math.round(t.hp * 100)} %</span></div>
+      <div className="row">
+        {attacking ? <button className="btn danger small" onClick={() => game().cancelAttack()}>Annuler l'attaque</button>
+          : <button className="btn-gold small" onClick={() => game().attack(t.id)}>Attaquer</button>}
+      </div>
     </div>
   );
 }

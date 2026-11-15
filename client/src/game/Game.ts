@@ -10,7 +10,8 @@ import { clamp, fmt, wrapAngle } from '../../../shared/math';
 import { collideShip, GRAVITY, stepShip, type ShipKinematics, type Wind } from '../../../shared/physics';
 import { F_BURNING, F_PVP, F_REPAIRING, F_SAFE, F_SINKING, type EntityMeta, type GameEvent, type MeState, type S2C, type Side, type WeatherState } from '../../../shared/protocol';
 import { computeStats, SHIP_BY_ID, type ShipStats } from '../../../shared/ships';
-import { DOCK_RADIUS, FACTION_LABEL, ZONE_BY_ID, type ZoneDef } from '../../../shared/zones';
+import { DOCK_RADIUS, FACTION_LABEL, START_ZONE, ZONE_BY_ID, type ZoneDef } from '../../../shared/zones';
+import { terrainHeight } from '../../../shared/world';
 import { Connection } from '../net/Connection';
 import { notify, pushChat, saveSettings, store } from '../store';
 import { GameAudio } from './Audio';
@@ -57,7 +58,7 @@ export class Game {
   private rig: CameraRig;
   readonly input: Input;
   private zoneVis: ZoneVisual | null = null;
-  zone: ZoneDef = ZONE_BY_ID.manche;
+  zone: ZoneDef = ZONE_BY_ID[START_ZONE];
   private ents = new Map<number, ClientEnt>();
   private metas = new Map<number, EntityMeta>();
   private evQueue: { t: number; ev: GameEvent }[] = [];
@@ -68,7 +69,9 @@ export class Game {
   private sail = 1;
   private rudder = 0;
   private seq = 0;
-  private lastSent = { sail: -1, rudder: 9, t: 0 };
+  private lastSent = { sail: 1, rudder: 0, t: 0 };
+  private manual = false;
+  private manualUntil = 0;
   private wind: Wind = { dir: 0.5, strength: 0.85 };
   private weather: WeatherState = { kind: 'clair', intensity: 0, fog: 1 };
   private day = 0.71;
@@ -94,6 +97,9 @@ export class Game {
   private raycaster = new THREE.Raycaster();
   private tmpV = new THREE.Vector3();
   private loadingZone = false;
+  private navRing!: THREE.Mesh;
+  private targetRing!: THREE.Mesh;
+  selectedId = 0;
   private fpsFrames = 0;
   private fpsTime = 0;
   private slowStreak = 0;
@@ -121,10 +127,13 @@ export class Game {
     this.composer.addPass(new OutputPass());
 
     this.rig = new CameraRig(this.camera);
-    this.input = new Input(this.renderer.domElement);
-    this.input.onDrag = (dx, dy) => this.rig.rotate(dx, dy, this.t);
+    this.input = new Input(this.renderer.domElement, store.get().settings.keys);
+    this.input.onDrag = (dx, dy) => {
+      if (this.rig.mode === 'dessus') this.rig.panBy(-dx * this.rig.viewDist * 0.0025, -dy * this.rig.viewDist * 0.0035);
+      else this.rig.rotate(dx, dy, this.t);
+    };
     this.input.onWheel = (d) => this.rig.zoom(d);
-    this.input.onClick = () => this.clickFire();
+    this.input.onClick = (x, y) => this.click(x, y);
     this.input.on((a) => this.action(a));
 
     // Indicateurs de visée
@@ -148,6 +157,11 @@ export class Game {
     }
     this.fans.renderOrder = 4;
     this.scene.add(this.aimRing, this.aimLine, this.fans);
+    // Repères : destination (vert) et cible (rouge)
+    this.navRing = new THREE.Mesh(new THREE.RingGeometry(6, 8.5, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x5dff8a, transparent: true, opacity: 0.85, depthWrite: false, fog: false }));
+    this.targetRing = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff4a3a, transparent: true, opacity: 0.9, depthWrite: false, fog: false }));
+    this.navRing.renderOrder = this.targetRing.renderOrder = 5;
+    this.scene.add(this.navRing, this.targetRing);
 
     this.fx.onMuzzle = (x, y, z, owner) => this.muzzle(x, y, z, owner);
     this.fx.onSplash = (x, z) => this.audio.splash(this.camera.position.distanceTo(this.tmpV.set(x, 0, z)));
@@ -157,7 +171,7 @@ export class Game {
     window.addEventListener('resize', () => this.resize());
     this.resize();
     this.applySettings();
-    this.loadZone('manche');
+    this.loadZone(START_ZONE);
     this.renderer.setAnimationLoop(() => this.frame());
   }
 
@@ -174,6 +188,8 @@ export class Game {
     (this.sky.sun.shadow as { map: THREE.WebGLRenderTarget | null }).map = null;
     this.bloom.enabled = s.quality === 'haute';
     this.rig.autoFollow = s.autoCam;
+    this.input.setKeys(s.keys);
+    if (this.rig.mode !== s.camMode) this.rig.setMode(s.camMode);
     this.audio.setVolume(s.volume, s.muted);
     this.resize();
   }
@@ -189,7 +205,7 @@ export class Game {
 
   // ------------------------------------------------------------------ zones
   loadZone(id: string) {
-    const def = ZONE_BY_ID[id] ?? ZONE_BY_ID.manche;
+    const def = ZONE_BY_ID[id] ?? ZONE_BY_ID[START_ZONE];
     if (this.zoneVis && this.zone.id === def.id) return;
     this.loadingZone = true;
     if (this.zoneVis) {
@@ -291,6 +307,9 @@ export class Game {
       case 'boss':
         store.set((s) => ({ boss: { ...s.boss, ...m } }));
         break;
+      case 'maps':
+        store.set({ maps: m.list });
+        break;
       case 'pong':
         this.rtt = clamp(performance.now() / 1000 - m.c, 0.005, 2);
         store.set({ ping: Math.round(this.rtt * 1000) });
@@ -349,7 +368,7 @@ export class Game {
     if (!p) return;
     const s = p.ships.find((x) => x.uid === p.active) ?? p.ships[0];
     if (!s) return;
-    this.myStats = computeStats(SHIP_BY_ID[s.def], s.up, p.skills);
+    this.myStats = computeStats(SHIP_BY_ID[s.def], s.up, p.skills, s.fit);
     this.rig.setShip(this.myStats.length);
   }
 
@@ -484,7 +503,9 @@ export class Game {
     this.audio.unlock();
     if (a === 'escape') { store.set({ panel: s.panel ? (s.docked ? 'port' : null) : 'parametres' }); return; }
     if (a === 'chat') { store.set({ chatFocus: Date.now() }); return; }
-    if (a === 'map') { store.set({ panel: s.panel === 'carte' ? (s.docked ? 'port' : null) : 'carte' }); return; }
+    if (a === 'maps') { store.set({ panel: s.panel === 'carte' ? (s.docked ? 'port' : null) : 'carte' }); return; }
+    if (a === 'camMode') { const m = s.settings.camMode === 'dessus' ? '3d' : 'dessus'; saveSettings({ ...s.settings, camMode: m }); this.applySettings(); return; }
+    if (a === 'camCenter') { this.rig.center(); return; }
     if (a === 'inventory') { store.set({ panel: s.panel === 'inventaire' ? (s.docked ? 'port' : null) : 'inventaire' }); return; }
     if (a === 'profile') { store.set({ panel: s.panel === 'profil' ? (s.docked ? 'port' : null) : 'profil' }); return; }
     if (a === 'ranking') { store.set({ panel: s.panel === 'classement' ? (s.docked ? 'port' : null) : 'classement' }); return; }
@@ -496,14 +517,72 @@ export class Game {
       case 'fireBoth': this.fire('both'); break;
       case 'fireBabord': this.fire('babord'); break;
       case 'fireTribord': this.fire('tribord'); break;
-      case 'ammo1': case 'ammo2': case 'ammo3': case 'ammo4': case 'ammo5': this.selectAmmo(AMMO_ORDER[Number(a.slice(4)) - 1]); break;
-      case 'kit': this.useItem('kit'); break;
-      case 'seau': this.useItem('seau'); break;
-      case 'poudre': this.useItem('poudre'); break;
+      case 'hot1': case 'hot2': case 'hot3': case 'hot4': case 'hot5': case 'hot6': case 'hot7': case 'hot8': this.hotbar(Number(a.slice(3))); break;
+      case 'attack': if (this.selectedId) this.attack(this.selectedId); else notify('Cliquez d\'abord sur un navire ennemi pour le cibler.', 'warn'); break;
+      case 'cancelAttack': this.cancelAttack(); break;
       case 'dock': this.dock(); break;
       case 'pvp': this.net.send({ t: 'pvp', on: !this.me.pvp }); break;
-      case 'camera': this.rig.autoFollow = !this.rig.autoFollow; notify(this.rig.autoFollow ? 'Caméra : suivi automatique' : 'Caméra : libre', 'info'); break;
     }
+  }
+
+  /** Barre rapide : 1 à 5 munitions, 6 kit de réparation, 7 pompes, 8 poudre fine. */
+  hotbar(n: number) {
+    if (n <= 5) this.selectAmmo(AMMO_ORDER[n - 1]);
+    else this.useItem((['kit', 'seau', 'poudre'] as const)[n - 6]);
+  }
+
+  attack(id: number) {
+    this.selectedId = id;
+    this.net.send({ t: 'target', id, attack: true });
+  }
+  cancelAttack() {
+    this.net.send({ t: 'target', id: 0, attack: false });
+    this.selectedId = 0;
+  }
+
+  /** Clic gauche : sur un navire = cibler (et attaquer), sur la mer = naviguer jusque-là. */
+  private click(x: number, y: number) {
+    this.audio.unlock();
+    const s = store.get();
+    if (s.docked || !this.pred || !this.me || this.me.dead > 0) return;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const ray = this.raycaster.ray;
+    // 1) un navire (ou un fort pirate) sous le curseur ?
+    let best: ClientEnt | null = null, bd = Infinity;
+    const p = new THREE.Vector3();
+    for (const e of this.ents.values()) {
+      if (e.id === this.myId || e.cur.flags & F_SINKING) continue;
+      const k = e.meta.kind;
+      if (k !== 'npc' && k !== 'boss' && k !== 'player' && !(k === 'fort' && e.meta.faction === 'pirate')) continue;
+      const r = e.model ? Math.max(14, e.model.dims.L * 0.55) : 24;
+      p.set(e.cur.x, e.model ? e.model.dims.F + 4 : 10, e.cur.z);
+      const d = ray.distanceToPoint(p);
+      if (d < r && d < bd) { bd = d; best = e; }
+    }
+    if (best) {
+      const rel = this.relation(best.meta);
+      const pvp = best.meta.kind === 'player' && (this.zone.pvp === 'libre' || (this.me.pvp && !!(best.cur.flags & F_PVP)));
+      this.selectedId = best.id;
+      if ((rel.hostile || pvp) && s.settings.autoAttack) this.attack(best.id);
+      else this.net.send({ t: 'target', id: best.id, attack: false });
+      return;
+    }
+    // 2) sinon, la mer : on y navigue (si l'on clique sur une île, on s'arrête au rivage).
+    if (ray.direction.y >= -0.001) return;
+    const t = -ray.origin.y / ray.direction.y;
+    let tx = ray.origin.x + ray.direction.x * t, tz = ray.origin.z + ray.direction.z * t;
+    if (this.zoneVis && terrainHeight(this.zoneVis.world, tx, tz) > -4) {
+      for (let i = 0; i < 60; i++) {
+        tx += (this.pred.x - tx) * 0.05;
+        tz += (this.pred.z - tz) * 0.05;
+        if (terrainHeight(this.zoneVis.world, tx, tz) < -6) break;
+      }
+    }
+    const lim = this.zone.half - 80;
+    this.net.send({ t: 'move', x: Math.round(clamp(tx, -lim, lim)), z: Math.round(clamp(tz, -lim, lim)) });
+    this.navRing.userData.pulse = 1;
   }
 
   selectAmmo(id: AmmoId) { this.net.send({ t: 'ammo', id }); }
@@ -511,13 +590,6 @@ export class Game {
   setSail(level: number) { this.sail = clamp(level, 0, 3); }
   dock() { this.net.send({ t: 'dock' }); }
   undock() { this.net.send({ t: 'undock' }); store.set({ panel: null }); }
-
-  private clickFire() {
-    this.audio.unlock();
-    if (store.get().docked || !this.aim.side) return;
-    // Hors de l'angle des sabords, la bordée part au bord de l'arc (l'anneau de visée le montre).
-    this.fire(this.aim.side);
-  }
 
   fire(side: Side | 'both') {
     if (!this.pred) return;
@@ -647,6 +719,10 @@ export class Game {
         const p = this.pred ?? { x: mine.cur.x, z: mine.cur.z, h: mine.cur.h };
         focus.set(p.x, 0, p.z);
         heading = p.h;
+        if (this.rig.mode === 'dessus') {
+          const sp = this.rig.viewDist * 1.2 * dt, h = this.input.held;
+          this.rig.panBy((h.has('camRight') ? sp : 0) - (h.has('camLeft') ? sp : 0), (h.has('camDown') ? sp : 0) - (h.has('camUp') ? sp : 0));
+        }
         this.rig.update(dt, this.t, focus, heading, this.input.dragging);
       }
       this.updateAim();
@@ -730,9 +806,19 @@ export class Game {
     this.rudder += clamp(target - this.rudder, -dt * 2.5, dt * 2.5);
     if (Math.abs(this.rudder) < 0.02 && target === 0) this.rudder = 0;
     const r = Math.round(this.rudder * 20) / 20;
-    if (r !== this.lastSent.rudder || this.sail !== this.lastSent.sail || this.t - this.lastSent.t > 0.5) {
+    const keyboard = target !== 0 || this.sail !== this.lastSent.sail || (r !== this.lastSent.rudder && this.manual);
+    if (keyboard && (r !== this.lastSent.rudder || this.sail !== this.lastSent.sail || this.t - this.lastSent.t > 0.5)) {
+      this.manual = true;
+      this.manualUntil = this.t + 0.6;
       this.net.send({ t: 'input', sail: this.sail, rudder: r, seq: ++this.seq });
       this.lastSent = { sail: this.sail, rudder: r, t: this.t };
+    }
+    // Pilote automatique (clic sur la mer ou attaque) : on prédit avec la barre décidée par le serveur.
+    if (this.me?.auto && this.t > this.manualUntil) {
+      this.manual = false;
+      this.sail = this.me.helm[0];
+      this.rudder = this.me.helm[1];
+      this.lastSent = { sail: this.sail, rudder: Math.round(this.rudder * 20) / 20, t: this.t };
     }
     if (this.pred && this.myStats) {
       const mine = this.ents.get(this.myId);
@@ -905,7 +991,9 @@ export class Game {
   private updateAim() {
     const s = store.get();
     const show = !s.docked && !!this.pred && !!this.myStats && !(this.me && this.me.dead > 0) && !s.panel;
-    this.aimRing.visible = this.aimLine.visible = this.fans.visible = show;
+    this.updateMarkers(show);
+    this.aimRing.visible = this.aimLine.visible = show && this.rig.mode === '3d';
+    this.fans.visible = show;
     if (!show || !this.pred || !this.myStats || !this.me) { this.aim.side = null; return; }
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((this.input.mouseX - rect.left) / rect.width) * 2 - 1, -((this.input.mouseY - rect.top) / rect.height) * 2 + 1);
@@ -960,11 +1048,33 @@ export class Game {
       const aimed = (i === 0 ? 'babord' : 'tribord') === side && inArc;
       const ready = this.me.reload[i] <= 0.05;
       const fm = this.fanMats[i];
-      fm.opacity = (i === 0 ? 'babord' : 'tribord') === side ? 0.035 * lum : 0;
+      fm.opacity = (i === 0 ? 'babord' : 'tribord') === side && this.rig.mode === '3d' ? 0.035 * lum : 0;
       fm.color.setHex(ready ? 0xf0c25a : 0xd0402a);
       const lm = (this.fans.children[i * 2] as THREE.Mesh).userData.outline as THREE.LineBasicMaterial;
       lm.opacity = (aimed ? 0.75 : (i === 0 ? 'babord' : 'tribord') === side ? 0.45 : 0.15) * (0.4 + 0.6 * lum);
       lm.color.setHex(ready ? 0xf0c25a : 0xd0402a);
+    }
+  }
+
+  private updateMarkers(show: boolean) {
+    const me = this.me;
+    const nav = me?.nav;
+    this.navRing.visible = show && !!nav;
+    if (nav) {
+      const pulse = 1 + 0.15 * Math.sin(this.t * 5);
+      this.navRing.position.set(nav[0], waveHeight(nav[0], nav[1], this.t) + 0.8, nav[1]);
+      this.navRing.scale.setScalar(pulse * (1 + this.rig.viewDist / 600));
+    }
+    const tid = me?.target || this.selectedId;
+    const te = tid ? this.ents.get(tid) : undefined;
+    if (me && !me.target && this.selectedId && !te) this.selectedId = 0;
+    this.targetRing.visible = show && !!te;
+    if (te) {
+      const r = te.model ? te.model.dims.L * 0.7 : 30;
+      this.targetRing.position.set(te.cur.x, waveHeight(te.cur.x, te.cur.z, this.t) + 1, te.cur.z);
+      this.targetRing.scale.setScalar(r * (1 + 0.04 * Math.sin(this.t * 6)));
+      this.targetRing.rotation.y = this.t * 0.5;
+      (this.targetRing.material as THREE.MeshBasicMaterial).color.setHex(me?.attacking ? 0xff4a3a : 0xf0c25a);
     }
   }
 
@@ -1048,6 +1158,14 @@ export class Game {
         day: this.day,
       },
       nearby: nearby.slice(0, 8),
+      attacking: !!me?.attacking,
+      target: (() => {
+        const id = me?.target || this.selectedId;
+        const e = id ? this.ents.get(id) : undefined;
+        if (!e || !p) return null;
+        const r = this.relation(e.meta);
+        return { id, name: e.meta.name, kind: e.meta.kind, level: e.meta.level, hp: e.cur.hp, dist: Math.hypot(e.cur.x - p.x, e.cur.z - p.z), hostile: r.hostile, faction: e.meta.faction, ship: e.meta.ship };
+      })(),
     });
   }
 

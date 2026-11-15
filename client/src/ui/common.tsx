@@ -13,6 +13,7 @@ const ICONS: Record<string, ReactNode> = {
   ancre: <>{P('M12 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4z')}{P('M12 7v13')}{P('M7 11h10')}{P('M4 14c0 4 4 6 8 6s8-2 8-6')}{P('M4 14l-1.5 1.5M20 14l1.5 1.5')}</>,
   or: <><circle cx="12" cy="12" r="8" />{P('M12 7v10M9.5 9.5c0-1 1-1.6 2.5-1.6s2.5.7 2.5 1.7c0 2.5-5 1.4-5 4 0 1 1 1.7 2.5 1.7s2.5-.6 2.5-1.6')}</>,
   doublon: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="5" />{P('M12 9v6M9 12h6')}</>,
+  diamant: <>{P('M6 4h12l3 5-9 11L3 9z')}{P('M3 9h18M9 4l3 16M15 4l-3 16')}</>,
   perle: <><circle cx="12" cy="13" r="6" />{P('M10 11a2 2 0 0 1 2-2')}{P('M6 6l2 2M18 6l-2 2M12 3v3')}</>,
   bois: <>{P('M4 8h16v4H4zM6 12v8M18 12v8M4 8l2-4h12l2 4')}</>,
   toile: <>{P('M6 3v18M6 4c4 0 8 2 12 1v10c-4 1-8-1-12-1')}</>,
@@ -51,11 +52,12 @@ export function Icon({ name, size = 18, className = '' }: { name: string; size?:
   );
 }
 
-export function Price({ p }: { p: { or?: number; doublons?: number; perles?: number } }) {
+export function Price({ p }: { p: { or?: number; doublons?: number; perles?: number; diamants?: number } }) {
   const parts: ReactNode[] = [];
   if (p.or) parts.push(<span key="o" className="cur cur-or"><Icon name="or" size={14} />{fmt(p.or)}</span>);
   if (p.doublons) parts.push(<span key="d" className="cur cur-doublon"><Icon name="doublon" size={14} />{fmt(p.doublons)}</span>);
   if (p.perles) parts.push(<span key="p" className="cur cur-perle"><Icon name="perle" size={14} />{fmt(p.perles)}</span>);
+  if (p.diamants) parts.push(<span key="m" className="cur c-diamant"><Icon name="diamant" size={14} />{fmt(p.diamants)}</span>);
   if (!parts.length) return <span className="cur muted">Offert</span>;
   return <span className="price">{parts}</span>;
 }

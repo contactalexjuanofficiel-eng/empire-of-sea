@@ -5,8 +5,10 @@ import { fmt } from '../../../shared/math';
 import { levelFromXp, rankOf, reputationName, RANKS } from '../../../shared/progression';
 import type { LeaderEntry } from '../../../shared/protocol';
 import { computeStats, RARITY_COLOR, SHIP_BY_ID, SHIP_CLASSES } from '../../../shared/ships';
-import { FACTION_LABEL, ZONES, ZONE_BY_ID } from '../../../shared/zones';
+import { FACTION_LABEL, MAX_TIER, tierRequirement, ZONES, ZONE_BY_ID } from '../../../shared/zones';
 import { saveSettings, store, useStore } from '../store';
+import { EQUIP_NAME, EQUIP_ORDER } from '../../../shared/equipment';
+import { defaultKeys, KEY_DEFS, keyLabel } from '../game/Input';
 import { Frame, game, Icon, PORTRAITS, PORTRAIT_NAMES, send } from './common';
 
 const close = () => store.set((s) => ({ panel: s.docked ? 'port' : null }));
@@ -21,6 +23,10 @@ export function Inventory() {
           <div className="inv-line"><Icon name="or" className="c-or" /> Pièces d'or <b>{fmt(p.or)}</b></div>
           <div className="inv-line"><Icon name="doublon" className="c-doublon" /> Doublons <b>{fmt(p.doublons)}</b></div>
           <div className="inv-line"><Icon name="perle" className="c-perle" /> Perles <b>{fmt(p.perles)}</b></div>
+          <div className="inv-line"><Icon name="diamant" className="c-diamant" /> Diamants <b>{fmt(p.diamants ?? 0)}</b></div>
+          <h3>Canons et mâts en stock</h3>
+          {EQUIP_ORDER.filter((id) => (p.equip?.[id] ?? 0) > 0).map((id) => <div key={id} className="inv-line"><Icon name={id.startsWith('c') ? 'canon' : 'voile'} /> {EQUIP_NAME(id)} <b>{p.equip[id]}</b></div>)}
+          {!EQUIP_ORDER.some((id) => (p.equip?.[id] ?? 0) > 0) && <p className="muted">Aucun.</p>}
           <h3>Ressources de construction</h3>
           {(Object.keys(MATERIAL_NAMES) as MaterialId[]).map((k) => <div key={k} className="inv-line"><Icon name={k} /> {MATERIAL_NAMES[k]} <b>{p.mat[k]}</b></div>)}
         </section>
@@ -50,7 +56,7 @@ export function ProfilePanel() {
   const guild = useStore((s) => s.guild);
   const lv = levelFromXp(p.xp);
   const ship = p.ships.find((s) => s.uid === p.active)!;
-  const st = computeStats(SHIP_BY_ID[ship.def], ship.up, p.skills);
+  const st = computeStats(SHIP_BY_ID[ship.def], ship.up, p.skills, ship.fit);
   const zonesDisc = ZONES.map((z) => ({ z, n: p.discovered.filter((d) => d.startsWith(z.id + ':')).length }));
   return (
     <Frame title="Profil du capitaine" icon="profil" onClose={close}>
@@ -197,53 +203,64 @@ export function GuildPanel() {
 
 export function WorldMap() {
   const zone = useStore((s) => s.zone);
-  const docked = useStore((s) => s.docked);
   const p = useStore((s) => s.profile)!;
-  const lvl = levelFromXp(p.xp).level;
+  const maps = useStore((s) => s.maps);
   const [sel, setSel] = useState(zone);
-  const z = ZONE_BY_ID[sel];
+  const z = ZONE_BY_ID[sel] ?? ZONE_BY_ID[zone];
+  const lvl = levelFromXp(p.xp).level;
+  const info = (id: string) => maps.find((m) => m.id === id);
+  const req = tierRequirement(p.tier);
   const enemies = [...new Set(z.enemies.map((e) => e.faction))];
+  // Grille : rangées de 4, du bas (cartes débutantes) vers le haut.
+  const rows: typeof ZONES[] = [];
+  for (let i = 0; i < ZONES.length; i += 4) rows.push(ZONES.slice(i, i + 4));
+  rows.reverse();
   return (
-    <Frame title="Carte du monde" icon="carte" onClose={close} wide>
-      <div className="worldmap">
-        <svg viewBox="0 0 100 80" className="wm-svg">
-          <defs>
-            <radialGradient id="wmsea" cx="50%" cy="45%" r="70%"><stop offset="0" stopColor="#1b3a52" /><stop offset="1" stopColor="#0a1622" /></radialGradient>
-          </defs>
-          <rect width="100" height="80" fill="url(#wmsea)" />
-          {/* Côtes stylisées (dessin original) */}
-          <path d="M44 8 Q52 6 56 12 Q58 20 54 26 Q58 34 56 44 Q54 50 58 56 Q50 58 46 52 Q44 44 48 36 Q44 28 47 20 Q42 14 44 8 Z" className="wm-land" />
-          <path d="M52 56 Q62 54 74 58 Q80 62 72 66 Q62 64 54 62 Z" className="wm-land" />
-          <path d="M60 4 Q72 2 80 8 Q78 14 70 14 Q64 12 60 4 Z" className="wm-land" />
-          <path d="M6 54 Q14 50 22 56 Q20 62 12 64 Q6 62 6 54 Z M18 66 Q22 64 26 68 Q22 70 18 66 Z" className="wm-land" />
-          <path d="M74 66 Q86 62 96 70 Q92 78 80 76 Q74 72 74 66 Z" className="wm-land" />
-          {ZONES.map((zz) => {
-            const locked = lvl < zz.levels[0] - 1;
-            return (
-              <g key={zz.id} className={`wm-zone ${zz.id === zone ? 'here' : ''} ${zz.id === sel ? 'sel' : ''} ${locked ? 'locked' : ''}`} onClick={() => setSel(zz.id)}>
-                <circle cx={zz.mapPos.x} cy={zz.mapPos.y} r={zz.id === zone ? 3.2 : 2.4} />
-                <text x={zz.mapPos.x} y={zz.mapPos.y - 4}>{zz.name}</text>
-                <text x={zz.mapPos.x} y={zz.mapPos.y + 6.5} className="lv">Niv. {zz.levels[0]}–{zz.levels[1]}</text>
-              </g>
-            );
-          })}
-        </svg>
+    <Frame title="Cartes" icon="carte" onClose={close} wide>
+      <div className="maps">
+        <div className="map-grid">
+          {rows.map((row, ri) => (
+            <div key={ri} className="map-row">
+              {row.map((m) => {
+                const locked = m.tier > p.tier;
+                const inf = info(m.id);
+                return (
+                  <button key={m.id} className={`map-cell ${locked ? 'locked' : 'open'} ${m.id === zone ? 'here' : ''} ${m.id === sel ? 'sel' : ''} ${m.pvp === 'libre' ? 'war' : ''}`} onClick={() => setSel(m.id)}>
+                    <span className="mc-owner">{inf?.owner ? `[${inf.owner}]` : ''}</span>
+                    <span className="mc-code">{m.code}</span>
+                    {m.id === zone && <span className="mc-here"><Icon name="profil" size={16} /></span>}
+                    {!!inf?.players && <span className="mc-pl">{inf.players}</span>}
+                    {locked && <span className="mc-lock">🔒</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
         <div className="wm-info">
-          <h3>{z.name}</h3>
+          <h3>Carte {z.code} — {z.name}</h3>
           <p>{z.desc}</p>
-          <div className="kv"><span>Niveaux</span><b>{z.levels[0]} – {z.levels[1]}</b></div>
+          <div className="kv"><span>Niveaux conseillés</span><b>{z.levels[0]} – {z.levels[1]}</b></div>
           <div className="kv"><span>Combat entre joueurs</span><b className={z.pvp === 'libre' ? 'war' : ''}>{z.pvp === 'libre' ? 'Libre (hors des ports)' : 'Sur consentement (pavillon rouge)'}</b></div>
           <div className="kv"><span>Ports</span><b>{z.ports.map((x) => x.name).join(', ')}</b></div>
           <div className="kv"><span>Ennemis</span><b>{enemies.map((f) => FACTION_LABEL[f]).join(', ')}</b></div>
-          <div className="kv"><span>Îles</span><b>{z.islands}</b></div>
-          <div className="kv"><span>Forts pirates</span><b>{z.pirateForts}</b></div>
-          <div className="kv"><span>Épaves à fouiller</span><b>{z.wrecks}</b></div>
-          <div className="kv"><span>Tempêtes</span><b>{z.storms > 0.6 ? 'Fréquentes' : z.storms > 0.3 ? 'Occasionnelles' : 'Rares'}</b></div>
-          {sel === zone ? <p className="ok">Vous naviguez dans ces eaux.</p> : (
-            <button className="btn-gold big" disabled={!docked || lvl < z.levels[0] - 1} onClick={() => send({ t: 'travel', zone: z.id })}>
-              {!docked ? 'Voyage possible depuis un port' : lvl < z.levels[0] - 1 ? `Niveau ${z.levels[0] - 1} requis` : `Faire voile (${fmt(z.travelCost)} or)`}
-            </button>
+          <div className="kv"><span>Récompenses</span><b>× {z.rewardMul.toFixed(2).replace('.', ',')}</b></div>
+          <div className="kv"><span>Contrôlée par</span><b>{info(z.id)?.owner ? `[${info(z.id)!.owner}]` : 'Personne (vainquez le boss !)'}</b></div>
+          {z.id === zone ? <p className="ok">Vous êtes sur cette carte.</p> : z.tier > p.tier ? (
+            <p className="war">Verrouillée : accomplissez d'abord la mission de passage.</p>
+          ) : (
+            <button className="btn-gold big" onClick={() => send({ t: 'travel', zone: z.id })}>Aller sur la carte {z.code}</button>
           )}
+          <div className="tier-box">
+            <h4>Mission de passage — étage {p.tier}</h4>
+            {p.tier >= MAX_TIER ? <p className="ok">Toutes les cartes sont débloquées. Respect, amiral !</p> : (
+              <>
+                <p className="muted small">Coulez des ennemis sur les cartes de votre étage le plus haut et atteignez le niveau requis pour débloquer la suivante.</p>
+                <div className="ms-prog"><i style={{ width: `${Math.min(100, (p.tierKills / req.kills) * 100)}%` }} /><span>Navires coulés : {Math.min(p.tierKills, req.kills)} / {req.kills}</span></div>
+                <div className={`kv ${lvl >= req.level ? 'ok' : ''}`}><span>Niveau requis</span><b>{lvl} / {req.level}</b></div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </Frame>
@@ -252,22 +269,58 @@ export function WorldMap() {
 
 export function Settings() {
   const s = useStore((st) => st.settings);
-  const set = (patch: Partial<typeof s>) => { saveSettings({ ...s, ...patch }); game().applySettings(); };
+  const [wait, setWait] = useState<string | null>(null);
+  const set = (patch: Partial<typeof s>) => { saveSettings({ ...store.get().settings, ...patch }); game().applySettings(); };
+  const rebind = (action: string) => {
+    setWait(action);
+    game().input.capture = (code) => {
+      setWait(null);
+      if (code === 'Escape') return;
+      const keys = { ...store.get().settings.keys };
+      for (const k of Object.keys(keys)) if (keys[k] === code) keys[k] = ''; // une touche = une action
+      keys[action] = code;
+      set({ keys });
+    };
+  };
+  const groups = [...new Set(KEY_DEFS.map((k) => k.group))];
   return (
-    <Frame title="Paramètres" icon="reglages" onClose={close}>
+    <Frame title="Paramètres" icon="reglages" onClose={close} wide>
       <div className="settings">
-        <label>Qualité graphique
-          <select value={s.quality} onChange={(e) => set({ quality: e.target.value as typeof s.quality })}>
-            <option value="haute">Haute (ombres, halos, pleine résolution)</option>
-            <option value="moyenne">Moyenne</option>
-            <option value="basse">Basse (ordinateurs modestes)</option>
-          </select>
-        </label>
-        <label>Volume <input type="range" min={0} max={1} step={0.05} value={s.volume} onChange={(e) => set({ volume: Number(e.target.value) })} /></label>
-        <label className="check"><input type="checkbox" checked={s.muted} onChange={(e) => set({ muted: e.target.checked })} /> Couper le son</label>
-        <label className="check"><input type="checkbox" checked={s.autoCam} onChange={(e) => set({ autoCam: e.target.checked })} /> Caméra qui revient derrière le navire</label>
-        <label className="check"><input type="checkbox" checked={s.labels} onChange={(e) => set({ labels: e.target.checked })} /> Afficher les noms au-dessus des navires</label>
-        <button className="btn" onClick={() => { try { localStorage.removeItem('edm.token'); } catch { /* */ } location.reload(); }}>Se déconnecter</button>
+        <div className="set-grid">
+          <label className="check opt"><input type="checkbox" checked={s.autoAttack} onChange={(e) => set({ autoAttack: e.target.checked })} />
+            <span><b>Attaque automatique</b><small>Un clic sur un ennemi le cible et lance l'attaque : votre navire manœuvre pour lui présenter le flanc et tire dès que les canons sont pointés. Désactivée, le clic ne fait que cibler (touche « Attaquer »).</small></span></label>
+          <label className="opt"><span><b>Caméra</b><small>Vue du dessus (clic pour naviguer) ou vue 3D derrière le navire.</small></span>
+            <select value={s.camMode} onChange={(e) => set({ camMode: e.target.value as typeof s.camMode })}>
+              <option value="dessus">Vue du dessus</option>
+              <option value="3d">Vue 3D derrière le navire</option>
+            </select></label>
+          <label className="opt"><span><b>Qualité graphique</b><small>Baissez-la si le jeu manque de fluidité.</small></span>
+            <select value={s.quality} onChange={(e) => set({ quality: e.target.value as typeof s.quality })}>
+              <option value="haute">Haute</option>
+              <option value="moyenne">Moyenne</option>
+              <option value="basse">Basse</option>
+            </select></label>
+          <label className="opt"><span><b>Volume</b></span><input type="range" min={0} max={1} step={0.05} value={s.volume} onChange={(e) => set({ volume: Number(e.target.value) })} /></label>
+          <label className="check opt"><input type="checkbox" checked={s.muted} onChange={(e) => set({ muted: e.target.checked })} /><span><b>Couper le son</b></span></label>
+          <label className="check opt"><input type="checkbox" checked={s.labels} onChange={(e) => set({ labels: e.target.checked })} /><span><b>Noms au-dessus des navires</b></span></label>
+        </div>
+        {groups.map((g) => (
+          <section key={g}>
+            <h4>{g}</h4>
+            <div className="keys">
+              {KEY_DEFS.filter((k) => k.group === g).map((k) => (
+                <div key={k.action} className="keyrow">
+                  <span>{k.label}</span>
+                  <button className={`keybtn ${wait === k.action ? 'wait' : ''}`} onClick={() => rebind(k.action)}>{wait === k.action ? 'Appuyez…' : keyLabel(s.keys[k.action] ?? '')}</button>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+        <div className="row">
+          <button className="btn" onClick={() => set({ keys: defaultKeys() })}>Touches par défaut</button>
+          <button className="btn" onClick={() => { try { localStorage.removeItem('edm.token'); } catch { /* */ } location.reload(); }}>Se déconnecter</button>
+        </div>
       </div>
     </Frame>
   );
@@ -277,11 +330,15 @@ export function Help() {
   return (
     <Frame title="Manuel du capitaine" icon="aide" onClose={close}>
       <div className="help">
-        <h4>Navigation</h4>
-        <p><kbd>Z</kbd>/<kbd>S</kbd> (ou <kbd>↑</kbd>/<kbd>↓</kbd>) : augmenter ou réduire la voilure (4 allures). <kbd>Q</kbd>/<kbd>D</kbd> (ou <kbd>←</kbd>/<kbd>→</kbd>) : barre à bâbord / tribord. Le vent compte : vent de travers = allure la plus rapide, vent debout = très lent (flèche sur la rose des vents).</p>
+        <h4>Navigation à la souris</h4>
+        <p><b>Clic gauche sur la mer</b> : votre navire s'y rend seul en contournant les îles (repère vert). <b>Molette</b> : zoom. <b>Clic droit glissé</b> ou touches caméra : déplacer la vue, <b>9</b> pour recentrer. La vue 3D derrière le navire se choisit dans les Paramètres (touche V).</p>
         <h4>Combat</h4>
-        <p>Vos canons tirent par le <b>flanc</b>. Visez avec la souris sur l'eau : l'arc et la cible apparaissent du côté choisi (or = prêt, rouge = rechargement, gris = hors d'angle). <b>Clic gauche</b> : bordée. <kbd>Espace</kbd> : les deux bords. <kbd>A</kbd>/<kbd>E</kbd> (QWERTY : <kbd>Q</kbd>/<kbd>E</kbd>) : bâbord/tribord. Relevez la caméra pour tirer plus loin.</p>
-        <p>Munitions <kbd>1</kbd>–<kbd>5</kbd> : boulet rond, ramé (déchire les voiles), mitraille (courte portée, ralentit le rechargement adverse), boulet rouge (incendie), obus explosif. <kbd>R</kbd> kit de réparation, <kbd>F</kbd> éteindre un incendie, <kbd>G</kbd> poudre fine.</p>
+        <p><b>Clic gauche sur un ennemi</b> : il est ciblé (anneau) et, avec l'attaque automatique, votre navire manœuvre pour lui présenter le flanc et tire dès que les canons sont pointés. Touche « Attaquer » / « Annuler l'attaque » pour la cible sélectionnée. La barre rapide (1 à 8) change de munition ou utilise réparation, pompes et poudre fine.</p>
+        <p>Toutes les touches se règlent dans <b>Paramètres</b>. Les flèches du clavier permettent aussi de barrer à la main.</p>
+        <h4>Cartes</h4>
+        <p>Les cartes 1/1 à 5/2 vont par paires (/1 calme, /2 de guerre), puis viennent les cartes 11 à 20. Chaque carte a ses ports. Coulez des ennemis sur votre étage le plus haut et atteignez le niveau requis pour débloquer le suivant (fenêtre Cartes, touche M).</p>
+        <h4>Équipement</h4>
+        <p>Au port, onglet Équipement : installez canons de 30, 50 et 60 livres et mâts dans la limite de capacité du navire. Ils s'achètent à l'Arsenal (or, perles, diamants) et se trouvent dans le butin des PNJ.</p>
         <h4>Ports</h4>
         <p>Approchez-vous d'un quai et appuyez sur <kbd>P</kbd> pour accoster : réparations, chantier naval, arsenal, améliorations, marché, missions et voyages vers d'autres mers. Les ports sont des zones protégées, défendues par des forts.</p>
         <h4>Multijoueur</h4>
