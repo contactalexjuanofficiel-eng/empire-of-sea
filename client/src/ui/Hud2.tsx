@@ -9,7 +9,7 @@ import { DAILY, levelMission } from '../../../shared/extras';
 import { ACTIVE_SKILLS, ENERGY_MAX } from '../../../shared/combat';
 import { BONUS_ZONES } from '../../../shared/zones';
 import { GRADES } from '../../../shared/ranks';
-import { SHIP_BY_ID } from '../../../shared/ships';
+import { ROLES, SHIP_BY_ID, shipRole } from '../../../shared/ships';
 import { FACTION_LABEL, tierRequirement, ZONE_BY_ID } from '../../../shared/zones';
 import { keyLabel } from '../game/Input';
 import { store, useStore, type Panel } from '../store';
@@ -117,6 +117,7 @@ export function TargetCard() {
       <div className="tc-main">
         <div className="tc-name">{t.name}{t.kind !== 'player' && <em> (PNJ)</em>}</div>
         <div className="tc-sub">{t.kind === 'player' ? 'Capitaine' : FACTION_LABEL[t.faction as keyof typeof FACTION_LABEL] ?? ''}{def ? ` · ${def.name}` : ''} · {Math.round(t.dist)} m</div>
+        {def && !def.look.monster && <div className="tc-role" style={{ color: ROLES[shipRole(def)].color }}>{ROLES[shipRole(def)].name}</div>}
         <div className="tc-hp"><i style={{ width: `${t.hp * 100}%` }} /><span>{Math.round(t.hp * 100)} %</span></div>
       </div>
       {attacking ? <button className="tc-act stop" onClick={() => game().cancelAttack()} title="Cesser le feu">✕</button>

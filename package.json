@@ -1,7 +1,7 @@
 {
   "name": "empire-des-mers",
   "version": "0.1.0",
-  "description": "EMPIRE DES MERS — prototype de MMORPG naval 3D (Three.js + React + Node.js, serveur autoritaire).",
+  "description": "EMPIRE OF SEA — prototype de MMORPG naval 3D (Three.js + React + Node.js, serveur autoritaire).",
   "type": "module",
   "private": true,
   "scripts": {

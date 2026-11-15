@@ -84,7 +84,7 @@ export function startServer(port = PORT, dbFile = DB_FILE) {
   });
 
   server.listen(port, () => {
-    console.log(`⚓ EMPIRE DES MERS — serveur prêt sur http://localhost:${port}  (base : ${dbFile})`);
+    console.log(`⚓ EMPIRE OF SEA — serveur prêt sur http://localhost:${port}  (base : ${dbFile})`);
   });
 
   const shutdown = () => {

@@ -1,4 +1,4 @@
-# Empire des Mers — contexte pour Claude Code
+# Empire Of Sea — contexte pour Claude Code
 
 MMORPG naval 3D en français (marine française, XVIIe–XIXe siècle). Projet d'Alex : répondre **en français**,
 simplement, en expliquant les choix techniques.

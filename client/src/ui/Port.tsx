@@ -10,7 +10,7 @@ import { ZONE_BY_ID } from '../../../shared/zones';
 import { store, useStore } from '../store';
 import { EliteShipsTab, MatelotTab } from './Panels2';
 import { FISH, FISH_ORDER, shipBonus } from '../../../shared/extras';
-import { Frame, game, Icon, Price, send, StatBar } from './common';
+import { Frame, game, Icon, Price, send, StatBar, RoleBadge } from './common';
 
 const TABS: [string, string, string][] = [
   ['capitainerie', 'parchemin', 'Capitainerie'],
@@ -161,7 +161,7 @@ function ChantierFlotte() {
       <div className="ship-detail">
         <div className="sd-head">
           <h3>{sel.name}</h3>
-          <span className="rarity" style={{ borderColor: RARITY_COLOR[sel.rarity], color: RARITY_COLOR[sel.rarity] }}>{RARITY_LABEL[sel.rarity]}</span>
+          <span className="rarity" style={{ borderColor: RARITY_COLOR[sel.rarity], color: RARITY_COLOR[sel.rarity] }}>{RARITY_LABEL[sel.rarity]}</span> <RoleBadge def={sel} />
         </div>
         <div className="sd-class">{cls.name} · rang {['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'][cls.tier - 1]} · {sel.canons} canons · niveau requis {sel.level}</div>
         <p className="history">{sel.history}</p>

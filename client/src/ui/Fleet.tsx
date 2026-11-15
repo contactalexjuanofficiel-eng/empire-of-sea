@@ -11,7 +11,7 @@ import { computeStats, MODERN_PLAYER_SHIPS, RARITY_COLOR, RARITY_LABEL, SHIP_BY_
 import { ZONE_BY_ID } from '../../../shared/zones';
 import { makeShipModel, type AnyShipModel } from '../game/render/factory';
 import { store, useStore } from '../store';
-import { Frame, Price, send, StatBar } from './common';
+import { Frame, Price, send, StatBar, RoleBadge } from './common';
 
 const close = () => store.set((s) => ({ panel: s.docked ? 'port' : null }));
 
@@ -146,7 +146,7 @@ export function FleetPanel() {
         </div>
         <div className="fleet-detail">
           <h3>{def.name}</h3>
-          <span className="rarity" style={{ borderColor: RARITY_COLOR[def.rarity], color: RARITY_COLOR[def.rarity] }}>{RARITY_LABEL[def.rarity]}</span>
+          <span className="rarity" style={{ borderColor: RARITY_COLOR[def.rarity], color: RARITY_COLOR[def.rarity] }}>{RARITY_LABEL[def.rarity]}</span> <RoleBadge def={def} />
           <div className="sd-class">{cls.name} · {def.size?.L ?? cls.length} m · niveau {def.level}</div>
           <p className="history">{def.history}</p>
           <StatBar label="Points de vie" value={st.hp} max={MAX.hp} />

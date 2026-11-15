@@ -80,6 +80,36 @@ export interface ShipDef {
   rig?: 'carre' | 'barque' | 'goelette' | 'dundee';
   noPorts?: boolean;
   modern?: ModernSpec;
+  /** Classe de combat imposée (sinon déduite de la classe de coque et des caractéristiques). */
+  role?: ShipRole;
+}
+
+/**
+ * Classes de combat (le « rôle » du navire dans une escadre) :
+ *  - Galion : polyvalent, bonne cale ;
+ *  - Frégate : dégâts et vitesse, coque plus légère ;
+ *  - Vaisseau de guerre : très résistant, plus lent.
+ */
+export type ShipRole = 'galion' | 'fregate' | 'guerre';
+export const ROLES: Record<ShipRole, { name: string; short: string; desc: string; color: string; hp: number; dmg: number; speed: number; reload: number; armor: number; cargo: number }> = {
+  galion: { name: 'Galion', short: 'Équilibré', desc: 'Polyvalent : +8 % de coque et de dégâts, +25 % de cale.', color: '#c9a45c', hp: 0.08, dmg: 0.08, speed: 0, reload: 0, armor: 0.02, cargo: 0.25 },
+  fregate: { name: 'Frégate', short: 'Dégâts', desc: 'Chasseur : +20 % de dégâts, rechargement 10 % plus rapide, +8 % de vitesse, −10 % de coque.', color: '#d06a4a', hp: -0.1, dmg: 0.2, speed: 0.08, reload: 0.1, armor: 0, cargo: 0 },
+  guerre: { name: 'Vaisseau de guerre', short: 'Résistance', desc: 'Forteresse flottante : +30 % de coque, +6 % de blindage, −10 % de vitesse, −5 % de dégâts.', color: '#5d9cc4', hp: 0.3, dmg: -0.05, speed: -0.1, reload: 0, armor: 0.06, cargo: 0 },
+};
+const ROLE_BY_CLASS: Partial<Record<ShipClassId, ShipRole>> = {
+  corvette: 'fregate', brick: 'fregate', fregate: 'galion', fregate_lourde: 'galion', vaisseau: 'guerre', trois_ponts: 'guerre', amiral: 'galion',
+  voilier: 'galion', peche: 'galion', vedette: 'fregate', patrouilleur: 'guerre', fregate_moderne: 'fregate',
+};
+/** Répartition choisie pour la flotte historique (équilibre entre les trois classes). */
+const ROLE_OVERRIDE: Record<string, ShipRole> = {
+  saint_michel: 'galion', duquesne: 'galion', couronne: 'galion', duguay_trouin: 'fregate',
+};
+export function shipRole(def: ShipDef): ShipRole {
+  if (def.role) return def.role;
+  if (ROLE_OVERRIDE[def.id]) return ROLE_OVERRIDE[def.id];
+  if ((def.mod.hp ?? 1) >= 1.1) return 'guerre';
+  if ((def.mod.speed ?? 1) >= 1.06 || (def.mod.reload ?? 1) <= 0.92) return 'fregate';
+  return ROLE_BY_CLASS[def.cls] ?? 'galion';
 }
 
 const N = (d: ShipDef) => d;
@@ -197,13 +227,14 @@ export interface StatBonus { hp?: number; dmg?: number; armor?: number; speed?: 
 export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: Skills = NO_SKILLS, fit?: Fit, bonus: StatBonus = {}): ShipStats {
   const c = SHIP_CLASSES[def.cls];
   const m = def.mod;
+  const ro = def.look.monster ? null : ROLES[shipRole(def)];
   const eq = fitEffects(fit, def.canons, MAST_CAPACITY[def.cls]);
-  const hp = c.hp * (m.hp ?? 1) * (1 + 0.08 * up.coque) * (1 + 0.03 * sk.charpenterie) * eq.hp * (1 + (bonus.hp ?? 0));
-  const speed = c.speed * (m.speed ?? 1) * (1 + 0.04 * up.voiles) * (1 + 0.02 * sk.navigation) * eq.speed * (1 + (bonus.speed ?? 0));
+  const hp = c.hp * (m.hp ?? 1) * (1 + 0.08 * up.coque) * (1 + 0.03 * sk.charpenterie) * eq.hp * (1 + (bonus.hp ?? 0)) * (1 + (ro?.hp ?? 0));
+  const speed = c.speed * (m.speed ?? 1) * (1 + 0.04 * up.voiles) * (1 + 0.02 * sk.navigation) * eq.speed * (1 + (bonus.speed ?? 0)) * (1 + (ro?.speed ?? 0));
   const turn = c.turn * (m.turn ?? 1) * (1 + 0.05 * up.voiles) * (1 + 0.03 * sk.navigation);
-  const reload = c.reload * (m.reload ?? 1) * (1 - 0.04 * up.canons) * eq.reload * (1 - (bonus.reload ?? 0));
+  const reload = c.reload * (m.reload ?? 1) * (1 - 0.04 * up.canons) * eq.reload * (1 - (bonus.reload ?? 0)) * (1 - (ro?.reload ?? 0));
   const range = c.range * (m.range ?? 1) * (1 + 0.05 * up.boulets) * eq.range * (1 + (bonus.range ?? 0));
-  const broadside = ((def.canons + (bonus.canons ?? 0)) / 2) * 14 * c.caliber * (1 + 0.07 * up.canons) * (1 + 0.03 * sk.artillerie) * eq.damage * (1 + (bonus.dmg ?? 0));
+  const broadside = ((def.canons + (bonus.canons ?? 0)) / 2) * 14 * c.caliber * (1 + 0.07 * up.canons) * (1 + 0.03 * sk.artillerie) * eq.damage * (1 + (bonus.dmg ?? 0)) * (1 + (ro?.dmg ?? 0));
   return {
     hp: Math.round(hp),
     sailHp: Math.round(hp * 0.5),
@@ -212,8 +243,8 @@ export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: S
     accel: c.accel,
     reload,
     range,
-    cargo: Math.round(c.cargo * (m.cargo ?? 1)),
-    armor: Math.min(0.6, c.armor + 0.02 * up.coque + (bonus.armor ?? 0)),
+    cargo: Math.round(c.cargo * (m.cargo ?? 1) * (1 + (ro?.cargo ?? 0))),
+    armor: Math.min(0.6, c.armor + 0.02 * up.coque + (bonus.armor ?? 0) + (ro?.armor ?? 0)),
     broadside,
     balls: Math.min(14, Math.round(4 + def.canons / 10)),
     dispersion: 0.05 * (1 - 0.1 * up.boulets),

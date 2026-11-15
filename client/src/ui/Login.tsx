@@ -27,7 +27,8 @@ export function Login() {
     <div className="screen-login">
       <div className="title-block">
         <div className="crest"><Icon name="ancre" size={46} /></div>
-        <h1>EMPIRE DES MERS</h1>
+        <h1>EMPIRE OF SEA</h1>
+        <p className="tagline">La puissance des océans</p>
         <p className="subtitle">De mousse à Grand Amiral de France · 1676 – 1805</p>
       </div>
       <form className="login-card" onSubmit={submit}>

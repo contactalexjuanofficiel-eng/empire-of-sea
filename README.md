@@ -1,4 +1,4 @@
-# ⚓ EMPIRE DES MERS
+# ⚓ EMPIRE OF SEA
 
 **Prototype jouable d'un MMORPG naval 3D, entièrement en français.**
 De mousse à Grand Amiral de France : commandez des navires historiques de la marine française
@@ -74,6 +74,14 @@ Le jeu se joue **à la souris**, en vue du dessus (la vue 3D derrière le navire
 - **Bas** : coque, **bouclier** (encaisse les dégâts avant la coque, se recharge 6 s après le dernier coup) et
   **énergie** (se régénère, sert aux compétences) ; munitions (1–7), **compétences** (A Z R S D en AZERTY) et objets
   (8–0) ; boutons Attaquer / Cesser le feu / Accoster.
+
+### Classes de combat
+
+| Classe | Rôle | Effet | Navires |
+|---|---|---|---|
+| Galion | Équilibré | +8 % coque et dégâts, +25 % de cale, +2 % blindage | Saint-Michel, Belle Poule, Duquesne, Formidable, Couronne, Bucentaure… |
+| Frégate | Dégâts | +20 % dégâts, rechargement −10 %, +8 % vitesse, −10 % coque | Bayonnaise, Mutine, Cygne, Hermione, Suffren, Duguay-Trouin, Napoléon |
+| Vaisseau de guerre | Résistance | +30 % coque, +6 % blindage, −10 % vitesse, −5 % dégâts | Redoutable, Vengeur du Peuple, Tonnant, Royal Louis, Soleil Royal |
 
 ### Compétences actives
 

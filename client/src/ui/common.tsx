@@ -1,4 +1,5 @@
 // Éléments d'interface communs : icônes vectorielles originales, cadres, prix, jauges.
+import { ROLES, shipRole, type ShipDef } from '../../../shared/ships';
 import type { ReactNode } from 'react';
 import { fmt } from '../../../shared/math';
 import type { Game } from '../game/Game';
@@ -88,3 +89,10 @@ export function StatBar({ label, value, max, fmtValue, best }: { label: string; 
 
 export const PORTRAITS = ['⚓', '⚔', '☸', '♛', '✠', '⚜', '☀', '✦'];
 export const PORTRAIT_NAMES = ['Le Marin', 'Le Bretteur', 'Le Navigateur', 'Le Noble', 'Le Chevalier de Malte', 'Le Fleurdelisé', 'Le Roi-Soleil', 'L\'Étoile du Nord'];
+
+/** Pastille de classe de combat (Galion, Frégate, Vaisseau de guerre). */
+export function RoleBadge({ def }: { def: ShipDef }) {
+  if (def.look.monster) return null;
+  const r = ROLES[shipRole(def)];
+  return <span className="role-badge" style={{ borderColor: r.color, color: r.color }} title={r.desc}>{r.name} · {r.short}</span>;
+}
