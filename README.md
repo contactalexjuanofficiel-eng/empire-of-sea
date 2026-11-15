@@ -111,6 +111,19 @@ Chaque carte a ses propres ports français. La **mission de passage** de chaque 
 étage le plus haut et atteindre le niveau requis) débloque l'étage suivant. La guilde qui abat le boss d'une carte
 en prend le contrôle (son blason s'affiche dans la grille des cartes). Les PNJ coulés réapparaissent 5 minutes plus tard.
 
+## Grandes régions
+
+| Région | Mers | Ennemis propres | Boss régional | Ressource |
+|---|---|---|---|---|
+| Côtes de France | Manche, Atlantique, Gascogne | pirates, Royal Navy | Le Spectre des Brumes | Toile de Bretagne |
+| Méditerranée et Levant | Méditerranée (4/1), **Mer Égée** (4/2 : Candie, Navarin, Smyrne) | galères barbaresques, felouques | Le Colosse de Bronze | Huile d'olive du Levant |
+| Amériques | Caraïbes, Nouvelle-France, Louisiane, Guyane | brigantins boucaniers | Le Roi des Flibustiers | Tabac des Amériques |
+| Mers du Nord | Mer du Nord, Mer des Tempêtes | corsaires de Dunkerque, baleiniers armés | Le Jarl des Glaces | Fourrures du Nord |
+| Mers d'Asie | Océan Indien, Mer de Chine, Mers du Sud | jonques de pirates | Le Dragon des Typhons | Thé et porcelaine de Chine |
+| Mers lointaines | Côte d'Afrique, Mer des Brumes | monstres, vaisseaux fantômes | Le Spectre des Brumes | Épices des Indes |
+
+La région de chaque carte s'affiche dans l'écran Cartes (bande de couleur sous chaque case).
+
 ## Ère moderne : 25 navires de la Marine nationale
 
 Une époque à part, avec ses propres cartes **M1 à M5** (Rade de Brest, Pertuis charentais, Rade de Toulon, Antilles,

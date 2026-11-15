@@ -68,7 +68,7 @@ export const ITEM_CATS: { id: ItemCat; name: string }[] = [
 ];
 
 // --- Commerce ---------------------------------------------------------------
-export type GoodId = 'vin' | 'sel' | 'toile' | 'bois' | 'epices' | 'rhum' | 'sucre' | 'cafe' | 'soie' | 'armes';
+export type GoodId = 'vin' | 'sel' | 'toile' | 'bois' | 'epices' | 'rhum' | 'sucre' | 'cafe' | 'soie' | 'armes' | 'fourrures' | 'huile' | 'tabac' | 'the';
 export interface GoodDef { id: GoodId; name: string; base: number }
 export const GOODS: Record<GoodId, GoodDef> = {
   vin: { id: 'vin', name: 'Vin de Bordeaux', base: 60 },
@@ -81,6 +81,11 @@ export const GOODS: Record<GoodId, GoodDef> = {
   cafe: { id: 'cafe', name: 'Café', base: 90 },
   soie: { id: 'soie', name: 'Soie de Lyon', base: 200 },
   armes: { id: 'armes', name: 'Armes et poudre', base: 120 },
+  // Ressources régionales
+  fourrures: { id: 'fourrures', name: 'Fourrures du Nord', base: 140 },
+  huile: { id: 'huile', name: 'Huile d\'olive du Levant', base: 80 },
+  tabac: { id: 'tabac', name: 'Tabac des Amériques', base: 95 },
+  the: { id: 'the', name: 'Thé et porcelaine de Chine', base: 220 },
 };
 export const GOOD_ORDER = Object.keys(GOODS) as GoodId[];
 

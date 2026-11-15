@@ -1,6 +1,7 @@
 // Les zones maritimes du monde. Chaque zone est une instance de simulation indépendante côté serveur
 // (on peut donc les répartir plus tard sur plusieurs processus / machines).
 import type { GoodId } from './items.ts';
+import { regionalEnemies, regionOfSea, type RegionId } from './regions.ts';
 
 export type Faction = 'france' | 'pirate' | 'anglais' | 'barbaresque' | 'flibustier' | 'spectre' | 'hollandais' | 'monstre';
 export const FACTION_LABEL: Record<Faction, string> = {
@@ -41,6 +42,8 @@ export interface ZoneDef {
   bonus?: BonusDef;
   /** Ère moderne : navires modernes uniquement. */
   era?: 'moderne';
+  /** Grande région maritime (ennemis, boss et ressource propres). */
+  region?: RegionId;
   name: string;
   desc: string;
   levels: [number, number];
@@ -247,7 +250,7 @@ const WAR_PORTS: Record<string, string[]> = {
   manche: ['Le Havre', 'Dieppe', 'Granville'],
   atlantique: ['Rochefort', 'Les Sables-d\'Olonne', 'Brouage'],
   gascogne: ['Arcachon', 'Saint-Jean-de-Luz'],
-  mediterranee: ['Sète', 'Antibes', 'Bastia'],
+  mediterranee: ['Candie', 'Navarin', 'Smyrne'], // comptoirs français du Levant (« Échelles du Levant »)
   caraibes: ['Pointe-à-Pitre', 'Saint-Pierre', 'Port-au-Prince'],
 };
 const slug = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
@@ -265,7 +268,20 @@ function extraEnemies(tier: number): EnemySpawn[] {
 }
 
 export const PAIRED_TIERS = 5;
-export const ZONES: ZoneDef[] = SEAS.map((s, i) => ({ ...s, enemies: [...s.enemies, ...extraEnemies(i + 1)] })).flatMap((sea, i) => {
+/** Cartes de guerre qui portent un autre nom que leur mer. */
+const WAR_NAMES: Record<string, { name: string; desc: string }> = {
+  mediterranee: { name: 'Mer Égée', desc: 'Les îles grecques et les comptoirs français du Levant : galères barbaresques, felouques et chaleur écrasante.' },
+};
+export const ZONES: ZoneDef[] = SEAS.map((s, i) => {
+  const reg = regionOfSea(s.id);
+  return {
+    ...s,
+    region: reg.id,
+    enemies: [...s.enemies, ...extraEnemies(i + 1), ...regionalEnemies(s.id, s.levels[0])],
+    // Chaque port produit aussi la ressource de sa région.
+    ports: s.ports.map((pt) => ({ ...pt, produces: pt.produces.includes(reg.good) ? pt.produces : [...pt.produces, reg.good] })),
+  };
+}).flatMap((sea, i) => {
   const tier = i + 1;
   if (tier > PAIRED_TIERS) {
     // Cartes 11 à 20 : une seule carte par étage, numérotées à la suite, combat libre.
@@ -282,7 +298,8 @@ export const ZONES: ZoneDef[] = SEAS.map((s, i) => ({ ...s, enemies: [...s.enemi
     npcCount: sea.npcCount + 4,
     pirateForts: sea.pirateForts + 1,
     enemies: sea.enemies.map((e) => ({ ...e, level: e.level + 2 })),
-    desc: `${sea.desc} Carte de guerre : combat libre entre joueurs hors des ports, ennemis plus redoutables, butin plus riche.`,
+    name: WAR_NAMES[sea.id]?.name ?? sea.name,
+    desc: `${WAR_NAMES[sea.id]?.desc ?? sea.desc} Carte de guerre : combat libre entre joueurs hors des ports, ennemis plus redoutables, butin plus riche.`,
   };
   return [calm, war];
 });

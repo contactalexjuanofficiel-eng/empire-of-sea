@@ -1,5 +1,6 @@
 // Simulation autoritaire d'une zone maritime : un « shard » indépendant.
 // Le serveur peut faire tourner chaque zone dans son propre processus plus tard (voir docs/ARCHITECTURE.md).
+import { REGION_BY_ID } from '../../shared/regions.ts';
 import { ACTIVE_SKILL_BY_ID, BASE_CRIT, CRIT_MUL, ENERGY_MAX, ENERGY_REGEN, SHIELD_DELAY, SHIELD_RATIO, SHIELD_REGEN, SKILL_CRIT_BONUS, SKILL_DMG_BONUS, type ActiveSkillId } from '../../shared/combat.ts';
 import { AMMO, CONSUMABLES, type AmmoId, type ConsumableId } from '../../shared/items.ts';
 import type { EquipId } from '../../shared/equipment.ts';
@@ -242,7 +243,9 @@ export class Zone {
 
   private spawnBoss() {
     const bonus = this.def.bonus;
-    const def = bonus ? SHIP_BY_ID[bonus.boss] : SHIP_BY_ID.spectre;
+    // Boss de la carte : celui de la carte bonus, sinon le boss de la grande région.
+    const reg = REGION_BY_ID[this.def.region ?? 'france'];
+    const def = bonus ? SHIP_BY_ID[bonus.boss] : SHIP_BY_ID[reg.boss.ship] ?? SHIP_BY_ID.spectre;
     const level = this.def.levels[1] + (bonus ? 5 : 0);
     const stats = computeStats(def, { coque: 2, voiles: 0, canons: 2, boulets: 2 });
     const scale = (0.35 + level / 22) * (bonus ? 8 : 1);
@@ -250,7 +253,7 @@ export class Zone {
     stats.sailHp = Math.round(stats.hp * 0.5);
     const pos = this.randomSeaPoint(2000, 700);
     const bossName = bonus?.bossName ?? def.name;
-    const s = this.makeShip(allocId(), 'boss', def, stats, level, bonus ? 'pirate' : 'spectre', bossName, pos.x, pos.z, Math.random() * 6.28);
+    const s = this.makeShip(allocId(), 'boss', def, stats, level, bonus ? 'pirate' : reg.boss.faction, bossName, pos.x, pos.z, Math.random() * 6.28);
     s.dmgMul = bonus ? 0.9 : 0.22 * scale + 0.1;
     s.ai = { mode: 'patrouille', target: 0, wx: pos.x, wz: pos.z, think: 0, homeX: pos.x, homeZ: pos.z, aggro: 1500, accuracy: 0.7, side: 1 };
     newWaypoint(this, s);
@@ -259,7 +262,7 @@ export class Zone {
     this.bossAge = 0;
     const msg = bonus
       ? `${bossName} apparaît sur ${this.def.name} ! Chaque tranche de 10 000 dégâts rapporte ${bonus.per10k.elite} points élite et ${bonus.per10k.xp} XP.`
-      : `Le brouillard se lève sur ${this.def.name}… ${def.name} a été aperçu ! Unissez vos forces pour le couler.`;
+      : `${this.def.name} : ${reg.boss.announce.replace('{boss}', def.name)}`;
     for (const l of this.links.values()) {
       l.notify(msg, 'event');
       l.send({ t: 'boss', active: true, hp: s.hp, maxHp: s.stats.hp, name: bossName, x: Math.round(pos.x), z: Math.round(pos.z) });

@@ -1,4 +1,5 @@
 // Panneaux : inventaire, profil, classement, guilde et groupe, carte du monde, paramètres, aide.
+import { REGION_BY_ID } from '../../../shared/regions';
 import { useEffect, useState } from 'react';
 import { AMMO, AMMO_ORDER, CONSUMABLES, CONSUMABLE_ORDER, GOODS, MATERIAL_NAMES, type GoodId, type MaterialId } from '../../../shared/items';
 import { fmt } from '../../../shared/math';
@@ -229,7 +230,7 @@ export function WorldMap() {
                 const locked = m.tier > p.tier;
                 const inf = info(m.id);
                 return (
-                  <button key={m.id} className={`map-cell ${locked ? 'locked' : 'open'} ${m.id === zone ? 'here' : ''} ${m.id === sel ? 'sel' : ''} ${m.pvp === 'libre' ? 'war' : ''}`} onClick={() => setSel(m.id)}>
+                  <button key={m.id} className={`map-cell ${locked ? 'locked' : 'open'} ${m.id === zone ? 'here' : ''} ${m.id === sel ? 'sel' : ''} ${m.pvp === 'libre' ? 'war' : ''}`} style={{ boxShadow: `inset 0 -5px 0 ${REGION_BY_ID[m.region ?? 'france'].color}` }} title={`${m.name} — ${REGION_BY_ID[m.region ?? 'france'].name}`} onClick={() => setSel(m.id)}>
                     <span className="mc-owner">{inf?.owner ? `[${inf.owner}]` : ''}</span>
                     <span className="mc-code">{m.code}</span>
                     {m.id === zone && <span className="mc-here"><Icon name="profil" size={16} /></span>}
@@ -258,6 +259,16 @@ export function WorldMap() {
         </div>
         <div className="wm-info">
           <h3>Carte {z.code} — {z.name}</h3>
+          {z.region && (() => {
+            const r = REGION_BY_ID[z.region];
+            return (
+              <div className="wm-region" style={{ borderColor: r.color }}>
+                <b style={{ color: r.color }}>{r.name}</b> — {r.desc}
+                <div className="kv"><span>Boss de la région</span><b>{SHIP_BY_ID[r.boss.ship]?.name}</b></div>
+                <div className="kv"><span>Ressource régionale</span><b>{GOODS[r.good].name}</b></div>
+              </div>
+            );
+          })()}
           <p>{z.desc}</p>
           <div className="kv"><span>Niveaux conseillés</span><b>{z.levels[0]} – {z.levels[1]}</b></div>
           <div className="kv"><span>Combat entre joueurs</span><b className={z.pvp === 'libre' ? 'war' : ''}>{z.pvp === 'libre' ? 'Libre (hors des ports)' : 'Sur consentement (pavillon rouge)'}</b></div>

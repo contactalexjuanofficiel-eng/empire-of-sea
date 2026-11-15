@@ -249,3 +249,25 @@ test('bouclier, énergie et compétences actives : vraies mécaniques côté ser
   for (let i = 0; i < 40; i++) zone.tick(0.05);
   assert.ok(me.energy > e1);
 });
+
+test('régions : chaque région a son boss, ses ennemis, sa ressource ; la Mer Égée est la carte de guerre de la Méditerranée', async () => {
+  const { REGIONS } = await import('../shared/regions.ts');
+  const { SEAS } = await import('../shared/zones.ts');
+  for (const s of SEAS) assert.ok(REGIONS.some((r) => r.seas.includes(s.id)), `mer sans région : ${s.id}`);
+  for (const r of REGIONS) {
+    assert.ok(SHIP_BY_ID[r.boss.ship], `boss inconnu : ${r.boss.ship}`);
+    for (const n of r.npcs) assert.ok(SHIP_BY_ID[n.ship], `PNJ inconnu : ${n.ship}`);
+  }
+  const egee = ZONE_BY_ID['mediterranee-2'];
+  assert.equal(egee.name, 'Mer Égée');
+  assert.ok(egee.ports.some((p) => p.name === 'Candie'));
+  assert.ok(egee.enemies.some((e) => e.ship === 'galere_barbaresque'));
+  assert.ok(ZONE_BY_ID['manche-1'].ports.every((p) => p.produces.includes('toile')));
+  // Boss régional : le Dragon des Typhons apparaît en mer de Chine et la simulation tourne.
+  const chine = ZONES.find((z) => z.sea === 'mer_de_chine')!;
+  const zone = new Zone(chine, { relation: () => 'neutral' });
+  (zone as unknown as { spawnBoss(): void }).spawnBoss();
+  const boss = [...zone.ships.values()].find((s) => s.kind === 'boss')!;
+  assert.equal(boss.def.id, 'dragon_typhons');
+  for (let i = 0; i < 40; i++) zone.tick(0.05);
+});
