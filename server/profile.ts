@@ -62,6 +62,7 @@ export function newProfile(name: string): Profile {
     buffs: {},
     battleClaimed: 0,
     fishClaimed: 0,
+    activeOther: '',
     levelMission: { level: 1, progress: 0 },
   };
 }
@@ -113,6 +114,18 @@ export function createCharacter(p: Profile, portrait: number, flag: FlagChoice, 
   p.flag = (['royal', 'tricolore', 'imperial'] as const).includes(flag) ? flag : 'royal';
   const s = giveShip(p, ['bayonnaise', 'mutine', 'saint_michel'].includes(ship) ? ship : 'bayonnaise');
   p.active = s.uid;
+}
+
+/** Change d'ère : on mémorise le navire actif et on prend celui de l'autre ère (vedette offerte au premier passage). */
+export function switchEra(p: Profile, toModern: boolean): boolean {
+  const isModern = (uid: string) => SHIP_BY_ID[p.ships.find((s) => s.uid === uid)?.def ?? '']?.era === 'moderne';
+  let next = p.activeOther && p.ships.some((s) => s.uid === p.activeOther) && isModern(p.activeOther) === toModern ? p.activeOther : '';
+  if (!next) next = p.ships.find((s) => (SHIP_BY_ID[s.def]?.era === 'moderne') === toModern)?.uid ?? '';
+  if (!next && toModern) next = giveShip(p, 'm_vedette_rapide').uid;
+  if (!next) return false;
+  p.activeOther = p.active;
+  p.active = next;
+  return true;
 }
 
 export const activeShip = (p: Profile) => p.ships.find((s) => s.uid === p.active) ?? p.ships[0];

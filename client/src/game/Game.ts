@@ -20,7 +20,8 @@ import { Input, type Action } from './Input';
 import { Effects, WakeTrail } from './render/Effects';
 import { Ocean } from './render/Ocean';
 import { ShipModel } from './render/ShipModel';
-import { MonsterModel } from './render/MonsterModel';
+import { makeShipModel, type AnyShipModel } from './render/factory';
+import { ModernShipModel } from './render/ModernShipModel';
 import { shipBonus } from '../../../shared/extras';
 import { GRADES } from '../../../shared/ranks';
 import { SkyEnv } from './render/SkyEnv';
@@ -37,7 +38,7 @@ interface ClientEnt {
   snaps: Snap[];
   cur: Snap;
   seen: number;
-  model?: ShipModel | MonsterModel;
+  model?: AnyShipModel;
   wake?: WakeTrail;
   obj?: THREE.Object3D;
   label?: HTMLDivElement;
@@ -83,10 +84,10 @@ export class Game {
   private rtt = 0.08;
   private clock = new THREE.Clock();
   t = 0;
-  private dockModel: ShipModel | null = null;
+  private dockModel: AnyShipModel | null = null;
   private bobber: THREE.Group | null = null;
   private dockModelKey = '';
-  private showcase: ShipModel | null = null;
+  private showcase: AnyShipModel | null = null;
   private showcaseKey = '';
   private aim = { x: 0, z: 0, side: null as Side | null, inArc: false, dist: 0 };
   private aimRing: THREE.Mesh;
@@ -399,7 +400,7 @@ export class Game {
     const e: ClientEnt = { id, meta, snaps: [], cur: { ...snap }, seen: snap.t, sinkT: snap.flags & F_SINKING ? 5 : -1, pose: { heave: 0, pitch: 0, roll: 0 }, fxT: 0 };
     if (meta.kind === 'player' || meta.kind === 'npc' || meta.kind === 'boss') {
       const def = SHIP_BY_ID[meta.ship ?? 'bayonnaise'];
-      e.model = def.look.monster ? new MonsterModel(def) : new ShipModel(def, meta.kind === 'player' ? meta.flag : undefined, meta.skin);
+      e.model = makeShipModel(def, meta.kind === 'player' ? meta.flag : undefined, meta.skin);
       e.model.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
       this.scene.add(e.model.root);
       e.wake = new WakeTrail(def ? e.model.dims.B * 0.55 : 4);
@@ -658,7 +659,7 @@ export class Game {
       const l = Math.hypot(x - ox, z - oz) || 1;
       dx = (x - ox) / l; dz = (z - oz) / l;
     }
-    this.fx.muzzle(x, y, z, dx, dz, e?.meta.kind === 'boss' ? 1.6 : 1);
+    this.fx.muzzle(x, y, z, dx, dz, e?.meta.kind === 'boss' ? 1.6 : 1, SHIP_BY_ID[e?.meta.ship ?? '']?.era === 'moderne');
     const now = this.t;
     if ((this.lastCannon.get(owner) ?? -1) < now - 0.12) {
       this.lastCannon.set(owner, now);
@@ -673,7 +674,11 @@ export class Game {
       const { ev } = this.evQueue.shift()!;
       switch (ev.k) {
         case 'shot':
-          ev.balls.forEach((b, i) => this.fx.addBall(ev.pid + i, ev.id, ev.t + b.d, b, ev.ammo));
+        {
+          const sd = SHIP_BY_ID[this.ents.get(ev.id)?.meta.ship ?? ''];
+          const style = sd?.era !== 'moderne' || sd.cls === 'voilier' ? 'boulet' : sd.cls === 'fregate_moderne' ? 'missile' : 'obus';
+          ev.balls.forEach((b, i) => this.fx.addBall(ev.pid + i, ev.id, ev.t + b.d, b, ev.ammo, style));
+        }
           break;
         case 'hit': {
           this.fx.removeBall(ev.pid);
@@ -936,6 +941,7 @@ export class Game {
         const windRel = wrapAngle(c.h - this.wind.dir);
         m.update(this.t, dt, c.flags & F_SINKING ? 0 : c.sail, windRel, this.wind.strength, 1 - c.hp, 1 - c.sailHp, this.sky.night);
         m.root.visible = cd < 6000;
+        if (m instanceof ModernShipModel) m.setDetail(cd);
 
         // Effets : incendie, fumée de dégâts, gerbes d'étrave
         e.fxT -= dt;
@@ -987,7 +993,7 @@ export class Game {
     const key = `${shipId}:${p.flag}:${portId}:${p.skin}`;
     if (this.dockModelKey !== key) {
       this.removeDockModel();
-      this.dockModel = new ShipModel(SHIP_BY_ID[shipId] ?? SHIP_BY_ID.bayonnaise, p.flag, p.skin);
+      this.dockModel = makeShipModel(SHIP_BY_ID[shipId] ?? SHIP_BY_ID.bayonnaise, p.flag, p.skin);
       this.dockModelKey = key;
       this.scene.add(this.dockModel.root);
     }
@@ -1011,7 +1017,7 @@ export class Game {
     const id = s.screen === 'create' ? s.preview : 'soleil_royal';
     if (this.showcaseKey !== id) {
       if (this.showcase) { this.scene.remove(this.showcase.root); this.showcase.dispose(); }
-      this.showcase = new ShipModel(SHIP_BY_ID[id] ?? SHIP_BY_ID.soleil_royal);
+      this.showcase = makeShipModel(SHIP_BY_ID[id] ?? SHIP_BY_ID.soleil_royal);
       this.showcaseKey = id;
       this.scene.add(this.showcase.root);
     }

@@ -28,7 +28,8 @@ function fakeLink(name: string, id: number): PlayerLink & { inbox: S2C[] } {
 test('catalogue : 14 navires historiques demandés, 7 classes, progression croissante', () => {
   const wanted = ['Le Soleil Royal', 'Le Bucentaure', 'L\'Hermione', 'Le Redoutable', 'Le Vengeur du Peuple', 'Le Couronne', 'Le Royal Louis', 'Le Tonnant', 'Le Suffren', 'Le Formidable', 'Le Duquesne', 'Le Duguay-Trouin', 'Le Napoléon', 'Le Saint-Michel'];
   for (const n of wanted) assert.ok(SHIPS.some((s) => s.name === n), n);
-  assert.equal(new Set(SHIPS.filter((s) => !s.npcOnly).map((s) => s.cls)).size, 7);
+  assert.equal(new Set(SHIPS.filter((s) => !s.npcOnly && !s.era).map((s) => s.cls)).size, 7);
+  assert.equal(SHIPS.filter((s) => s.era === 'moderne' && !s.npcOnly).length, 25, '25 navires modernes');
   const hp = (id: string) => computeStats(SHIP_BY_ID[id]).hp;
   assert.ok(hp('soleil_royal') > hp('royal_louis') && hp('royal_louis') > hp('redoutable') && hp('redoutable') > hp('hermione') && hp('hermione') > hp('bayonnaise'));
 });

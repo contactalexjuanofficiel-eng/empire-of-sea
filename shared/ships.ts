@@ -1,8 +1,10 @@
 // Catalogue des navires : 7 classes historiques et des bâtiments nommés d'après de vrais navires de la marine française.
 // Source de vérité unique pour le client (affichage, modèles 3D) et le serveur (simulation, achats).
 import { fitEffects, MAST_CAPACITY, type Fit } from './equipment.ts';
+import { MODERN_SHIPS, type ModernSpec } from './modern.ts';
 
-export type ShipClassId = 'corvette' | 'brick' | 'fregate' | 'fregate_lourde' | 'vaisseau' | 'trois_ponts' | 'amiral';
+export type ShipClassId = 'corvette' | 'brick' | 'fregate' | 'fregate_lourde' | 'vaisseau' | 'trois_ponts' | 'amiral'
+  | 'voilier' | 'peche' | 'vedette' | 'patrouilleur' | 'fregate_moderne';
 export type Rarity = 'commun' | 'peu_commun' | 'rare' | 'epique' | 'legendaire';
 export type FlagStyle = 'royal' | 'tricolore' | 'imperial' | 'pirate' | 'anglais' | 'barbaresque' | 'spectre' | 'hollandais' | 'aucun';
 export type MonsterKind = 'crocodile' | 'requin' | 'serpent' | 'kraken' | 'leviathan';
@@ -37,6 +39,12 @@ export const SHIP_CLASSES: Record<ShipClassId, ShipClass> = {
   vaisseau: { id: 'vaisseau', name: 'Vaisseau de ligne', tier: 5, length: 58, beam: 15, masts: 3, gunDecks: 2, hp: 6500, speed: 15.5, turn: 0.33, accel: 1.9, reload: 7.5, caliber: 1.45, range: 370, cargo: 120, armor: 0.16, desc: 'Le « 74 canons », colonne vertébrale de la ligne de bataille.' },
   trois_ponts: { id: 'trois_ponts', name: 'Trois-ponts', tier: 6, length: 64, beam: 17, masts: 3, gunDecks: 3, hp: 9500, speed: 14, turn: 0.27, accel: 1.6, reload: 8.5, caliber: 1.6, range: 385, cargo: 160, armor: 0.2, desc: 'Une forteresse flottante de plus de cent bouches à feu.' },
   amiral: { id: 'amiral', name: 'Navire amiral', tier: 7, length: 70, beam: 18.5, masts: 3, gunDecks: 3, hp: 13000, speed: 14.5, turn: 0.27, accel: 1.7, reload: 8.5, caliber: 1.8, range: 400, cargo: 200, armor: 0.24, desc: 'Le vaisseau qui porte la marque de l\'amiral. Sa seule vue fait plier les escadres.' },
+  // Ère moderne
+  voilier: { id: 'voilier', name: 'Voilier', tier: 2, length: 50, beam: 9, masts: 3, gunDecks: 0, hp: 2200, speed: 16, turn: 0.5, accel: 2.2, reload: 6, caliber: 0.8, range: 300, cargo: 60, armor: 0.02, desc: 'Grands voiliers et goélettes : élégance, endurance et vent pour seul moteur.' },
+  peche: { id: 'peche', name: 'Bateau de pêche', tier: 1, length: 26, beam: 8, masts: 1, gunDecks: 0, hp: 1700, speed: 13.5, turn: 0.55, accel: 2.2, reload: 5, caliber: 0.7, range: 260, cargo: 120, armor: 0.06, desc: 'Robustes et lents, avec une cale immense : faits pour pêcher et commercer.' },
+  vedette: { id: 'vedette', name: 'Vedette rapide', tier: 2, length: 16, beam: 5, masts: 1, gunDecks: 0, hp: 1000, speed: 30, turn: 1.0, accel: 7, reload: 3, caliber: 0.9, range: 280, cargo: 10, armor: 0, desc: 'Les plus rapides de la mer : accélération foudroyante, coque fragile.' },
+  patrouilleur: { id: 'patrouilleur', name: 'Patrouilleur', tier: 4, length: 50, beam: 10, masts: 1, gunDecks: 0, hp: 5200, speed: 21, turn: 0.55, accel: 3.4, reload: 4.5, caliber: 1.3, range: 380, cargo: 40, armor: 0.15, desc: 'Coque militaire, radar et canon : l\'équilibre entre vitesse et puissance.' },
+  fregate_moderne: { id: 'fregate_moderne', name: 'Frégate militaire', tier: 6, length: 95, beam: 15, masts: 1, gunDecks: 0, hp: 11500, speed: 20, turn: 0.36, accel: 2.4, reload: 6, caliber: 1.7, range: 470, cargo: 80, armor: 0.25, desc: 'Les rois de la mer moderne : missiles, radars, hélicoptère et blindage.' },
 };
 
 export interface ShipLook {
@@ -56,7 +64,7 @@ export interface ShipDef {
   cls: ShipClassId;
   rarity: Rarity;
   level: number; // niveau de capitaine requis
-  price: { or?: number; doublons?: number; perles?: number };
+  price: { or?: number; doublons?: number; perles?: number; diamants?: number };
   canons: number; // nombre historique de bouches à feu
   /** Multiplicateurs propres au navire par rapport à sa classe. */
   mod: { hp?: number; speed?: number; turn?: number; reload?: number; cargo?: number; range?: number };
@@ -66,6 +74,12 @@ export interface ShipDef {
   npcOnly?: boolean;
   /** Navire élite : points élite requis pour le débloquer (gratuit ensuite). */
   elite?: number;
+  /** Ère moderne : dimensions propres, gréement (voiliers) ou générateur 3D (navires à moteur). */
+  era?: 'moderne';
+  size?: { L: number; B: number };
+  rig?: 'carre' | 'barque' | 'goelette' | 'dundee';
+  noPorts?: boolean;
+  modern?: ModernSpec;
 }
 
 const N = (d: ShipDef) => d;
@@ -128,8 +142,10 @@ export const SHIPS: ShipDef[] = [
   N({ id: 'spectre', name: 'Le Spectre des Brumes', cls: 'trois_ponts', rarity: 'legendaire', level: 25, price: {}, canons: 120, mod: { hp: 6, speed: 0.85, reload: 0.8, range: 1.1 }, look: { hull: 0x0c1412, stripe: 0x1d3b33, trim: 0x4fffc0, sail: 0x5f7a70, flag: 'spectre', glow: 0x3dffb0 }, history: 'Un trois-ponts disparu corps et biens en 1709, qui revient quand le brouillard tombe.', npcOnly: true }),
 ];
 
+SHIPS.push(...MODERN_SHIPS);
 export const SHIP_BY_ID: Record<string, ShipDef> = Object.fromEntries(SHIPS.map((s) => [s.id, s]));
-export const PLAYER_SHIPS = SHIPS.filter((s) => !s.npcOnly && !s.elite);
+export const MODERN_PLAYER_SHIPS = SHIPS.filter((s) => s.era === 'moderne' && !s.npcOnly);
+export const PLAYER_SHIPS = SHIPS.filter((s) => !s.npcOnly && !s.elite && !s.era);
 export const ELITE_SHIPS = SHIPS.filter((s) => s.elite).sort((a, b) => a.elite! - b.elite!);
 export const STARTER_SHIPS = ['bayonnaise', 'mutine', 'saint_michel'];
 
@@ -203,7 +219,7 @@ export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: S
     dispersion: 0.05 * (1 - 0.1 * up.boulets),
     repair: (1 + 0.1 * sk.charpenterie) * (1 + (bonus.repair ?? 0)),
     harpon: 1 + (bonus.harpon ?? 0),
-    length: c.length,
-    beam: c.beam,
+    length: def.size?.L ?? c.length,
+    beam: def.size?.B ?? c.beam,
   };
 }

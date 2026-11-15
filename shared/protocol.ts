@@ -78,6 +78,8 @@ export interface Profile {
   /** Dernier échelon dont les récompenses ont été réclamées. */
   battleClaimed: number;
   fishClaimed: number;
+  /** Navire actif mémorisé pour l'autre ère (on le retrouve en changeant d'ère). */
+  activeOther: string;
 }
 
 // --- Messages client -> serveur --------------------------------------------

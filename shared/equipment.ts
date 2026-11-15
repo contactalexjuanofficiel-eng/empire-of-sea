@@ -32,6 +32,7 @@ export const isMast = (id: string): id is MastId => id in MASTS;
 
 export const MAST_CAPACITY: Record<ShipClassId, number> = {
   corvette: 8, brick: 12, fregate: 18, fregate_lourde: 24, vaisseau: 30, trois_ponts: 38, amiral: 44,
+  voilier: 14, peche: 6, vedette: 4, patrouilleur: 10, fregate_moderne: 16,
 };
 
 /** Équipement installé sur un navire. */

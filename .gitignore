@@ -4,3 +4,4 @@ data/
 *.log
 tests/screenshots/
 .DS_Store
+client/_dev

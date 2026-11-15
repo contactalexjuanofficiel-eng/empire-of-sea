@@ -118,6 +118,7 @@ function Chantier() {
       <div className="eq-tabs">
         <button className={`btn ${mode === 'flotte' ? 'on' : ''}`} onClick={() => setMode('flotte')}>Navires du Roi</button>
         <button className={`btn ${mode === 'elite' ? 'on' : ''}`} onClick={() => setMode('elite')}>Navires élites</button>
+        <button className="btn" onClick={() => store.set({ panel: 'flotte' })}>Flotte moderne</button>
       </div>
       {mode === 'flotte' ? <ChantierFlotte /> : <EliteShipsTab />}
     </div>

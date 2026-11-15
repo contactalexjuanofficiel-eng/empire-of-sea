@@ -6,6 +6,7 @@ import { Help, Inventory, GuildPanel, Leaderboard, ProfilePanel, Settings, World
 import { PortPanel } from './Port';
 import { BonusPanel, CaptainsPanel, MissionsPanel, ShopPanel } from './Panels2';
 import { RanksPanel } from './Ranks';
+import { FleetPanel } from './Fleet';
 
 export function App() {
   const screen = useStore((s) => s.screen);
@@ -47,6 +48,7 @@ export function App() {
       {panel === 'capitaines' && <CaptainsPanel />}
       {panel === 'bonus' && <BonusPanel />}
       {panel === 'rangs' && <RanksPanel />}
+      {panel === 'flotte' && <FleetPanel />}
       {conn === 'lost' && <div className="conn-lost">Connexion au serveur perdue — tentative de reconnexion…</div>}
     </div>
   );

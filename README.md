@@ -68,6 +68,31 @@ Chaque carte a ses propres ports français. La **mission de passage** de chaque 
 étage le plus haut et atteindre le niveau requis) débloque l'étage suivant. La guilde qui abat le boss d'une carte
 en prend le contrôle (son blason s'affiche dans la grille des cartes). Les PNJ coulés réapparaissent 5 minutes plus tard.
 
+## Ère moderne : 25 navires de la Marine nationale
+
+Une époque à part, avec ses propres cartes **M1 à M5** (Rade de Brest, Pertuis charentais, Rade de Toulon, Antilles,
+La Réunion) et ses ennemis (go-fast, chalutiers pirates, patrouilleurs rebelles, frégates hostiles — tous « (PNJ) »).
+En entrant sur une carte moderne, on prend un navire moderne (une vedette rapide est offerte la première fois) ;
+le navire d'époque est retrouvé au retour.
+
+| Catégorie | Navires |
+|---|---|
+| Voiliers | Belem, Belle Poule, Le Français, Le Mutin, L'Hermione |
+| Pêche | Chalutier breton, Fileyeur, Chalutier hauturier, Caseyeur, Thonier senneur |
+| Vedettes | rapide, de surveillance, garde-côte, d'interception, de sauvetage |
+| Patrouilleurs | Aramis, Astérix, Marine, Loire, Atlantique |
+| Frégates | type FREMM, type Horizon, type La Fayette, défense aérienne, polyvalente moderne |
+
+Bouton **Flotte moderne** (menu, ou Chantier naval) : liste par catégorie, aperçu 3D (rotation 360°, zoom à la
+molette), caractéristiques (PV, vitesse, accélération, maniabilité, blindage, puissance de feu, chargement), achat,
+sélection et **export du modèle au format GLB** (ouvrable dans Blender ou tout logiciel 3D).
+
+Organisation : catalogue et caractéristiques dans `shared/modern.ts` ; modèles générés par code dans
+`client/src/game/render/ModernShipModel.ts` (coque acier, superstructures furtives, radars animés, niveaux de
+détail : les petits éléments disparaissent au loin ; matériaux partagés entre tous les navires) ; choix du modèle
+dans `render/factory.ts`. Les voiliers modernes réutilisent le générateur de gréements (`ShipModel.ts`, variantes
+trois-mâts barque, goélette, dundee). En combat, les navires modernes tirent des obus traçants, les frégates des missiles.
+
 ## Équipement
 
 Canons de **30 livres** (or), **50 livres** (perles) et **60 livres** (diamants), mâts de pin, de chêne et de Riga :

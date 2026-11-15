@@ -6,7 +6,9 @@ import { GRAVITY } from '../../../../shared/physics';
 import { glowTexture, ParticleSystem } from './Particles';
 import { waveHeight } from './waves';
 
-interface LiveBall { pid: number; t0: number; x: number; y: number; z: number; vx: number; vy: number; vz: number; ammo: AmmoId; flashed: boolean; done: boolean; owner: number }
+/** Style du projectile : boulet d'époque, obus traçant (navires modernes) ou missile (frégates modernes). */
+export type ShotStyle = 'boulet' | 'obus' | 'missile';
+interface LiveBall { pid: number; t0: number; x: number; y: number; z: number; vx: number; vy: number; vz: number; ammo: AmmoId; flashed: boolean; done: boolean; owner: number; style: ShotStyle }
 
 export class Effects {
   readonly group = new THREE.Group();
@@ -16,21 +18,31 @@ export class Effects {
   private balls: LiveBall[] = [];
   private ballMesh: THREE.InstancedMesh;
   private hotMesh: THREE.InstancedMesh;
+  private tracerMesh: THREE.InstancedMesh;
+  private missileMesh: THREE.InstancedMesh;
+  private q = new THREE.Quaternion();
+  private dir = new THREE.Vector3();
+  private one = new THREE.Vector3(1, 1, 1);
+  private up = new THREE.Vector3(0, 0, 1);
   private flashLight = new THREE.PointLight(0xffaa55, 0, 160, 1.6);
   private flashT = 0;
   private m4 = new THREE.Matrix4();
+  private tmpP = new THREE.Vector3();
   onSplash: ((x: number, z: number) => void) | null = null;
   onMuzzle: ((x: number, y: number, z: number, owner: number) => void) | null = null;
 
   constructor() {
     this.ballMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.45, 8, 6), new THREE.MeshStandardMaterial({ color: 0x151515, metalness: 0.6, roughness: 0.4 }), 800);
     this.hotMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff7a2a }), 300);
-    this.ballMesh.frustumCulled = this.hotMesh.frustumCulled = false;
-    this.group.add(this.smoke.mesh, this.fire.mesh, this.spray.mesh, this.ballMesh, this.hotMesh, this.flashLight);
+    // Obus traçant : trait lumineux allongé dans l'axe du tir ; missile : corps blanc + flamme.
+    this.tracerMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.16, 4.5, 5).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd27a }), 600);
+    this.missileMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.3, 0.3, 3.4, 6).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xe8ecef, roughness: 0.5 }), 200);
+    this.ballMesh.frustumCulled = this.hotMesh.frustumCulled = this.tracerMesh.frustumCulled = this.missileMesh.frustumCulled = false;
+    this.group.add(this.smoke.mesh, this.fire.mesh, this.spray.mesh, this.ballMesh, this.hotMesh, this.tracerMesh, this.missileMesh, this.flashLight);
   }
 
-  addBall(pid: number, owner: number, t0: number, b: { x: number; y: number; z: number; vx: number; vy: number; vz: number }, ammo: AmmoId) {
-    this.balls.push({ pid, owner, t0, ...b, ammo, flashed: false, done: false });
+  addBall(pid: number, owner: number, t0: number, b: { x: number; y: number; z: number; vx: number; vy: number; vz: number }, ammo: AmmoId, style: ShotStyle = 'boulet') {
+    this.balls.push({ pid, owner, t0, ...b, ammo, flashed: false, done: false, style });
   }
 
   removeBall(pid: number) {
@@ -39,7 +51,14 @@ export class Effects {
   }
 
   // ---------------------------------------------------------------- effets ponctuels
-  muzzle(x: number, y: number, z: number, dx: number, dz: number, big = 1) {
+  muzzle(x: number, y: number, z: number, dx: number, dz: number, big = 1, modern = false) {
+    if (modern) {
+      // Canon moderne : éclair bref et petite bouffée grise, pas de grand nuage de poudre noire.
+      this.fire.emit({ x, y, z, vx: dx * 30, vy: 0.5, vz: dz * 30, life: 0.1, size: 2.5 * big, size1: 4.5 * big, color: 0xfff0c0, color1: 0xff8a30, alpha: 1, alpha1: 0, drag: 8 });
+      this.smoke.emit({ x, y: y + 0.5, z, vx: dx * 6, vy: 1.5, vz: dz * 6, life: 2.2, size: 1.5 * big, size1: 6 * big, color: 0xc8c8c8, color1: 0x9a9a9a, alpha: 0.45, alpha1: 0, drag: 1.2 });
+      this.flash(x, y, z, 2 * big);
+      return;
+    }
     for (let i = 0; i < 3; i++) {
       this.fire.emit({ x, y, z, vx: dx * (20 + i * 12), vy: 1, vz: dz * (20 + i * 12), life: 0.18, size: 3.5 * big, size1: 6 * big, color: 0xffe2a0, color1: 0xff6a20, alpha: 1, alpha1: 0, drag: 6 });
     }
@@ -122,7 +141,7 @@ export class Effects {
 
   // ---------------------------------------------------------------- mise à jour
   update(dt: number, renderT: number, fogColor: THREE.Color, fogDensity: number, wind: THREE.Vector3, light = 1) {
-    let n = 0, h = 0;
+    let n = 0, h = 0, tr = 0, mi = 0;
     for (const b of this.balls) {
       if (b.done) continue;
       const tt = renderT - b.t0;
@@ -137,6 +156,18 @@ export class Effects {
         if (tt <= 9) { this.splash(x, z, renderT); this.onSplash?.(x, z); }
         continue;
       }
+      if (b.style !== 'boulet') {
+        // Orienté selon la vitesse instantanée.
+        this.dir.set(b.vx, b.vy - GRAVITY * tt, b.vz).normalize();
+        this.q.setFromUnitVectors(this.up, this.dir);
+        this.m4.compose(this.tmpP.set(x, y, z), this.q, this.one);
+        if (b.style === 'missile') {
+          if (mi < 200) this.missileMesh.setMatrixAt(mi++, this.m4);
+          this.fire.emit({ x: x - this.dir.x * 2, y: y - this.dir.y * 2, z: z - this.dir.z * 2, life: 0.12, size: 1.6, size1: 0.6, color: 0xfff2c0, color1: 0xff7020, alpha: 1, alpha1: 0 });
+          this.smoke.emit({ x: x - this.dir.x * 2.5, y: y - this.dir.y * 2.5, z: z - this.dir.z * 2.5, life: 2.4, size: 1.2, size1: 4.5, color: 0xf2f2f2, color1: 0xc8ccd0, alpha: 0.6, alpha1: 0, drag: 1 });
+        } else if (tr < 600) this.tracerMesh.setMatrixAt(tr++, this.m4);
+        continue;
+      }
       this.m4.makeTranslation(x, y, z);
       if (b.ammo === 'rouge' && h < 300) this.hotMesh.setMatrixAt(h++, this.m4);
       else if (n < 800) this.ballMesh.setMatrixAt(n++, this.m4);
@@ -145,8 +176,12 @@ export class Effects {
     this.balls = this.balls.filter((b) => !b.done);
     this.ballMesh.count = n;
     this.hotMesh.count = h;
+    this.tracerMesh.count = tr;
+    this.missileMesh.count = mi;
     this.ballMesh.instanceMatrix.needsUpdate = true;
     this.hotMesh.instanceMatrix.needsUpdate = true;
+    this.tracerMesh.instanceMatrix.needsUpdate = true;
+    this.missileMesh.instanceMatrix.needsUpdate = true;
 
     this.flashT -= dt;
     if (this.flashT <= 0) this.flashLight.intensity *= Math.max(0, 1 - dt * 18);

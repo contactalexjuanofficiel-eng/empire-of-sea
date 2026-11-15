@@ -21,7 +21,7 @@ export interface HudState {
 export interface NearbyShip { id: number; name: string; kind: string; level: number; dist: number; hp: number; hostile: boolean; friend: boolean; tag?: string | null; ship?: string; faction: string }
 export interface ChatLine { id: number; ch: ChatChannel; from: string; text: string; tag?: string | null }
 export interface Notice { id: number; text: string; kind: string; t: number }
-export type Panel = null | 'port' | 'inventaire' | 'profil' | 'classement' | 'guilde' | 'carte' | 'aide' | 'parametres' | 'missions' | 'boutique' | 'capitaines' | 'bonus' | 'rangs';
+export type Panel = null | 'port' | 'inventaire' | 'profil' | 'classement' | 'guilde' | 'carte' | 'aide' | 'parametres' | 'missions' | 'boutique' | 'capitaines' | 'bonus' | 'rangs' | 'flotte';
 export interface TargetInfo { id: number; name: string; kind: string; level: number; hp: number; dist: number; hostile: boolean; faction: string; ship?: string }
 export interface Settings { quality: 'haute' | 'moyenne' | 'basse'; volume: number; muted: boolean; autoCam: boolean; labels: boolean; camMode: 'dessus' | '3d'; autoAttack: boolean; keys: Record<string, string> }
 

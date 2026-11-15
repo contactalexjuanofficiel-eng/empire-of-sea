@@ -59,6 +59,7 @@ export function MenuButtons() {
     ['boutique', 'coffre', 'Boutique de l\'Amirauté', 'O'],
     ['capitaines', 'epee', 'Capitaines', 'L'],
     ['rangs', 'etoile', 'Rangs', ''],
+    ['flotte', 'ancre', 'Flotte moderne (25 navires)', ''],
     ['inventaire', 'sac', 'Inventaire', 'I'],
     ['profil', 'profil', 'Profil', 'C'],
     ['guilde', 'guilde', 'Guilde & groupe', 'U'],

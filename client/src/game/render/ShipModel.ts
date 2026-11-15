@@ -3,6 +3,9 @@
 // voiles qui se déploient selon l'allure demandée, gréement, canons en batterie, pavillon et lanternes.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+
+/** Fusionne des géométries (liste vide = géométrie vide, pour les gréements sans canons ni dorures). */
+const mergeSafe = (list: THREE.BufferGeometry[]) => list.length ? mergeGeometries(list.map((g) => g.toNonIndexed()))! : new THREE.BufferGeometry();
 import { SHIP_BY_ID, SHIP_CLASSES, type ShipDef } from '../../../../shared/ships';
 import { deckTexture, emblemFor, flagTexture, sailTexture, woodTexture } from './textures';
 import { SKINS, type SkinId } from '../../../../shared/extras';
@@ -18,11 +21,14 @@ export interface ShipDims {
 
 export function dimsFor(def: ShipDef): ShipDims {
   const c = SHIP_CLASSES[def.cls];
-  const L = c.length, B = c.beam;
-  const decks = c.gunDecks;
+  const L = def.size?.L ?? c.length, B = def.size?.B ?? c.beam;
+  const decks = def.rig && def.rig !== 'carre' ? 0 : c.gunDecks;
   const F = 1.6 + decks * 2.3 + 0.08 * B;
-  const H = L * (c.masts === 2 ? 0.95 : 0.9);
-  const masts = c.masts === 2
+  const nMasts = def.rig === 'goelette' || def.rig === 'dundee' ? 2 : def.rig ? 3 : c.masts;
+  const H = L * (nMasts === 2 ? 0.95 : 0.9);
+  const masts = def.rig === 'dundee'
+    ? [{ t: 0.6, h: H, w: 1.0 }, { t: 0.2, h: H * 0.62, w: 0.7 }]
+    : nMasts === 2
     ? [{ t: 0.66, h: H * 0.92, w: 1.0 }, { t: 0.36, h: H, w: 1.1 }]
     : [{ t: 0.73, h: H * 0.9, w: 1.0 }, { t: 0.5, h: H, w: 1.12 }, { t: 0.25, h: H * 0.74, w: 0.82 }];
   return { L, B, draft: 0.36 * B, F, decks, masts };
@@ -245,13 +251,31 @@ function buildAssets(def: ShipDef): ShipAssets {
       wood.push(cyl(0.22 * m.w, 0.22 * m.w, V(-ww / 2, yy, z + 0.6), V(ww / 2, yy, z + 0.6), 6));
     }
     const isMizzen = d.masts.length === 3 && mi === 2;
-    const course = squareSail(z, yCourse, y0 + H * 0.12, wC * 0.98, wC * 1.08, 0);
-    if (!isMizzen) {
-      if (mi === (d.masts.length === 3 ? 1 : 1) && def.look.emblem) emblemParts.push(course);
-      else sails.push(course);
+    const last = mi === d.masts.length - 1;
+    // Gréement : carré (toutes voiles carrées), barque (dernier mât à voile aurique),
+    // goélette (seul le hunier du mât de misaine est carré), dundee (voiles auriques uniquement).
+    const rig = def.rig ?? 'carre';
+    const squares = rig === 'carre' || (rig === 'barque' && !last) || (rig === 'goelette' && mi === 0 ? 'top' : false);
+    if (squares === true) {
+      const course = squareSail(z, yCourse, y0 + H * 0.12, wC * 0.98, wC * 1.08, 0);
+      if (!isMizzen) {
+        if (mi === 1 && def.look.emblem) emblemParts.push(course);
+        else sails.push(course);
+      }
+      sails.push(squareSail(z, yTopsail, yCourse + 0.6, wT * 0.98, wC * 0.95, 1));
+      sails.push(squareSail(z, yTgYard, yTopsail + 0.5, wG * 0.98, wT * 0.92, 2));
+    } else if (squares === 'top') {
+      sails.push(squareSail(z, yTopsail, yCourse + 0.6, wT * 0.9, wT * 1.1, 1));
     }
-    sails.push(squareSail(z, yTopsail, yCourse + 0.6, wT * 0.98, wC * 0.95, 1));
-    sails.push(squareSail(z, yTgYard, yTopsail + 0.5, wG * 0.98, wT * 0.92, 2));
+    if (rig !== 'carre' && !last) {
+      // Voile aurique (grand-voile à corne) entre ce mât et le suivant.
+      const nz = zAt(d.masts[mi + 1].t);
+      const boom = V(0, y0 + 2.6, nz + 1.2);
+      const gaff = V(0, y0 + H * 0.5, nz + 2.5);
+      wood.push(cyl(0.16, 0.13, V(0, y0 + 2.5, z - 0.4), boom, 6));
+      wood.push(cyl(0.14, 0.11, V(0, y0 + H * 0.56, z - 0.4), gaff, 6));
+      foreAft.push(foreAftSail([V(0, y0 + 2.8, z - 0.5), boom.clone().setY(boom.y + 0.2), gaff, V(0, y0 + H * 0.56, z - 0.5)], 1));
+    }
 
     // Haubans : du ton de chaque mât vers le plat-bord.
     for (const s of [1, -1]) {
@@ -296,7 +320,7 @@ function buildAssets(def: ShipDef): ShipAssets {
   foreAft.push(foreAftSail([V(0, ay + 3.3, az - 0.4), boomEnd.clone().setY(boomEnd.y + 0.2), gaffEnd, V(0, ay + am.h * 0.36, az - 0.4)], 1));
 
   // Canons en batterie et positions des bouches à feu
-  const perSide = Math.round(def.canons / 2);
+  const perSide = def.noPorts ? 0 : Math.round(def.canons / 2);
   const rows = Math.max(1, d.decks);
   const perRow = Math.ceil(perSide / rows);
   const ports = { babord: [] as THREE.Vector3[], tribord: [] as THREE.Vector3[] };
@@ -350,12 +374,12 @@ function buildAssets(def: ShipDef): ShipAssets {
     dims: d,
     hull: buildHull(d),
     deck: buildDeck(d),
-    wood: mergeGeometries(wood.map((g) => g.toNonIndexed()))!,
-    gold: mergeGeometries(gold.map((g) => g.toNonIndexed()))!,
-    guns: mergeGeometries(gunGeo.map((g) => g.toNonIndexed()))!,
-    sails: mergeGeometries(sails.map((g) => g.toNonIndexed()))!,
-    emblemSail: emblemParts.length ? mergeGeometries(emblemParts.map((g) => g.toNonIndexed())) : null,
-    foreAft: mergeGeometries(foreAft.map((g) => g.toNonIndexed()))!,
+    wood: mergeSafe(wood),
+    gold: mergeSafe(gold),
+    guns: mergeSafe(gunGeo),
+    sails: mergeSafe(sails),
+    emblemSail: emblemParts.length ? mergeSafe(emblemParts) : null,
+    foreAft: mergeSafe(foreAft),
     rigging: rg,
     lanterns,
     ports,
@@ -386,7 +410,7 @@ function hullMaterial(def: ShipDef, d: ShipDims) {
     uL: { value: d.L },
     uDecks: { value: d.decks },
     uF: { value: d.F },
-    uPorts: { value: Math.max(4, Math.min(16, Math.ceil(def.canons / 2 / Math.max(1, d.decks)))) },
+    uPorts: { value: def.noPorts ? 0 : Math.max(4, Math.min(16, Math.ceil(def.canons / 2 / Math.max(1, d.decks)))) },
   };
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
@@ -417,7 +441,7 @@ float gTrim; float gWin;`)
     // Sabords
     float cell = fract((tz - 0.2) / 0.58 * uPorts);
     float inPorts = step(0.2, tz) * step(tz, 0.78);
-    float port = inPorts * step(abs(cell - 0.5), 0.2) * step(abs(y - yk), 0.5) * step(abs(vLocN.x), 2.0) * step(0.25, abs(vLocN.x));
+    float port = step(0.5, uPorts) * inPorts * step(abs(cell - 0.5), 0.2) * step(abs(y - yk), 0.5) * step(abs(vLocN.x), 2.0) * step(0.25, abs(vLocN.x));
     c = mix(c, vec3(0.04, 0.03, 0.02), port);
   }
   // Lisse dorée

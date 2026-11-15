@@ -37,13 +37,15 @@ export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: n
       if (p.ships.some((s) => s.def === def.id)) return 'Ce navire est déjà dans votre flotte.';
       if (lvl < def.level) return `Il faut être de niveau ${def.level} pour commander ${def.name}.`;
       const c = def.price;
-      if ((c.or ?? 0) > p.or || (c.doublons ?? 0) > p.doublons || (c.perles ?? 0) > p.perles) return 'Fonds insuffisants.';
-      if (p.ships.length >= 8) return 'Votre flotte est complète (8 navires).';
+      if ((c.or ?? 0) > p.or || (c.doublons ?? 0) > p.doublons || (c.perles ?? 0) > p.perles || (c.diamants ?? 0) > p.diamants) return 'Fonds insuffisants.';
+      if (p.ships.length >= 40) return 'Votre flotte est complète (40 navires).';
       p.or -= c.or ?? 0;
       p.doublons -= c.doublons ?? 0;
       p.perles -= c.perles ?? 0;
+      p.diamants -= c.diamants ?? 0;
       const s = giveShip(p, def.id);
-      p.active = s.uid;
+      // Un navire de l'autre ère est rangé à quai pour quand vous changerez d'époque.
+      if ((def.era === 'moderne') === (zone.era === 'moderne')) p.active = s.uid; else p.activeOther = s.uid;
       link.hpRatio = 1;
       link.sailRatio = 1;
       link.notify(`${def.name} rejoint votre flotte et devient votre navire amiral !`, 'level');
@@ -52,6 +54,7 @@ export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: n
     case 'selectShip': {
       const s = p.ships.find((x) => x.uid === act.uid);
       if (!s) return 'Navire introuvable.';
+      if ((SHIP_BY_ID[s.def].era === 'moderne') !== (zone.era === 'moderne')) return zone.era === 'moderne' ? 'Sur les cartes modernes, seuls les navires modernes peuvent prendre la mer.' : 'Les navires modernes ne naviguent que sur les cartes de l\'ère moderne.';
       if (p.active !== s.uid) {
         p.active = s.uid;
         link.hpRatio = 1;
