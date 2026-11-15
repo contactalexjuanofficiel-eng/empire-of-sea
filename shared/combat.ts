@@ -37,3 +37,13 @@ export const BASE_CRIT = 0.07;
 export const CRIT_MUL = 1.6;
 export const SKILL_DMG_BONUS = 0.3;
 export const SKILL_CRIT_BONUS = 0.4;
+
+// --- Fabrication des compétences (atelier du port) -------------------------------------------
+/** Chaque compétence se fabrique du niveau 1 au niveau 5 ; chaque niveau renforce l'effet et réduit la recharge. */
+export const SKILL_MAX_LEVEL = 5;
+export const skillPower = (lv: number) => 1 + 0.15 * (Math.max(1, lv) - 1);
+export const skillCooldownMul = (lv: number) => 1 - 0.08 * (Math.max(1, lv) - 1);
+/** Coût pour passer du niveau `lv` à `lv + 1`. */
+export function skillCraftCost(lv: number) {
+  return { or: 2500 * lv * lv, ferraille: 15 * lv, mat: { bois: 8 * lv, toile: 8 * lv, fer: 10 * lv }, perles: lv >= 3 ? lv - 1 : 0 };
+}

@@ -100,6 +100,12 @@ Le jeu se joue **à la souris**, en vue du dessus (la vue 3D derrière le navire
 | S | Rempart de bordage | 7 | 50 | 60 s | recharge la moitié du bouclier |
 | D | Tir de précision | 10 | 45 | 50 s | +40 % de coups critiques 10 s |
 
+**Atelier du port** : chaque compétence se fabrique du niveau 1 au niveau 5 (or, ferraille, bois, toile, fer, puis perles) ;
+chaque niveau renforce l'effet de 15 % et réduit la recharge de 8 %.
+
+**Classements** : général (expérience) et **saison du mois** (1 point par navire coulé, 5 par capitaine coulé,
+25 par boss ; remise à zéro le 1er de chaque mois).
+
 Charte graphique : bleu abyssal #071725, bleu océan #103B56, bleu marine #162B42, or royal #C9A45C, ivoire #E9E0CC,
 rouge combat #A83232, vert émeraude #34866B, gris acier #65727D, noir profond #090D12 ; titres Cinzel, textes Inter,
 chiffres Roboto Condensed.

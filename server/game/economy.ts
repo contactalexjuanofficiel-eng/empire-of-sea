@@ -1,4 +1,5 @@
 // Économie : chantier naval, arsenal, améliorations, marché, compétences. Toutes les vérifications sont ici.
+import { ACTIVE_SKILL_BY_ID, SKILL_MAX_LEVEL, skillCraftCost } from '../../shared/combat.ts';
 import { CAPTAIN_BY_ID, FORGE, SKINS } from '../../shared/extras.ts';
 import { BATTLE_STEPS, battlePoints, battleReward, battleThreshold, FISH_STEPS, fishReward, fishThreshold, stepOf } from '../../shared/ranks.ts';
 import type { AmmoId, ConsumableId } from '../../shared/items.ts';
@@ -244,6 +245,19 @@ export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: n
       }
       link.hpRatio = 1;
       link.sailRatio = 1;
+      break;
+    }
+    case 'craftSkill': {
+      const sk = ACTIVE_SKILL_BY_ID[act.skill];
+      if (!sk) return 'Compétence inconnue.';
+      const lv = p.skillLv[sk.id] ?? 1;
+      if (lv >= SKILL_MAX_LEVEL) return `${sk.name} est déjà au niveau maximal.`;
+      const c = skillCraftCost(lv);
+      if (p.or < c.or || p.ferraille < c.ferraille || p.perles < c.perles || p.mat.bois < c.mat.bois || p.mat.toile < c.mat.toile || p.mat.fer < c.mat.fer) return 'Ressources insuffisantes pour cette fabrication.';
+      p.or -= c.or; p.ferraille -= c.ferraille; p.perles -= c.perles;
+      p.mat.bois -= c.mat.bois; p.mat.toile -= c.mat.toile; p.mat.fer -= c.mat.fer;
+      p.skillLv[sk.id] = lv + 1;
+      link.notify(`${sk.name} passe au niveau ${lv + 1} !`, 'gain');
       break;
     }
     case 'claimRank': {

@@ -1,7 +1,7 @@
 // Simulation autoritaire d'une zone maritime : un « shard » indépendant.
 // Le serveur peut faire tourner chaque zone dans son propre processus plus tard (voir docs/ARCHITECTURE.md).
 import { REGION_BY_ID } from '../../shared/regions.ts';
-import { ACTIVE_SKILL_BY_ID, BASE_CRIT, CRIT_MUL, ENERGY_MAX, ENERGY_REGEN, SHIELD_DELAY, SHIELD_RATIO, SHIELD_REGEN, SKILL_CRIT_BONUS, SKILL_DMG_BONUS, type ActiveSkillId } from '../../shared/combat.ts';
+import { skillCooldownMul, skillPower, ACTIVE_SKILL_BY_ID, BASE_CRIT, CRIT_MUL, ENERGY_MAX, ENERGY_REGEN, SHIELD_DELAY, SHIELD_RATIO, SHIELD_REGEN, SKILL_CRIT_BONUS, SKILL_DMG_BONUS, type ActiveSkillId } from '../../shared/combat.ts';
 import { AMMO, CONSUMABLES, type AmmoId, type ConsumableId } from '../../shared/items.ts';
 import type { EquipId } from '../../shared/equipment.ts';
 import { clamp, dist2, wrapAngle } from '../../shared/math.ts';
@@ -465,14 +465,17 @@ export class Zone {
     if (playerLevel(s.link.profile) < sk.level) return `${sk.name} : niveau ${sk.level} requis.`;
     if ((s.skillCd[id] ?? 0) > 0) return `${sk.name} : encore ${Math.ceil(s.skillCd[id]!)} s.`;
     if (s.energy < sk.energy) return `Énergie insuffisante (${sk.energy} requis).`;
+    // Niveau fabriqué à l'atelier : effet renforcé, recharge réduite.
+    const lv = s.link.profile.skillLv?.[id] ?? 1;
+    const k = skillPower(lv);
     s.energy -= sk.energy;
-    s.skillCd[id] = sk.cooldown;
+    s.skillCd[id] = sk.cooldown * skillCooldownMul(lv);
     switch (id) {
-      case 'bordee': s.reload[0] = 0; s.fx.dmg = sk.duration!; break;
-      case 'voiles': s.fx.speed = Math.max(s.fx.speed, sk.duration!); break;
-      case 'reparation': s.hp = Math.min(s.stats.hp, s.hp + s.stats.hp * 0.15 * s.stats.repair); break;
-      case 'rempart': s.shield = Math.min(s.shieldMax, s.shield + s.shieldMax * 0.5); break;
-      case 'precision': s.fx.crit = sk.duration!; break;
+      case 'bordee': s.reload[0] = 0; s.fx.dmg = sk.duration! * k; break;
+      case 'voiles': s.fx.speed = Math.max(s.fx.speed, sk.duration! * k); break;
+      case 'reparation': s.hp = Math.min(s.stats.hp, s.hp + s.stats.hp * 0.15 * k * s.stats.repair); break;
+      case 'rempart': s.shield = Math.min(s.shieldMax, s.shield + s.shieldMax * Math.min(1, 0.5 * k)); break;
+      case 'precision': s.fx.crit = sk.duration! * k; break;
     }
     return null;
   }

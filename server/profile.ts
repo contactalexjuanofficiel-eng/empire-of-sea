@@ -1,4 +1,6 @@
 // Profil joueur côté serveur : création, validation au chargement, statistiques du navire actif.
+import { ACTIVE_SKILLS, SKILL_MAX_LEVEL } from '../shared/combat.ts';
+import { seasonId } from '../shared/season.ts';
 import crypto from 'node:crypto';
 import { AMMO_ORDER, CONSUMABLE_ORDER } from '../shared/items.ts';
 import { EQUIP_ORDER, type EquipId } from '../shared/equipment.ts';
@@ -63,6 +65,8 @@ export function newProfile(name: string): Profile {
     battleClaimed: 0,
     fishClaimed: 0,
     activeOther: '',
+    skillLv: {},
+    season: { id: seasonId(), points: 0 },
     levelMission: { level: 1, progress: 0 },
   };
 }
@@ -97,6 +101,8 @@ export function sanitizeProfile(raw: Profile, name: string): Profile {
   p.levelMission = raw.levelMission || base.levelMission;
   p.fish = raw.fish || {};
   p.buffs = raw.buffs || {};
+  p.skillLv = Object.fromEntries(ACTIVE_SKILLS.map((k) => [k.id, Math.max(1, Math.min(SKILL_MAX_LEVEL, Math.floor(Number(raw.skillLv?.[k.id]) || 1)))]));
+  p.season = raw.season && typeof raw.season.id === 'string' ? { id: raw.season.id, points: Math.max(0, Math.floor(raw.season.points || 0)) } : { id: seasonId(), points: 0 };
   for (const m of p.missions) m.zone = migrateZoneId(m.zone);
   if (!ZONE_BY_ID[p.zone].ports.some((x) => x.id === p.port)) p.port = ZONE_BY_ID[p.zone].ports[0].id;
   if (p.created && !p.ships.length) giveShip(p, 'bayonnaise');
@@ -114,6 +120,13 @@ export function createCharacter(p: Profile, portrait: number, flag: FlagChoice, 
   p.flag = (['royal', 'tricolore', 'imperial'] as const).includes(flag) ? flag : 'royal';
   const s = giveShip(p, ['bayonnaise', 'mutine', 'saint_michel'].includes(ship) ? ship : 'bayonnaise');
   p.active = s.uid;
+}
+
+/** Ajoute des points de saison (remise à zéro automatique au changement de mois). */
+export function addSeasonPoints(p: Profile, n: number) {
+  const id = seasonId();
+  if (p.season.id !== id) p.season = { id, points: 0 };
+  p.season.points += n;
 }
 
 /** Change d'ère : on mémorise le navire actif et on prend celui de l'autre ère (vedette offerte au premier passage). */

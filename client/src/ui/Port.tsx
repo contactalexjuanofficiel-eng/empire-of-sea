@@ -1,4 +1,5 @@
 // Le port : capitainerie, chantier naval, arsenal, améliorations, marché, réparations, départ en mer.
+import { AtelierTab } from './Atelier';
 import { useEffect, useState } from 'react';
 import { AMMO, AMMO_ORDER, CONSUMABLES, CONSUMABLE_ORDER, GOODS, GOOD_ORDER, MAX_SKILL, MAX_UPGRADE, MATERIAL_NAMES, SKILL_INFO, UPGRADE_INFO, upgradeCost, type SkillId, type UpgradeSlot } from '../../../shared/items';
 import { fmt } from '../../../shared/math';
@@ -19,6 +20,7 @@ const TABS: [string, string, string][] = [
   ['arsenal', 'poudre', 'Arsenal'],
   ['ameliorations', 'etoile', 'Améliorations'],
   ['matelot', 'marteau', 'Matelot de pont'],
+  ['atelier', 'epee', 'Atelier'],
   ['marche', 'balance', 'Marché'],
 ];
 
@@ -46,6 +48,7 @@ export function PortPanel() {
           {tab === 'ameliorations' && <Ameliorations />}
           {tab === 'marche' && <Marche />}
           {tab === 'matelot' && <MatelotTab />}
+          {tab === 'atelier' && <AtelierTab />}
         </div>
         <footer className="port-foot">
           <RepairButton />

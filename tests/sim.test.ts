@@ -271,3 +271,29 @@ test('régions : chaque région a son boss, ses ennemis, sa ressource ; la Mer �
   assert.equal(boss.def.id, 'dragon_typhons');
   for (let i = 0; i < 40; i++) zone.tick(0.05);
 });
+
+test('atelier et saison : fabriquer une compétence la renforce ; couler un PNJ donne des points de saison', async () => {
+  const { seasonPoints } = await import('../shared/season.ts');
+  const link = fakeLink('Artisan', 31);
+  link.docked = true;
+  const p = link.profile;
+  // Sans ressources : refus.
+  p.or = 0;
+  assert.match(shop(link, ZONE_BY_ID['manche-1'], { a: 'craftSkill', skill: 'bordee' }, 0)!, /insuffisantes/);
+  p.or = 1e6; p.ferraille = 500; p.perles = 50; p.mat = { bois: 500, toile: 500, fer: 500 };
+  assert.equal(shop(link, ZONE_BY_ID['manche-1'], { a: 'craftSkill', skill: 'bordee' }, 0), null);
+  assert.equal(p.skillLv.bordee, 2);
+  // En mer, la compétence niveau 2 dure plus longtemps et recharge plus vite.
+  const zone = new Zone(ZONE_BY_ID['manche-1'], { relation: () => 'neutral' });
+  zone.addPlayer(link, false);
+  const me = zone.ships.get(link.entityId)!;
+  assert.equal(zone.useSkill(me, 'bordee'), null);
+  assert.ok(me.fx.dmg > 8 && me.skillCd.bordee! < 25);
+  // Points de saison en coulant un PNJ.
+  for (const s of [...zone.ships.values()]) if (s.kind !== 'player') zone.ships.delete(s.id);
+  zone.spawnNPC(true);
+  const npc = [...zone.ships.values()].find((s) => s.kind === 'npc')!;
+  const before = seasonPoints(p.season);
+  zone.damage(npc, npc.stats.hp * 10, 0, 'rond', me, false);
+  assert.ok(seasonPoints(p.season) > before);
+});

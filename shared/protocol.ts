@@ -81,6 +81,10 @@ export interface Profile {
   fishClaimed: number;
   /** Navire actif mémorisé pour l'autre ère (on le retrouve en changeant d'ère). */
   activeOther: string;
+  /** Niveau des compétences actives fabriquées à l'atelier (1 à 5). */
+  skillLv: Partial<Record<ActiveSkillId, number>>;
+  /** Points de la saison compétitive (mois en cours). */
+  season: { id: string; points: number };
 }
 
 // --- Messages client -> serveur --------------------------------------------
@@ -104,7 +108,8 @@ export type ShopAction =
   | { a: 'recruit'; captain: string }
   | { a: 'assign'; captain: string | null; cat: CaptainCat }
   | { a: 'eliteShip'; ship: string }
-  | { a: 'claimRank'; kind: 'bataille' | 'peche' };
+  | { a: 'claimRank'; kind: 'bataille' | 'peche' }
+  | { a: 'craftSkill'; skill: ActiveSkillId };
 
 export type C2S =
   | { t: 'hello'; token: string; v: number }
@@ -227,4 +232,4 @@ export interface GuildInfo {
   invites?: string[];
 }
 
-export interface LeaderEntry { name: string; level: number; xp: number; kills: number; pvp: number; reputation: number; tag: string | null; ship: string }
+export interface LeaderEntry { name: string; level: number; xp: number; kills: number; pvp: number; reputation: number; tag: string | null; ship: string; season: number }

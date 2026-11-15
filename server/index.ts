@@ -51,7 +51,7 @@ export function startServer(port = PORT, dbFile = DB_FILE) {
       const fn = url.pathname === '/api/register' ? register : login;
       return json(res, 200, await fn(store, String(b.name ?? ''), String(b.pass ?? '')));
     }
-    if (url.pathname === '/api/classement') return json(res, 200, hub.leaderboard());
+    if (url.pathname === '/api/classement') return json(res, 200, hub.leaderboard(url.searchParams.get('mode') === 'saison' ? 'saison' : 'general'));
     if (url.pathname === '/api/status') return json(res, 200, hub.status());
 
     // Fichiers du client compilé (npm run build).

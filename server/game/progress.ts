@@ -1,5 +1,7 @@
 // Progression secondaire, toujours calculée par le serveur :
 // grades de tir, points élite, missions quotidiennes, missions de niveau, pêche.
+import { SEASON_POINTS } from '../../shared/season.ts';
+import { addSeasonPoints } from '../profile.ts';
 import { AMMO, type AmmoId } from '../../shared/items.ts';
 import {
   DAILY_BY_ID, DAILY_COOLDOWN_H, DAILY_SLOTS, ELITE_RATE, FISH, FISH_ORDER, fishInterval, levelMission,
@@ -30,9 +32,11 @@ export function onDamage(link: PlayerLink, real: number, ammo: AmmoId, targetIsP
 
 export function onPlayerKill(link: PlayerLink) {
   shootGain(link, SHOOT_XP.playerKill);
+  addSeasonPoints(link.profile, SEASON_POINTS.pvp);
 }
 
 export function onNpcKill(link: PlayerLink, s: ShipEnt) {
+  addSeasonPoints(link.profile, s.kind === 'boss' ? SEASON_POINTS.boss : SEASON_POINTS.npc);
   if (s.faction === 'pirate' || s.faction === 'flibustier') dailyProgress(link, 'pirates', 1);
   if (s.faction === 'anglais' || s.faction === 'flibustier' || s.def.id === 'galion_pirate') dailyProgress(link, 'flibustiers', 1);
   if (s.faction === 'monstre') dailyProgress(link, 'monstres', 1);

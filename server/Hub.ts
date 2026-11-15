@@ -1,4 +1,5 @@
 // Le Hub relie les connexions WebSocket aux zones, gère le chat, les groupes, les guildes et la sauvegarde.
+import { seasonPoints } from '../shared/season.ts';
 import { ACTIVE_SKILL_BY_ID } from '../shared/combat.ts';
 import crypto from 'node:crypto';
 import type { WebSocket } from 'ws';
@@ -536,13 +537,14 @@ export class Hub {
   }
 
   // ------------------------------------------------------------------ classement
-  leaderboard(): LeaderEntry[] {
+  leaderboard(mode: 'general' | 'saison' = 'general'): LeaderEntry[] {
     const map = new Map<string, Profile>();
     for (const r of this.store.allProfiles()) if (r.p.created) map.set(lc(r.name), r.p);
     for (const s of this.sessions.values()) if (s.created) map.set(lc(s.name), s.profile);
     return [...map.values()]
-      .map((p) => ({ name: p.name, level: levelFromXp(p.xp).level, xp: p.xp, kills: p.stats?.kills ?? 0, pvp: p.stats?.pvp ?? 0, reputation: p.reputation, tag: this.guilds.of(p.name)?.tag ?? null, ship: SHIP_BY_ID[activeShip(p)?.def ?? 'bayonnaise']?.name ?? '' }))
-      .sort((a, b) => b.xp - a.xp)
+      .map((p) => ({ name: p.name, level: levelFromXp(p.xp).level, xp: p.xp, kills: p.stats?.kills ?? 0, pvp: p.stats?.pvp ?? 0, reputation: p.reputation, tag: this.guilds.of(p.name)?.tag ?? null, ship: SHIP_BY_ID[activeShip(p)?.def ?? 'bayonnaise']?.name ?? '', season: seasonPoints(p.season) }))
+      .filter((e) => mode === 'general' || e.season > 0)
+      .sort((a, b) => (mode === 'saison' ? b.season - a.season || b.xp - a.xp : b.xp - a.xp))
       .slice(0, 50);
   }
 

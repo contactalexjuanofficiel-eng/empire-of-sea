@@ -1,4 +1,5 @@
 // Panneaux : inventaire, profil, classement, guilde et groupe, carte du monde, paramètres, aide.
+import { SEASON_POINTS, seasonName } from '../../../shared/season';
 import { REGION_BY_ID } from '../../../shared/regions';
 import { useEffect, useState } from 'react';
 import { AMMO, AMMO_ORDER, CONSUMABLES, CONSUMABLE_ORDER, GOODS, MATERIAL_NAMES, type GoodId, type MaterialId } from '../../../shared/items';
@@ -108,19 +109,26 @@ export function ProfilePanel() {
 }
 
 export function Leaderboard() {
+  const [mode, setMode] = useState<'general' | 'saison'>('general');
   const [list, setList] = useState<LeaderEntry[] | null>(null);
   const me = useStore((s) => s.name);
-  useEffect(() => { fetch('/api/classement').then((r) => r.json()).then(setList).catch(() => setList([])); }, []);
+  useEffect(() => { setList(null); fetch(`/api/classement?mode=${mode}`).then((r) => r.json()).then(setList).catch(() => setList([])); }, [mode]);
   return (
-    <Frame title="Classement mondial" icon="trophee" onClose={close}>
+    <Frame title="Classements" icon="trophee" onClose={close}>
+      <div className="eq-tabs">
+        <button className={`btn ${mode === 'general' ? 'on' : ''}`} onClick={() => setMode('general')}>Classement général</button>
+        <button className={`btn ${mode === 'saison' ? 'on' : ''}`} onClick={() => setMode('saison')}>{seasonName()}</button>
+      </div>
+      {mode === 'saison' && <p className="muted small">Points de saison : {SEASON_POINTS.npc} par navire coulé, {SEASON_POINTS.pvp} par capitaine coulé, {SEASON_POINTS.boss} par boss. Remise à zéro le 1er de chaque mois.</p>}
       {!list && <p className="muted">Chargement…</p>}
-      {list && (
+      {list && !list.length && <p className="muted">Personne n'a encore marqué de points cette saison. À vous de jouer !</p>}
+      {list && list.length > 0 && (
         <table className="ranking">
-          <thead><tr><th>#</th><th>Capitaine</th><th>Grade</th><th>Niv.</th><th>Coulés</th><th>PvP</th><th>Navire</th></tr></thead>
+          <thead><tr><th>#</th><th>Capitaine</th>{mode === 'saison' ? <th>Points</th> : <th>Grade</th>}<th>Niv.</th><th>Coulés</th><th>PvP</th><th>Navire</th></tr></thead>
           <tbody>
             {list.map((e, i) => (
               <tr key={e.name} className={e.name === me ? 'me' : ''}>
-                <td>{i + 1}</td><td>{e.tag ? `[${e.tag}] ` : ''}{e.name}</td><td>{rankOf(e.level)}</td><td>{e.level}</td><td>{e.kills}</td><td>{e.pvp}</td><td>{e.ship}</td>
+                <td className="num">{i + 1}</td><td>{e.tag ? `[${e.tag}] ` : ''}{e.name}</td>{mode === 'saison' ? <td className="num">{e.season}</td> : <td>{rankOf(e.level)}</td>}<td className="num">{e.level}</td><td className="num">{e.kills}</td><td className="num">{e.pvp}</td><td>{e.ship}</td>
               </tr>
             ))}
           </tbody>
