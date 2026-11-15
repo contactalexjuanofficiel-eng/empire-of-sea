@@ -82,6 +82,9 @@ export class Input {
   dragging = false;
   private down: { x: number; y: number; button: number } | null = null;
   private moved = 0;
+  /** Doigts posés sur l'écran tactile (pincer = zoomer, glisser à deux doigts = déplacer la vue). */
+  private touches = new Map<number, { x: number; y: number }>();
+  private pinch = 0;
   onDrag: ((dx: number, dy: number, button: number) => void) | null = null;
   onWheel: ((d: number) => void) | null = null;
   onClick: ((x: number, y: number) => void) | null = null;
@@ -96,6 +99,7 @@ export class Input {
     el.addEventListener('pointerdown', this.pDown);
     window.addEventListener('pointermove', this.pMove);
     window.addEventListener('pointerup', this.pUp);
+    window.addEventListener('pointercancel', this.pUp);
     el.addEventListener('wheel', (e) => { e.preventDefault(); this.onWheel?.(e.deltaY); }, { passive: false });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
@@ -140,10 +144,35 @@ export class Input {
   };
   private pDown = (e: PointerEvent) => {
     if (e.button === 1) e.preventDefault(); // clic molette : rotation de la caméra, pas de défilement automatique
+    if (e.pointerType === 'touch') {
+      this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.touches.size === 2) {
+        const [a, b] = [...this.touches.values()];
+        this.pinch = Math.hypot(a.x - b.x, a.y - b.y);
+        this.moved = 999; // deux doigts : ce n'est plus un « toucher pour naviguer »
+        return;
+      }
+      if (this.touches.size > 2) return;
+    }
     this.down = { x: e.clientX, y: e.clientY, button: e.button };
+    this.mouseX = e.clientX; this.mouseY = e.clientY;
     this.moved = 0;
   };
   private pMove = (e: PointerEvent) => {
+    if (e.pointerType === 'touch' && this.touches.has(e.pointerId)) {
+      const prev = this.touches.get(e.pointerId)!;
+      this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.touches.size >= 2) {
+        const [a, b] = [...this.touches.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (this.pinch) this.onWheel?.((this.pinch - d) * 4);
+        this.pinch = d;
+        // Le milieu des deux doigts déplace la vue (moitié du mouvement de ce doigt).
+        this.onDrag?.((e.clientX - prev.x) / 2, (e.clientY - prev.y) / 2, 2);
+        this.mouseX = e.clientX; this.mouseY = e.clientY;
+        return;
+      }
+    }
     const dx = e.clientX - this.mouseX, dy = e.clientY - this.mouseY;
     this.mouseX = e.clientX;
     this.mouseY = e.clientY;
@@ -156,6 +185,11 @@ export class Input {
     }
   };
   private pUp = (e: PointerEvent) => {
+    if (e.pointerType === 'touch') {
+      this.touches.delete(e.pointerId);
+      if (this.touches.size < 2) this.pinch = 0;
+      if (this.touches.size > 0) { this.down = null; this.dragging = false; return; }
+    }
     if (this.down && this.down.button === 0 && this.moved <= 6 && e.target === this.el) this.onClick?.(e.clientX, e.clientY);
     this.down = null;
     this.dragging = false;

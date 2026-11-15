@@ -1,6 +1,7 @@
 // Point d'entrée du serveur de jeu : HTTP (client + API) et WebSocket temps réel sur le même port.
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
@@ -38,7 +39,7 @@ export function startServer(port = PORT, dbFile = DB_FILE) {
     req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch { resolve({}); } });
   });
 
-  const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
+  const MIME: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
@@ -85,6 +86,9 @@ export function startServer(port = PORT, dbFile = DB_FILE) {
 
   server.listen(port, () => {
     console.log(`⚓ EMPIRE OF SEA — serveur prêt sur http://localhost:${port}  (base : ${dbFile})`);
+    // Adresses sur le réseau local : pour jouer depuis un téléphone connecté au même Wi-Fi.
+    const lan = Object.values(os.networkInterfaces()).flat().filter((a) => a && a.family === 'IPv4' && !a.internal).map((a) => `http://${a!.address}:${port}`);
+    if (lan.length) console.log(`📱 Sur téléphone (même Wi-Fi) : ${lan.join('  ou  ')}`);
   });
 
   const shutdown = () => {

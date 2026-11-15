@@ -32,3 +32,8 @@ try {
 } catch { /* stockage indisponible : connexion manuelle */ }
 
 createRoot(document.getElementById('ui')!).render(<App />);
+
+// Application installable (écran d'accueil, plein écran) : le navigateur ne l'autorise qu'en HTTPS ou sur localhost.
+if ('serviceWorker' in navigator && import.meta.env.PROD && window.isSecureContext) {
+  navigator.serviceWorker.register('/sw.js').catch(() => { /* facultatif */ });
+}

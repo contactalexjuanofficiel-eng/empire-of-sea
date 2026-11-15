@@ -800,3 +800,43 @@ h1, h2, h3, .frame-head h2, .tn-btn, .cls-head { font-weight: 700; }
 
 .role-badge { display: inline-block; margin-left: 6px; border: 1px solid; padding: 1px 8px; font-family: var(--title); font-weight: 700; font-size: 0.68rem; letter-spacing: 0.05em; background: rgba(0, 0, 0, 0.25); }
 .tc-role { font-family: var(--title); font-weight: 700; font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* =====================================================================================
+   Mobile et tablette : tactile, plein écran, HUD compact
+   ===================================================================================== */
+#scene canvas { touch-action: none; }
+html, body { overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+input, textarea { -webkit-user-select: text; user-select: text; }
+@media (max-width: 900px), (max-height: 540px) {
+  .topnav { height: 44px; gap: 6px; padding: 0 6px; padding-left: max(6px, env(safe-area-inset-left)); padding-right: max(6px, env(safe-area-inset-right)); }
+  .tn-btn { min-width: 38px; height: 38px; padding: 2px 4px; }
+  .tn-btn .ico { width: 18px; height: 18px; }
+  .tn-btns { gap: 2px; justify-content: flex-end; }
+  .tn-level { min-width: 34px; } .tn-lv { width: 32px; height: 32px; font-size: 0.95rem; }
+  .tn-res { gap: 6px; font-size: 0.78rem; } .tn-res span:nth-child(n+3) { display: none; }
+  .tn-perf { display: none; }
+  .ruler { display: none; }
+  .hud.at-sea .leftcol, .hud.at-sea .sidetabs, .hud.at-sea .hints { display: none; }
+  .right-col2 { top: 50px; right: 6px; width: 176px; gap: 4px; }
+  .mapblock .minimap canvas { width: 136px; height: 136px; }
+  .mb-round { gap: 4px; } .mb-round button { width: 28px; height: 28px; }
+  .right-col2 .tcard { margin-left: 0; padding: 4px 6px; }
+  .tc-ico { width: 32px; height: 32px; } .tc-sub, .tc-role { display: none; }
+  .bdock { bottom: 4px; padding: 4px 6px; gap: 3px; max-width: calc(100vw - 12px); }
+  .bd-bars { grid-template-columns: 1fr 1fr 1fr; }
+  .bd-bar { height: 13px; } .bd-bar span { font-size: 0.58rem; line-height: 12px; }
+  .hk { width: 34px; height: 34px; } .bd-fire { width: 42px; height: 34px; }
+  .bd-combat { display: flex; } .cb { min-width: 74px; font-size: 0.58rem; }
+  .bd-row .hk.vide, .bd-sep { display: none; }
+  .hud.at-sea .chat { display: none; }
+  .hud.at-sea .pvp-flag { bottom: auto; top: 50px; left: 6px; padding: 3px 8px; font-size: 0.75rem; }
+  .hud.at-sea .dock-prompt { display: none; }
+  .frame, .frame-wide, .fleet-frame { width: 100vw !important; max-height: calc(100vh - 48px) !important; margin-top: 22px; }
+  .port-wrap .frame { width: 100vw !important; right: 0; bottom: 0; }
+  .notices { top: 52px; }
+}
+/* Écran tactile : cibles plus grandes, pas d'effet de survol collant. */
+@media (pointer: coarse) {
+  .hk:hover, .tn-btn:hover, .btn:hover { box-shadow: none; }
+  .st-tabs button { padding: 9px 2px; }
+}

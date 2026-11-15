@@ -61,6 +61,13 @@ Le jeu se joue **à la souris**, en vue du dessus (la vue 3D derrière le navire
 
 **Toutes les touches se modifient dans Paramètres** (cliquez sur une touche puis appuyez sur la nouvelle).
 
+## Jouer sur téléphone ou tablette
+
+1. Lancez le serveur sur le PC (`npm.cmd start`) : il affiche une ligne « 📱 Sur téléphone (même Wi-Fi) : http://192.168.x.x:8080 ».
+2. Sur le téléphone connecté au même Wi-Fi, ouvrez cette adresse (Windows peut demander d'autoriser Node.js dans le pare-feu : acceptez pour les réseaux privés).
+3. Tournez le téléphone à l'horizontale. Toucher la mer : naviguer ; toucher un ennemi : attaquer ; pincer : zoomer ; glisser à deux doigts : déplacer la vue.
+4. « Ajouter à l'écran d'accueil » crée une icône. L'installation complète en plein écran (application) demande une adresse en HTTPS : ce sera le cas une fois le serveur mis en ligne.
+
 ## Interface en mer
 
 - **Vue aérienne** (inclinée, nord en haut) : clic sur la mer pour naviguer, clic sur un ennemi pour l'attaquer
