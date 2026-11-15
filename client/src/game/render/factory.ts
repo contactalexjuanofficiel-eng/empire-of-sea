@@ -5,12 +5,15 @@ import { ModernShipModel } from './ModernShipModel';
 import { MonsterModel } from './MonsterModel';
 import { GltfShipModel, shipAsset } from './GltfShipModel';
 import { RegionalShipModel } from './RegionalShipModel';
+import { SpriteShipModel } from './SpriteShipModel';
 import { ShipModel } from './ShipModel';
 
-export type AnyShipModel = ShipModel | MonsterModel | ModernShipModel | RegionalShipModel | GltfShipModel;
+export type AnyShipModel = ShipModel | MonsterModel | ModernShipModel | RegionalShipModel | GltfShipModel | SpriteShipModel;
 
 export function makeShipModel(def: ShipDef, flag?: 'royal' | 'tricolore' | 'imperial', skin?: SkinId | null, elite = 0): AnyShipModel {
   if (def.look.monster) return new MonsterModel(def);
+  // Navire pré-rendu en images (rendu des jeux navals classiques).
+  if (def.sprites) return new SpriteShipModel(def, def.sprites);
   // Vrai modèle 3D (GLB) quand il est chargé ; sinon navire provisoire, remplacé dès l'arrivée du fichier.
   if (def.asset) { const sc = shipAsset(def.asset); if (sc) return new GltfShipModel(def, sc); }
   if (def.modern) return new ModernShipModel(def);

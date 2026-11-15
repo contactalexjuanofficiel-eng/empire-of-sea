@@ -24,6 +24,7 @@ import { Ocean } from './render/Ocean';
 import { ShipModel } from './render/ShipModel';
 import { makeShipModel, type AnyShipModel } from './render/factory';
 import { GltfShipModel, onShipAssetLoaded } from './render/GltfShipModel';
+import { SpriteShipModel } from './render/SpriteShipModel';
 import { ModernShipModel } from './render/ModernShipModel';
 import { shipBonus } from '../../../shared/extras';
 import { GRADES } from '../../../shared/ranks';
@@ -1084,6 +1085,7 @@ export class Game {
         m.update(this.t, dt, c.flags & F_SINKING ? 0 : c.sail, windRel, this.wind.strength, 1 - c.hp, 1 - c.sailHp, this.sky.night);
         m.root.visible = cd < 6000;
         if (m instanceof ModernShipModel) m.setDetail(cd);
+        if (m instanceof SpriteShipModel) m.setView(c.h - this.rig.isoYaw);
         for (const ch of m.root.children) if (ch.userData.aura) { const k = 1 + 0.08 * Math.sin(this.t * 3); ch.scale.set(k, 1, k); }
 
         // Effets : incendie, fumée de dégâts, gerbes d'étrave

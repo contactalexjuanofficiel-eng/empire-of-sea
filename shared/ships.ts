@@ -82,6 +82,8 @@ export interface ShipDef {
   modern?: ModernSpec;
   /** Vrai modèle 3D (fichier client/public/models/<asset>.glb modélisé sous Blender). */
   asset?: string;
+  /** Planche d'images pré-rendues (client/public/models/<file>) : affichée à la place du modèle 3D. */
+  sprites?: { file: string; frames: number; cols: number; span: number };
   /** Forme 3D régionale (jonque, galère, felouque, drakkar) au lieu du gréement européen. */
   regional?: 'jonque' | 'galere' | 'felouque' | 'drakkar';
   /** Classe de combat imposée (sinon déduite de la classe de coque et des caractéristiques). */
@@ -121,7 +123,7 @@ const N = (d: ShipDef) => d;
 export const SHIPS: ShipDef[] = [
   // Flotte des joueurs (vrais modèles 3D GLB) — navire 1 : Le Corsaire
   // Modèle « Red Pirate Ship » par M.Umeyr (sketchfab.com/Lymite), licence CC BY 4.0 — voir CREDITS.md.
-  N({ id: 'corsaire', name: 'Le Corsaire', cls: 'brick', rarity: 'commun', level: 1, price: { or: 1000 }, canons: 20, asset: 'corsaire', size: { L: 34, B: 9 }, role: 'fregate', mod: { speed: 1.04 }, look: { hull: 0x5a1a14, stripe: 0x8a2a1a, trim: 0xc9a24a, sail: 0xa82a22, flag: 'tricolore' }, history: 'Navire corsaire aux voiles pourpres : rapide, mordant, insaisissable.' }),
+  N({ id: 'corsaire', name: 'Le Corsaire', cls: 'brick', rarity: 'commun', level: 1, price: { or: 1000 }, canons: 20, asset: 'corsaire', sprites: { file: 'corsaire_sprites.png', frames: 32, cols: 8, span: 50 }, size: { L: 34, B: 9 }, role: 'fregate', mod: { speed: 1.04 }, look: { hull: 0x5a1a14, stripe: 0x8a2a1a, trim: 0xc9a24a, sail: 0xa82a22, flag: 'tricolore' }, history: 'Navire corsaire aux voiles pourpres : rapide, mordant, insaisissable.' }),
   // I — Corvettes
   N({ id: 'bayonnaise', name: 'La Bayonnaise', cls: 'corvette', rarity: 'commun', level: 1, price: { or: 1000 }, canons: 20, mod: {}, look: { hull: 0x2a1d14, stripe: 0xc9a227, trim: 0xb8892b, sail: 0xe9e0c9, flag: 'tricolore' }, history: 'Corvette de 1793, célèbre pour avoir abordé et pris la frégate anglaise Ambuscade en 1798.' }),
   N({ id: 'mutine', name: 'La Mutine', cls: 'corvette', rarity: 'commun', level: 1, price: { or: 1500 }, canons: 18, mod: { hp: 0.88, speed: 1.08, turn: 1.08 }, look: { hull: 0x1d2633, stripe: 0xd8d2c0, trim: 0xb8892b, sail: 0xf0e8d4, flag: 'tricolore' }, history: 'Corvette fine et nerveuse, taillée pour la course et la poursuite.' }),
