@@ -129,6 +129,7 @@ export type C2S =
   | { t: 'chat'; ch: ChatChannel; text: string; to?: string }
   | { t: 'guild'; a: 'create' | 'invite' | 'accept' | 'leave' | 'kick' | 'ally' | 'war' | 'peace' | 'info'; name?: string; tag?: string }
   | { t: 'group'; a: 'invite' | 'accept' | 'leave'; name?: string }
+  | { t: 'fleet'; follow: boolean }
   | { t: 'pvp'; on: boolean }
   | { t: 'fish'; on: boolean }
   | { t: 'daily'; a: 'start' | 'abandon'; id: DailyKind }
@@ -197,6 +198,9 @@ export interface MeState {
   skillCd: Partial<Record<ActiveSkillId, number>>;
   /** Effets actifs (secondes restantes). */
   boost: { dmg: number; crit: number; speed: number; shield: number };
+  /** Alliés proches (bonus d'escadre) et raid en cours sur cette carte. */
+  fleet: number;
+  raid: boolean;
 }
 
 export interface WeatherState { kind: 'clair' | 'brume' | 'tempete'; intensity: number; fog: number }
@@ -212,12 +216,16 @@ export type S2C =
   | { t: 'notice'; text: string; kind?: 'info' | 'gain' | 'warn' | 'level' | 'event' }
   | { t: 'port'; port: string; offers: MissionOffer[]; prices: Partial<Record<GoodId, { buy: number; sell: number }>> }
   | { t: 'guild'; info: GuildInfo | null }
-  | { t: 'group'; members: string[]; leader: string | null; invite?: string }
+  | { t: 'group'; members: string[]; leader: string | null; invite?: string; follow?: boolean }
+  | { t: 'raid'; raid: RaidInfo }
   | { t: 'boss'; active: boolean; hp?: number; maxHp?: number; name?: string; x?: number; z?: number }
   | { t: 'pong'; c: number; st: number }
   | { t: 'maps'; list: MapInfo[] }
   | { t: 'grade'; grade: number; points: number; next: number | null; prev: number | null; counts: number[]; position: number }
   | { t: 'err'; text: string };
+
+/** Raid PvP : annoncé, en cours, ou prochain à venir. */
+export interface RaidInfo { state: 'prevu' | 'annonce' | 'actif'; zone: string; start: number; end: number; scores: { tag: string; points: number }[] }
 
 export interface MapInfo { id: string; players: number; owner: string | null; kills?: number; bossAt?: number; boss?: boolean; open?: boolean }
 

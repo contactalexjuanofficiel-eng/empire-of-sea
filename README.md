@@ -130,6 +130,20 @@ en prend le contrôle (son blason s'affiche dans la grille des cartes). Les PNJ 
 
 La région de chaque carte s'affiche dans l'écran Cartes (bande de couleur sous chaque case).
 
+## Escadres et guerre de guildes
+
+- **Escadre** : dans un groupe (onglet Groupe, 5 capitaines au plus), les membres peuvent « Suivre le chef en escadre » :
+  leur navire prend place en formation en V derrière le chef et attaque automatiquement la même cible.
+  Un clic sur la mer rompt la formation.
+- **Bonus d'escadre** : +5 % de dégâts par allié (groupe, guilde ou alliance) à moins de 500 m, 3 alliés au maximum.
+- **Raids de guildes** : toutes les 2 heures (heures paires, heure universelle), annoncés 10 minutes à l'avance,
+  sur une carte de guerre (rotation). Pendant 15 minutes : combat libre pour tous hors des ports,
+  10 points par capitaine coulé, 1 par navire PNJ. La guilde gagnante prend le contrôle de la carte
+  et ses membres connectés reçoivent 20 000 or, 5 perles et 4 000 XP.
+- **Territoires** : chaque carte contrôlée rapporte 250 × étage d'or toutes les 10 minutes aux membres connectés.
+- **Repaire de guilde** : réparations gratuites dans les ports d'une carte contrôlée par sa guilde.
+- On prend aussi une carte en abattant son boss (meilleur dégât de la guilde).
+
 ## Navires modernes (galerie)
 
 Les 25 navires de la Marine nationale restent visibles en 3D dans **Flotte moderne** (rotation, zoom, export GLB),

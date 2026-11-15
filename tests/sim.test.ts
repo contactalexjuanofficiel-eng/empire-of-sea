@@ -21,7 +21,7 @@ function fakeLink(name: string, id: number): PlayerLink & { inbox: S2C[] } {
     send: (m) => inbox.push(m), notify: (text) => inbox.push({ t: 'notice', text }), touch: () => {},
     zoneId: 'manche-1', entityId: 100000 + id, docked: true, port: 'brest', input: { sail: 0, rudder: 0 }, seq: 0,
     pvp: false, hpRatio: 1, sailRatio: 1, known: new Set(), deadTimer: 0, groupId: null, guildTag: null,
-    nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0, grade: 18,
+    nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0, grade: 18, followLeader: null, fleetSlot: 0,
   };
 }
 
@@ -297,4 +297,49 @@ test('atelier et saison : fabriquer une compétence la renforce ; couler un PNJ 
   const before = seasonPoints(p.season);
   zone.damage(npc, npc.stats.hp * 10, 0, 'rond', me, false);
   assert.ok(seasonPoints(p.season) > before);
+});
+
+test('escadre et raid : suivre le chef en formation, bonus d\'escadre, combat libre pendant un raid', async () => {
+  const zone = new Zone(ZONE_BY_ID['manche-1'], { relation: (a, b) => (a.groupId && a.groupId === b.groupId ? 'friend' : 'neutral') });
+  const chef = fakeLink('Chef', 41), suiveur = fakeLink('Suiveur', 42), autre = fakeLink('Autre', 43);
+  chef.groupId = suiveur.groupId = 'g1';
+  for (const l of [chef, suiveur, autre]) zone.addPlayer(l, false);
+  for (const s of [...zone.ships.values()]) if (s.kind !== 'player') zone.ships.delete(s.id);
+  const A = zone.ships.get(chef.entityId)!, B = zone.ships.get(suiveur.entityId)!, C = zone.ships.get(autre.entityId)!;
+  A.k.x = 0; A.k.z = 0; A.k.h = 0; B.k.x = 300; B.k.z = -300; C.k.x = -3000; C.k.z = -3000;
+  // Le suiveur rejoint sa place derrière le chef.
+  suiveur.followLeader = 'Chef'; suiveur.fleetSlot = 1;
+  const d0 = Math.hypot(B.k.x - A.k.x, B.k.z - A.k.z);
+  for (let i = 0; i < 20 * 70; i++) zone.tick(0.05);
+  const d1 = Math.hypot(B.k.x - A.k.x, B.k.z - A.k.z);
+  assert.ok(d1 < d0 && d1 < 230, `le suiveur se rapproche de la formation (${Math.round(d0)} -> ${Math.round(d1)} m)`);
+  // Bonus d'escadre : un allié proche.
+  assert.equal(zone.fleetAllies(A), 1);
+  assert.equal(zone.fleetAllies(C), 0);
+  // Raid : sur une carte calme, le combat entre joueurs devient libre.
+  C.k.x = A.k.x + 900; C.k.z = A.k.z;
+  assert.equal(zone.canHarm(A, C), false);
+  zone.raidActive = true;
+  assert.equal(zone.canHarm(A, C), true);
+  assert.equal(zone.canHarm(A, B), false, 'jamais contre son propre groupe');
+});
+
+test('raid de guilde : les points vont aux guildes, la gagnante prend la carte ; un territoire rapporte de l\'or', async () => {
+  const { Hub } = await import('../server/Hub.ts');
+  const { openStore } = await import('../server/db.ts');
+  const hub = new Hub(openStore(':memory:'));
+  const zid = 'manche-2';
+  hub.forceRaid(zid);
+  const z = hub.zones.get(zid)!;
+  assert.equal(z.raidActive, true);
+  const a = fakeLink('Raideur', 51), b = fakeLink('Rival', 52);
+  a.guildTag = 'ROI'; b.guildTag = 'MER';
+  const hooks = (z as unknown as { hooks: { onPvpKill(z: unknown, k: unknown, v: unknown): void; onKill(z: unknown, l: unknown): void } }).hooks;
+  hooks.onPvpKill(z, a, b);
+  hooks.onPvpKill(z, a, b);
+  hooks.onPvpKill(z, b, a);
+  assert.deepEqual(hub.raidInfo().scores.map((x) => x.tag), ['ROI', 'MER']);
+  hub.finishRaid();
+  assert.equal(z.raidActive, false);
+  assert.equal(hub.owners.get(zid), 'ROI');
 });

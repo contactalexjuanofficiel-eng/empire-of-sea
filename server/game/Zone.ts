@@ -1,5 +1,6 @@
 // Simulation autoritaire d'une zone maritime : un « shard » indépendant.
 // Le serveur peut faire tourner chaque zone dans son propre processus plus tard (voir docs/ARCHITECTURE.md).
+import { FLEET_BONUS_MAX, FLEET_BONUS_PER_ALLY, FLEET_BONUS_RADIUS, FLEET_SPACING } from '../../shared/fleet.ts';
 import { REGION_BY_ID } from '../../shared/regions.ts';
 import { skillCooldownMul, skillPower, ACTIVE_SKILL_BY_ID, BASE_CRIT, CRIT_MUL, ENERGY_MAX, ENERGY_REGEN, SHIELD_DELAY, SHIELD_RATIO, SHIELD_REGEN, SKILL_CRIT_BONUS, SKILL_DMG_BONUS, type ActiveSkillId } from '../../shared/combat.ts';
 import { AMMO, CONSUMABLES, type AmmoId, type ConsumableId } from '../../shared/items.ts';
@@ -46,11 +47,15 @@ export interface ZoneHooks {
   onConquest?(zone: Zone, link: PlayerLink): void;
   /** Un PNJ a été coulé par ce joueur (mission de passage d'étage). */
   onKill?(zone: Zone, link: PlayerLink): void;
+  /** Un capitaine en a coulé un autre (points de raid). */
+  onPvpKill?(zone: Zone, killer: PlayerLink, victim: PlayerLink): void;
 }
 
 export class Zone {
   readonly def: ZoneDef;
   readonly world: ZoneWorld;
+  /** Raid PvP en cours sur cette carte : combat libre pour tous (hors des ports). */
+  raidActive = false;
   readonly ships = new Map<number, ShipEnt>();
   readonly forts = new Map<number, FortEnt>();
   readonly loot = new Map<number, LootEnt>();
@@ -349,7 +354,7 @@ export class Zone {
     const rel = this.hooks.relation(A.link!, B.link!);
     if (rel === 'friend') return false;
     if (rel === 'war') return true;
-    if (this.def.pvp === 'libre') return true;
+    if (this.def.pvp === 'libre' || this.raidActive) return true;
     return A.link!.pvp && B.link!.pvp;
   }
 
@@ -385,7 +390,7 @@ export class Zone {
     const d = clamp(Math.hypot(ax - s.k.x, az - s.k.z), 30, range);
     const v = Math.sqrt((range * GRAVITY) / 0.866);
     const n = st.balls + (ammoId === 'mitraille' ? 3 : 0);
-    const dmgEach = (st.broadside * s.dmgMul * (s.powder > 0 ? 1.25 : 1) * (s.fx.dmg > 0 ? 1 + SKILL_DMG_BONUS : 1)) / n;
+    const dmgEach = (st.broadside * s.dmgMul * (s.powder > 0 ? 1.25 : 1) * (s.fx.dmg > 0 ? 1 + SKILL_DMG_BONUS : 1) * (1 + FLEET_BONUS_PER_ALLY * this.fleetAllies(s))) / n;
     const fx = Math.sin(s.k.h), fz = Math.cos(s.k.h);
     const tx = Math.sin(yaw), tz = Math.cos(yaw);
     const balls: Ball[] = [];
@@ -420,6 +425,54 @@ export class Zone {
    * Pilotage d'un navire de joueur : clavier, pilote automatique (clic sur la mer) ou manœuvre d'attaque.
    * L'attaque automatique tire dès que les canons sont rechargés et la cible à portée.
    */
+  /**
+   * Escadre : le navire suit son chef en formation (en V derrière lui) et attaque la même cible que lui.
+   * Un clic du capitaine sur la mer rompt la formation (géré par le Hub).
+   */
+  private followFleet(s: ShipEnt, link: PlayerLink) {
+    let lead: PlayerLink | undefined;
+    for (const l of this.links.values()) if (l.name === link.followLeader) { lead = l; break; }
+    const L = lead && !lead.docked ? this.ships.get(lead.entityId) : undefined;
+    if (!lead || !L || L.sinking >= 0) return;
+    // Même cible que le chef.
+    if (lead.attacking && lead.targetId) {
+      const t = this.ships.get(lead.targetId) ?? this.forts.get(lead.targetId);
+      if (t && this.canHarm(s, t)) {
+        if (link.targetId !== lead.targetId || !link.attacking) { link.targetId = lead.targetId; link.attacking = true; }
+        link.nav = null;
+        return;
+      }
+    }
+    if (link.attacking && link.targetId) return;
+    // Place dans la formation : rangées de deux, de part et d'autre du sillage du chef.
+    const k = Math.max(1, link.fleetSlot);
+    const row = Math.ceil(k / 2), side = k % 2 ? 1 : -1;
+    const fx = Math.sin(L.k.h), fz = Math.cos(L.k.h);
+    const tx = L.k.x - fx * FLEET_SPACING * row + fz * side * FLEET_SPACING * 0.7 * row;
+    const tz = L.k.z - fz * FLEET_SPACING * row - fx * side * FLEET_SPACING * 0.7 * row;
+    // Chef à l'arrêt : on s'arrête dès qu'on est près de sa place (sinon on tournerait en rond autour).
+    const near = L.k.speed < 1.5 ? 110 : 40;
+    if (dist2(s.k.x, s.k.z, tx, tz) > near * near) {
+      // Vise un peu devant la place (anticipation de la marche du chef).
+      link.nav = { x: tx + fx * L.k.speed * 3, z: tz + fz * L.k.speed * 3 };
+    } else {
+      link.nav = null;
+      link.input = { sail: L.k.speed < 1.5 ? 0 : lead.input.sail, rudder: clamp(wrapAngle(s.k.h - L.k.h) * 2, -1, 1) };
+    }
+  }
+
+  /** Bonus d'escadre : alliés (groupe, guilde, alliance) proches. */
+  fleetAllies(s: ShipEnt) {
+    if (!s.link) return 0;
+    let n = 0;
+    for (const o of this.ships.values()) {
+      if (o === s || !o.link || o.sinking >= 0) continue;
+      if (dist2(s.k.x, s.k.z, o.k.x, o.k.z) > FLEET_BONUS_RADIUS * FLEET_BONUS_RADIUS) continue;
+      if (this.hooks.relation(s.link, o.link) === 'friend') n++;
+    }
+    return Math.min(FLEET_BONUS_MAX, n);
+  }
+
   private pilot(s: ShipEnt, link: PlayerLink) {
     const tgt = link.targetId ? this.ships.get(link.targetId) ?? this.forts.get(link.targetId) : undefined;
     const tShip = tgt && 'k' in tgt ? tgt : null;
@@ -571,6 +624,7 @@ export class Zone {
         if (link.deadTimer <= 0) this.respawn(link);
       }
       const s = this.ships.get(link.entityId);
+      if (s && s.sinking < 0 && link.followLeader) this.followFleet(s, link);
       if (s && s.sinking < 0) this.pilot(s, link);
     }
 
@@ -910,7 +964,7 @@ export class Zone {
         if (!l2 || l2 === link) continue;
         const war = this.hooks.relation(l2, link) === 'war' ? 2 : 1;
         const share = 0.3 + 0.7 * (d / total);
-        if (killer && killer.id === id) { l2.profile.stats.pvp++; onPlayerKill(l2); }
+        if (killer && killer.id === id) { l2.profile.stats.pvp++; onPlayerKill(l2); this.hooks.onPvpKill?.(this, l2, link); }
         grant(l2, { or: 400 * s.level * share * war, xp: 120 * s.level * share * war, rep: Math.round(15 * war) }, `Victoire sur ${s.name}`);
       }
       return;
@@ -1049,6 +1103,8 @@ export class Zone {
         energy: me ? Math.floor(me.energy) : 0,
         skillCd: me ? Object.fromEntries(Object.entries(me.skillCd).filter(([, v]) => (v ?? 0) > 0).map(([k, v]) => [k, r1(v!)])) : {},
         boost: me ? { dmg: r1(me.fx.dmg), crit: r1(me.fx.crit), speed: r1(me.fx.speed), shield: r1(me.fx.shield) } : { dmg: 0, crit: 0, speed: 0, shield: 0 },
+        fleet: me ? this.fleetAllies(me) : 0,
+        raid: this.raidActive,
       };
       link.send({ t: 'snap', st: Math.round(this.time * 1000) / 1000, wind: { dir: Math.round(this.wind.dir * 1000) / 1000, strength: Math.round(this.wind.strength * 100) / 100 }, wx: { ...this.weather, intensity: Math.round(this.weather.intensity * 100) / 100, fog: Math.round(this.weather.fog * 100) / 100 }, day: Math.round(dayFraction * 10000) / 10000, me: meState, e: ents, ev });
     }

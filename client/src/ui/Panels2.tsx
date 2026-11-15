@@ -1,4 +1,5 @@
 // Fenêtres de la deuxième livraison : missions, boutique, capitaines, cartes bonus, matelot de pont, navires élites.
+import { RaidBox } from './Hud2';
 import { useEffect, useState } from 'react';
 import { CAPTAIN_CATS, CAPTAINS, DAILY, DAILY_SLOTS, FORGE, levelMission, shipBonus, SKINS, type SkinId } from '../../../shared/extras';
 import { ELITE_LEVELS, ELITE_SIGNATURES, eliteLevel } from '../../../shared/elite';
@@ -341,6 +342,11 @@ export function EventPanel() {
               <div className="ms-prog"><i style={{ width: `${((boss.hp ?? 0) / (boss.maxHp || 1)) * 100}%` }} /><span>{fmt(boss.hp ?? 0)} / {fmt(boss.maxHp ?? 0)}</span></div>
             </>
           ) : <p className="muted">Aucun boss en mer pour l'instant. Il apparaît régulièrement : surveillez les annonces de l'Amirauté.</p>}
+        </section>
+        <section className="ev-card raid-card">
+          <h4>Raids de guildes</h4>
+          <p className="small">Toutes les 2 heures (heures paires), une carte de guerre devient un champ de bataille pendant 15 minutes : combat libre pour tous, 10 points par capitaine coulé, 1 par navire PNJ. La guilde gagnante prend la carte : revenus toutes les 10 minutes et réparations offertes dans ses ports (repaire de guilde).</p>
+          <RaidBox />
         </section>
         <section className={`ev-card ${bonusOpen ? 'hot' : ''}`}>
           <h4>Cartes bonus du dimanche</h4>

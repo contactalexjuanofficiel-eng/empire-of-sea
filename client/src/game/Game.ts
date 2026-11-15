@@ -319,8 +319,11 @@ export class Game {
       case 'guild':
         store.set({ guild: m.info });
         break;
+      case 'raid':
+        store.set({ raid: m.raid });
+        break;
       case 'group':
-        store.set({ group: { members: m.members, leader: m.leader, invite: m.invite } });
+        store.set({ group: { members: m.members, leader: m.leader, invite: m.invite, follow: m.follow } });
         if (m.invite) notify(`${m.invite} vous invite dans son groupe. Ouvrez la Guilde pour accepter.`, 'event');
         break;
       case 'boss':
@@ -1328,6 +1331,8 @@ export class Game {
         energy: me?.energy ?? 0,
         skillCd: me?.skillCd ?? {},
         boost: me?.boost ?? { dmg: 0, crit: 0, speed: 0, shield: 0 },
+        fleet: me?.fleet ?? 0,
+        raid: !!me?.raid,
       },
       nearby: nearby.slice(0, 8),
       attacking: !!me?.attacking,

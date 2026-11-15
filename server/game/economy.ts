@@ -24,7 +24,7 @@ export function portPrices(zone: ZoneDef, portId: string, t: number, commerce: n
 }
 
 /** Applique un achat. Retourne un message d'erreur, ou null si tout s'est bien passé. */
-export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: number): string | null {
+export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: number, ownerTag: string | null = null): string | null {
   // Ces actions sont possibles en mer ; les autres demandent d'être à quai.
   const anywhere = ['buyItem', 'useSkin', 'assign', 'recruit', 'eliteShip', 'buyAmmo', 'claimRank'];
   if (!anywhere.includes(act.a) && (!link.docked || !link.port)) return 'Vous devez être amarré au port.';
@@ -98,13 +98,16 @@ export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: n
       break;
     }
     case 'repair': {
-      const cost = repairCost(link);
-      if (cost <= 0) return 'Votre navire est en parfait état.';
+      // Repaire de guilde : réparations gratuites dans les ports d'une carte contrôlée par sa guilde.
+      const lair = !!ownerTag && ownerTag === link.guildTag;
+      const cost = lair ? 0 : repairCost(link);
+      if (lair && link.hpRatio >= 1 && link.sailRatio >= 1) return 'Votre navire est en parfait état.';
+      if (!lair && cost <= 0) return 'Votre navire est en parfait état.';
       if (p.or < cost) return `La réparation coûte ${fmt(cost)} or.`;
       p.or -= cost;
       link.hpRatio = 1;
       link.sailRatio = 1;
-      link.notify(`Les charpentiers de l'arsenal ont remis votre navire à neuf (${fmt(cost)} or).`, 'info');
+      link.notify(lair ? `Repaire de la guilde [${ownerTag}] : réparations offertes !` : `Les charpentiers de l'arsenal ont remis votre navire à neuf (${fmt(cost)} or).`, 'info');
       break;
     }
     case 'trade': {

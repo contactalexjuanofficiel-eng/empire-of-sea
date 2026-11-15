@@ -854,3 +854,8 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .at-main p { margin: 2px 0; }
 .at-act { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; text-align: right; }
 @media (max-width: 760px) { .at-card { grid-template-columns: 44px 1fr; } .at-act { grid-column: 1 / -1; align-items: stretch; } }
+.fleet-btn { width: 100%; margin: 6px 0 2px; }
+.fleet-btn.on { border-color: var(--emeraude); color: #8be0b8; }
+.st-item.raid { border-left: 2px solid var(--combat); padding-left: 6px; }
+.st-item.raid.hot { box-shadow: inset 0 0 14px rgba(168, 50, 50, 0.35); }
+.events .raid-card { grid-column: 1 / -1; }

@@ -33,6 +33,9 @@ export interface PlayerLink {
   fishTimer: number;
   /** Grade général (index dans GRADES), recalculé chaque minute. */
   grade: number;
+  /** Escadre : nom du chef suivi (null = navigation libre) et place dans la formation (1, 2, 3…). */
+  followLeader: string | null;
+  fleetSlot: number;
 }
 
 export type Relation = 'friend' | 'neutral' | 'war';

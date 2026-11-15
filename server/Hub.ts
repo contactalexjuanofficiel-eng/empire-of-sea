@@ -1,12 +1,14 @@
 // Le Hub relie les connexions WebSocket aux zones, gère le chat, les groupes, les guildes et la sauvegarde.
 import { seasonPoints } from '../shared/season.ts';
 import { ACTIVE_SKILL_BY_ID } from '../shared/combat.ts';
+import { RAID_DURATION, RAID_POINTS, RAID_REWARD, RAID_WARNING, raidStartAt, raidZone, TERRITORY_INTERVAL, territoryIncome } from '../shared/fleet.ts';
+import { grant } from './game/rewards.ts';
 import crypto from 'node:crypto';
 import type { WebSocket } from 'ws';
 import { AMMO, CONSUMABLES } from '../shared/items.ts';
 import { levelFromXp } from '../shared/progression.ts';
 import { assignGrades, GRADES, rankPoints } from '../shared/ranks.ts';
-import { PROTOCOL_VERSION, TICK_RATE, type C2S, type ChatChannel, type GuildInfo, type LeaderEntry, type MissionOffer, type Profile, type S2C } from '../shared/protocol.ts';
+import { PROTOCOL_VERSION, TICK_RATE, type C2S, type ChatChannel, type GuildInfo, type LeaderEntry, type MissionOffer, type Profile, type RaidInfo, type S2C } from '../shared/protocol.ts';
 import { SHIP_BY_ID } from '../shared/ships.ts';
 import { BONUS_ZONES, isBonusDay, MAX_TIER, START_ZONE, tierRequirement, ZONE_BY_ID, ZONES } from '../shared/zones.ts';
 import type { Store } from './db.ts';
@@ -47,6 +49,10 @@ export class Hub {
   /** Guilde qui contrôle chaque carte (dernier boss vaincu). */
   readonly owners = new Map<string, string>();
   private mapsTimer = 0;
+  /** Raid PvP : début du raid suivi, annonce faite, points par guilde. */
+  private raid: { start: number; zone: string; announced: boolean; active: boolean; done: boolean; forced?: boolean; scores: Map<string, number> } | null = null;
+  private raidTimer = 0;
+  private territoryTimer = TERRITORY_INTERVAL;
   private gradeTimer = 2;
   private last = performance.now();
 
@@ -56,7 +62,8 @@ export class Hub {
       this.zones.set(def.id, new Zone(def, {
         relation: (a, b) => this.relation(a, b),
         broadcastChat: (text) => this.systemAll(text),
-        onKill: (z, l) => this.tierProgress(z, l as Session),
+        onKill: (z, l) => { this.tierProgress(z, l as Session); this.raidScore(z, l, RAID_POINTS.npc); },
+        onPvpKill: (z, killer) => this.raidScore(z, killer, RAID_POINTS.pvp),
         onConquest: (z, l) => {
           const tag = this.guilds.of(l.name)?.tag ?? null;
           if (!tag) return;
@@ -90,6 +97,10 @@ export class Hub {
     }
     this.gradeTimer -= dt;
     if (this.gradeTimer <= 0) { this.gradeTimer = 60; this.computeGrades(); }
+    this.raidTimer -= dt;
+    if (this.raidTimer <= 0) { this.raidTimer = 1; this.updateRaid(Date.now() / 1000); }
+    this.territoryTimer -= dt;
+    if (this.territoryTimer <= 0) { this.territoryTimer = TERRITORY_INTERVAL; this.payTerritories(); }
     this.mapsTimer -= dt;
     if (this.mapsTimer <= 0) {
       this.mapsTimer = 3;
@@ -140,7 +151,7 @@ export class Hub {
       zoneId: profile.zone, entityId: allocId(), docked: true, port: profile.port,
       input: { sail: 0, rudder: 0 }, seq: 0, pvp: false, hpRatio: 1, sailRatio: 1,
       known: new Set(), deadTimer: 0, groupId: null, guildTag: this.guilds.of(name)?.tag ?? null,
-      nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0, grade: 18,
+      nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0, grade: 18, followLeader: null, fleetSlot: 0,
       dirty: false, sentProfileAt: 0, savedAt: performance.now(), lastChat: 0, msgBudget: 80, offers: [], created: profile.created, lastHardBonus: 0,
     };
     this.sessions.set(accountId, s);
@@ -233,6 +244,18 @@ export class Hub {
         const half = zone.def.half;
         s.nav = { x: num(m.x, -half, half), z: num(m.z, -half, half) };
         s.fishing = false;
+        if (s.followLeader) { s.followLeader = null; s.notify('Vous quittez la formation de l\'escadre.'); this.sendGroup(s); }
+        break;
+      }
+      case 'fleet': {
+        const g = s.groupId ? this.groups.get(s.groupId) : undefined;
+        if (!m.follow) { s.followLeader = null; this.sendGroup(s); break; }
+        if (!g) return err('Formez d\'abord un groupe (onglet Groupe) pour naviguer en escadre.');
+        if (g.leader === s.name) return err('Vous êtes le chef d\'escadre : les autres capitaines vous suivent.');
+        s.followLeader = g.leader;
+        s.fleetSlot = Math.max(1, [...g.members].filter((n) => n !== g.leader).indexOf(s.name) + 1);
+        s.notify(`Vous prenez place dans l'escadre de ${g.leader}.`, 'info');
+        this.sendGroup(s);
         break;
       }
       case 'target': {
@@ -275,7 +298,7 @@ export class Hub {
       }
       case 'shop': {
         const before = activeShip(s.profile).uid;
-        const r = shop(s, zone.def, m, Date.now() / 1000);
+        const r = shop(s, zone.def, m, Date.now() / 1000, this.owners.get(zone.def.id) ?? null);
         err(r);
         if (!r && (m.a === 'upgrade' || m.a === 'skill' || before !== activeShip(s.profile).uid)) zone.refreshShip(s);
         break;
@@ -363,6 +386,79 @@ export class Hub {
   }
 
   /** Mission de passage : couler assez d'ennemis à son étage le plus haut pour débloquer le suivant. */
+  // ------------------------------------------------------------------ raids PvP et territoires
+  /** Cartes de guerre éligibles aux raids (combat libre, hors cartes bonus). */
+  private raidZones() { return ZONES.filter((z) => z.pvp === 'libre'); }
+
+  raidInfo(nowSec = Date.now() / 1000): RaidInfo {
+    const start = this.raid?.start ?? raidStartAt(nowSec);
+    const zone = this.raid?.zone ?? raidZone(start, this.raidZones()).id;
+    const state = this.raid?.active ? 'actif' : this.raid?.announced ? 'annonce' : 'prevu';
+    const scores = [...(this.raid?.scores ?? new Map<string, number>())].map(([tag, points]) => ({ tag, points })).sort((a, b) => b.points - a.points);
+    return { state, zone, start: start * 1000, end: (start + RAID_DURATION) * 1000, scores };
+  }
+
+  /** Machine à états du raid : annonce 10 min avant, combat libre 15 min, puis la guilde gagnante prend la carte. */
+  updateRaid(nowSec: number) {
+    const start = this.raid?.forced && nowSec < this.raid.start + RAID_DURATION ? this.raid.start : raidStartAt(nowSec);
+    if (!this.raid || this.raid.start !== start) {
+      if (this.raid?.active) this.endRaid();
+      this.raid = { start, zone: raidZone(start, this.raidZones()).id, announced: false, active: false, done: false, scores: new Map() };
+    }
+    const r = this.raid;
+    const def = ZONE_BY_ID[r.zone];
+    if (!r.announced && nowSec >= start - RAID_WARNING) {
+      r.announced = true;
+      this.systemAll(`⚔ Raid annoncé : dans ${Math.max(1, Math.round((start - nowSec) / 60))} minutes sur la carte ${def.code} (${def.name}). Combat libre pour tous pendant 15 minutes : la guilde qui marque le plus de points prend la carte !`);
+    }
+    if (!r.active && !r.done && nowSec >= start && nowSec < start + RAID_DURATION) {
+      r.active = true;
+      r.announced = true;
+      this.zones.get(r.zone)!.raidActive = true;
+      this.systemAll(`⚔ Le raid commence sur ${def.code} (${def.name}) ! ${RAID_POINTS.pvp} points par capitaine coulé, ${RAID_POINTS.npc} par navire PNJ.`);
+    }
+    if (r.active && nowSec >= start + RAID_DURATION) this.endRaid();
+    for (const s of this.sessions.values()) s.send({ t: 'raid', raid: this.raidInfo(nowSec) });
+  }
+
+  private endRaid() {
+    const r = this.raid;
+    if (!r || !r.active) return;
+    r.active = false;
+    r.done = true;
+    const zone = this.zones.get(r.zone)!;
+    zone.raidActive = false;
+    const best = [...r.scores].sort((a, b) => b[1] - a[1])[0];
+    if (!best) { this.systemAll(`Le raid sur ${zone.def.code} se termine sans vainqueur.`); return; }
+    const [tag] = best;
+    this.owners.set(r.zone, tag);
+    this.systemAll(`🏆 La guilde [${tag}] remporte le raid et prend le contrôle de la carte ${zone.def.code} (${zone.def.name}) !`);
+    for (const s of this.sessions.values()) if (s.guildTag === tag) grant(s, { or: RAID_REWARD.or, perles: RAID_REWARD.perles, xp: RAID_REWARD.xp }, 'Victoire de guilde au raid');
+  }
+
+  private raidScore(z: Zone, l: PlayerLink, pts: number) {
+    if (!this.raid?.active || this.raid.zone !== z.def.id || !l.guildTag) return;
+    this.raid.scores.set(l.guildTag, (this.raid.scores.get(l.guildTag) ?? 0) + pts);
+  }
+
+  /** Démarre un raid tout de suite (tests et administration). */
+  forceRaid(zoneId: string, nowSec = Date.now() / 1000) {
+    if (this.raid?.active) this.endRaid();
+    this.raid = { start: nowSec, zone: zoneId, announced: true, active: true, done: false, forced: true, scores: new Map() };
+    this.zones.get(zoneId)!.raidActive = true;
+  }
+  /** Termine le raid en cours (tests). */
+  finishRaid() { this.endRaid(); }
+
+  /** Revenus des territoires : chaque carte contrôlée rapporte de l'or aux membres connectés de la guilde. */
+  payTerritories() {
+    for (const [zoneId, tag] of this.owners) {
+      const def = ZONE_BY_ID[zoneId];
+      if (!def) continue;
+      for (const s of this.sessions.values()) if (s.guildTag === tag) grant(s, { or: territoryIncome(def.tier) }, `Revenus du territoire ${def.code}`);
+    }
+  }
+
   private tierProgress(z: Zone, s: Session) {
     const p = s.profile;
     if (z.def.tier !== p.tier || p.tier >= MAX_TIER) return;
@@ -505,6 +601,7 @@ export class Hub {
   }
 
   private leaveGroup(s: Session) {
+    s.followLeader = null;
     if (!s.groupId) return;
     const g = this.groups.get(s.groupId);
     s.groupId = null;
@@ -512,7 +609,7 @@ export class Hub {
     if (!g) return;
     g.members.delete(s.name);
     if (g.members.size <= 1) {
-      for (const n of g.members) { const o = this.byName.get(lc(n)); if (o) { o.groupId = null; o.send({ t: 'group', members: [], leader: null }); } }
+      for (const n of g.members) { const o = this.byName.get(lc(n)); if (o) { o.groupId = null; o.followLeader = null; o.send({ t: 'group', members: [], leader: null }); } }
       this.groups.delete(g.id);
     } else {
       if (g.leader === s.name) g.leader = [...g.members][0];
@@ -521,11 +618,17 @@ export class Hub {
     this.forgetEverywhere(s.entityId);
   }
 
+  private sendGroup(s: Session) {
+    const g = s.groupId ? this.groups.get(s.groupId) : undefined;
+    s.send({ t: 'group', members: g ? [...g.members] : [], leader: g?.leader ?? null, follow: !!s.followLeader });
+  }
+
   private refreshGroup(g: Group) {
     for (const n of g.members) {
       const o = this.byName.get(lc(n));
       if (!o) continue;
-      o.send({ t: 'group', members: [...g.members], leader: g.leader });
+      if (o.followLeader && o.followLeader !== g.leader) o.followLeader = g.leader;
+      o.send({ t: 'group', members: [...g.members], leader: g.leader, follow: !!o.followLeader });
       this.forgetEverywhere(o.entityId);
     }
   }

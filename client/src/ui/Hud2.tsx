@@ -244,12 +244,31 @@ function TabGoals() {
   );
 }
 
+/** Raid PvP : état, compte à rebours, points des guildes. */
+export function RaidBox() {
+  const raid = useStore((s) => s.raid);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
+  if (!raid) return null;
+  const z = ZONE_BY_ID[raid.zone];
+  const mmss = (ms: number) => { const t = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60; return h ? `${h} h ${String(m).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`; };
+  return (
+    <div className={`st-item ev raid ${raid.state === 'actif' ? 'hot' : ''}`}>
+      <b>⚔ Raid de guildes — carte {z?.code}</b>
+      <p className="st-empty">{raid.state === 'actif' ? `En cours : fin dans ${mmss(raid.end - now)}` : `${raid.state === 'annonce' ? 'Annoncé ! ' : ''}Début dans ${mmss(raid.start - now)} (${z?.name})`}</p>
+      {raid.scores.slice(0, 3).map((x, i) => <div key={x.tag} className="st-row"><span>{i + 1}. [{x.tag}]</span><b className="num">{x.points} pts</b></div>)}
+      {raid.state !== 'prevu' && <button className="st-link" onClick={() => send({ t: 'travel', zone: raid.zone })}>Rejoindre le raid</button>}
+    </div>
+  );
+}
+
 function TabEvents() {
   const boss = useStore((s) => s.boss);
   const maps = useStore((s) => s.maps);
   const bonusOpen = BONUS_ZONES.some((z) => maps.find((m) => m.id === z.id)?.open);
   return (
     <>
+      <RaidBox />
       <div className={`st-item ev ${boss.active ? 'hot' : ''}`}>
         <b>Boss de la carte</b>
         {boss.active ? <Prog v={boss.hp ?? 0} max={boss.maxHp ?? 1} label={`${boss.name} · ${fmt(boss.hp ?? 0)}`} /> : <p className="st-empty">Aucun boss en mer.</p>}
@@ -282,10 +301,15 @@ function TabSpy() {
 
 function TabGroup() {
   const group = useStore((s) => s.group);
+  const me = useStore((s) => s.name);
   const [name, setName] = useState('');
   return (
     <>
       {group.members.length ? group.members.map((m) => <div key={m} className="st-row"><span>{m}</span>{group.leader === m && <em>chef</em>}</div>) : <p className="st-empty">Vous naviguez seul.</p>}
+      {group.members.length > 1 && (me === group.leader
+        ? <p className="st-empty">Vous menez l'escadre : vos capitaines peuvent vous suivre en formation.</p>
+        : <button className={`btn small fleet-btn ${group.follow ? 'on' : ''}`} onClick={() => send({ t: 'fleet', follow: !group.follow })}>{group.follow ? 'Quitter la formation' : `Suivre ${group.leader} en escadre`}</button>)}
+      {group.members.length > 1 && <p className="st-empty small">Bonus d'escadre : +5 % de dégâts par allié à moins de 500 m (3 au maximum).</p>}
       {group.invite && <div className="st-row"><span>{group.invite} vous invite</span><button className="btn-gold small" onClick={() => send({ t: 'group', a: 'accept' })}>Accepter</button></div>}
       <form className="st-inv" onSubmit={(e) => { e.preventDefault(); if (name.trim()) send({ t: 'group', a: 'invite', name: name.trim() }); setName(''); }}>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom du capitaine" maxLength={16} />
@@ -323,7 +347,7 @@ export function BottomDock() {
   const ready = hud.reload[0] <= 0.05;
   const r = 1 - Math.min(1, hud.reload[0] / Math.max(0.1, hud.reloadMax * 0.65));
   const owned = CONSUMABLE_ORDER.filter((id) => (p.items[id] ?? 0) > 0);
-  const boosts = [hud.boost.dmg > 0 && `Bordée +30 % · ${Math.ceil(hud.boost.dmg)} s`, hud.boost.crit > 0 && `Précision · ${Math.ceil(hud.boost.crit)} s`, hud.boost.speed > 0 && `Vitesse · ${Math.ceil(hud.boost.speed)} s`, hud.boost.shield > 0 && `Airain · ${Math.ceil(hud.boost.shield)} s`, hud.powder > 0 && `Poudre fine · ${Math.ceil(hud.powder)} s`].filter(Boolean) as string[];
+  const boosts = [hud.boost.dmg > 0 && `Bordée +30 % · ${Math.ceil(hud.boost.dmg)} s`, hud.boost.crit > 0 && `Précision · ${Math.ceil(hud.boost.crit)} s`, hud.boost.speed > 0 && `Vitesse · ${Math.ceil(hud.boost.speed)} s`, hud.boost.shield > 0 && `Airain · ${Math.ceil(hud.boost.shield)} s`, hud.powder > 0 && `Poudre fine · ${Math.ceil(hud.powder)} s`, hud.fleet > 0 && `Escadre +${hud.fleet * 5} % dégâts`, hud.raid && '⚔ Raid en cours : combat libre'].filter(Boolean) as string[];
   return (
     <div className="bdock">
       {boosts.length > 0 && <div className="bd-boosts">{boosts.map((b) => <span key={b}>{b}</span>)}</div>}
