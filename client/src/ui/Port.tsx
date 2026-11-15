@@ -34,7 +34,7 @@ export function PortPanel() {
   if (!p) return null;
   return (
     <div className="port-wrap">
-      <Frame title={`Port de ${portName}`} icon="ancre" wide className="port">
+      <Frame title={`Port de ${portName}`} icon="ancre" wide className="port" onClose={() => store.set({ panel: null })}>
         <div className="port-tabs">
           {TABS.map(([id, icon, label]) => (
             <button key={id} className={tab === id ? 'on' : ''} onClick={() => { store.set({ portTab: id }); game().audio.click(); }}><Icon name={icon} /> {label}</button>
@@ -53,7 +53,6 @@ export function PortPanel() {
         <footer className="port-foot">
           <RepairButton />
           <button className="btn" onClick={() => store.set({ panel: 'carte' })}><Icon name="globe" /> Carte du monde</button>
-          <button className="btn-gold big" onClick={() => game().undock()}><Icon name="voile" /> Prendre la mer</button>
         </footer>
       </Frame>
     </div>

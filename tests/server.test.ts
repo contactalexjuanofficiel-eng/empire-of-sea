@@ -91,7 +91,7 @@ test('multijoueur : deux capitaines se voient en mer, tirent et le serveur arbit
   A.send({ t: 'input', sail: 999, rudder: 'x', seq: -5 });
   A.send({ t: 'shop', a: 'buyShip', ship: 'soleil_royal' });
   const e = await A.wait('err');
-  assert.match(e.text, /amarré/);
+  assert.match(e.text, /niveau/i, 'achat refusé par le serveur (niveau insuffisant)');
   A.ws.close();
   B.ws.close();
 });

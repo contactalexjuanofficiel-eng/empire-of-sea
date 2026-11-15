@@ -42,7 +42,7 @@ export const KEY_DEFS: KeyDef[] = [
   { action: 'sailDown', label: 'Voilure −', group: 'Navigation au clavier', def: 'ArrowDown' },
   { action: 'left', label: 'Barre à bâbord', group: 'Navigation au clavier', def: 'ArrowLeft' },
   { action: 'right', label: 'Barre à tribord', group: 'Navigation au clavier', def: 'ArrowRight' },
-  { action: 'dock', label: 'Accoster', group: 'Autres', def: 'KeyP' },
+  { action: 'dock', label: 'Ouvrir le port', group: 'Autres', def: 'KeyP' },
   { action: 'maps', label: 'Cartes', group: 'Autres', def: 'KeyM' },
   { action: 'missions', label: 'Missions', group: 'Autres', def: 'KeyJ' },
   { action: 'shop', label: 'Boutique', group: 'Autres', def: 'KeyO' },

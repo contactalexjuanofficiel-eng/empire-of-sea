@@ -13,6 +13,13 @@ dans un monde maritime ouvert et persistant.
 | ![Combat contre la Royal Navy](docs/captures/05-combat-royal-navy.jpg) | ![Îles des Caraïbes](docs/captures/04-caraibes-ile.jpg) |
 | ![Port de Fort-Royal](docs/captures/03-port-fort-royal.jpg) | ![Deux joueurs connectés](docs/captures/06-multijoueur-deux-joueurs.jpg) |
 
+## Lancer le jeu sans tout refaire à chaque mise à jour (Windows)
+
+1. Une seule fois : installez **Git** (https://git-scm.com, options par défaut), puis dans `cmd` :
+   `git clone -b claude/sleepy-babbage-elkipb https://github.com/contactalexjuanofficiel-eng/empire-of-sea.git`
+2. Ensuite, à chaque fois : **double-clic sur `Jouer.bat`** dans le dossier `empire-of-sea`. Il récupère la dernière
+   version, installe ce qui manque, lance le serveur et ouvre le navigateur. Vos capitaines (dossier `data`) sont conservés.
+
 ## Lancer le jeu
 
 Prérequis : **Node.js 22.5 ou plus récent** (la base de données SQLite est intégrée à Node, rien d'autre à installer).
@@ -64,8 +71,14 @@ Le jeu se joue **à la souris**, en vue du dessus (la vue 3D derrière le navire
 ## Tutoriel
 
 Au premier lancement, un encart guide le nouveau capitaine en 6 étapes, validées par le serveur et récompensées :
-prendre la mer, naviguer, choisir une cible, couler un ennemi, lancer une compétence, rentrer au port
-(3 200 or, 470 XP et 3 perles au total). Bouton « Passer » pour les habitués.
+naviguer, choisir une cible, couler un ennemi, ramasser le butin, lancer une compétence, réparer au Port
+(3 200 or, 470 XP et 3 perles au total).
+
+## Pas d'accostage
+
+On reste toujours en mer. Le bouton **Port** (barre du haut, ancre sous la mini-carte ou touche P) ouvre partout le
+chantier, l'arsenal, l'équipement, le marché, les missions et la réparation (hors combat). Un navire coulé est
+renfloué devant le port le plus proche, coque réparée. Bouton « Passer » pour les habitués.
 
 ## Jouer sur téléphone ou tablette
 

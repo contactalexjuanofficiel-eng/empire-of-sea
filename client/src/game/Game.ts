@@ -72,7 +72,7 @@ export class Game {
   private me: MeState | null = null;
   private pred: ShipKinematics | null = null;
   private myStats: ShipStats | null = null;
-  private sail = 1;
+  private sail = 0;
   private rudder = 0;
   private seq = 0;
   private lastSent = { sail: 1, rudder: 0, t: 0 };
@@ -170,7 +170,7 @@ export class Game {
     this.fans.renderOrder = 4;
     this.scene.add(this.aimRing, this.aimLine, this.fans);
     // Repères : destination (vert) et cible (rouge)
-    this.navRing = new THREE.Mesh(new THREE.RingGeometry(6, 8.5, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x5dff8a, transparent: true, opacity: 0.85, depthWrite: false, fog: false }));
+    this.navRing = new THREE.Mesh(new THREE.CircleGeometry(3.2, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x5dff8a, transparent: true, opacity: 0.9, depthWrite: false, depthTest: false, fog: false }));
     this.targetRing = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff4a3a, transparent: true, opacity: 0.9, depthWrite: false, fog: false }));
     // Cercles de sélection en pointillés, posés sur l'eau (rouge = cible ennemie, jaune = sélection, vert = moi).
     this.targetRing.geometry.dispose();
@@ -236,7 +236,6 @@ export class Game {
     this.zone = def;
     this.zoneVis = buildZoneVisual(def);
     this.scene.add(this.zoneVis.group);
-    this.buildSectorGrid(def.half);
     this.ocean.setDepthMap(this.zoneVis.depthTex, def.half);
     this.applyWaterTone();
     for (const l of this.zoneVis.labels) {
@@ -273,7 +272,7 @@ export class Game {
       case 'welcome':
         this.clearEntities();
         this.myId = m.id;
-        store.set({ screen: 'loading', name: m.name, profile: m.profile, zone: m.zone, port: m.port, docked: true, panel: 'port', portTab: 'capitainerie' });
+        store.set({ screen: 'loading', name: m.name, profile: m.profile, zone: m.zone, port: m.port, docked: false, panel: null, portTab: 'capitainerie' });
         setTimeout(() => {
           this.loadZone(m.zone);
           store.set({ screen: 'game' });
@@ -282,10 +281,10 @@ export class Game {
       case 'zone':
         this.clearEntities();
         this.myId = m.id;
-        store.set({ screen: 'loading', zone: m.zone, port: m.port, docked: true });
+        store.set({ screen: 'loading', zone: m.zone, port: m.port, docked: false });
         setTimeout(() => {
           this.loadZone(m.zone);
-          store.set({ screen: 'game', panel: 'port' });
+          store.set({ screen: 'game', panel: null });
         }, 30);
         break;
       case 'profile':
@@ -358,7 +357,8 @@ export class Game {
       store.set({ docked: m.me.docked, panel: m.me.docked ? 'port' : null });
       if (!m.me.docked) {
         this.pred = null;
-        this.sail = 1;
+        this.sail = 0; // le navire attend les ordres : il n'avance qu'après un clic sur la mer
+        this.lastSent.sail = 0;
         this.refreshMyStats();
       }
     }
@@ -429,9 +429,16 @@ export class Game {
       }
     } else if (meta.kind === 'loot') {
       e.obj = meta.loot === 'coffre' ? this.makeChest() : this.makeLoot(meta.loot === 'tresor');
+      // Halo doré sur l'eau : on repère le butin d'un coup d'œil, même de loin (pas besoin de texte).
+      const halo = new THREE.Mesh(new THREE.RingGeometry(3.5, 7, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: meta.loot === 'caisse' ? 0xffe28a : 0xffc23a, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false }));
+      halo.position.y = 0.6;
+      halo.renderOrder = 4;
+      halo.userData.halo = true;
+      e.obj.add(halo);
+      if (meta.loot === 'caisse') e.obj.scale.setScalar(1.6);
       this.scene.add(e.obj);
     }
-    if (id !== this.myId && meta.kind !== 'fort') {
+    if (id !== this.myId && meta.kind !== 'fort' && meta.kind !== 'loot') {
       e.label = document.createElement('div');
       e.label.className = 'elabel';
       this.labelsEl.appendChild(e.label);
@@ -583,7 +590,7 @@ export class Game {
       case 'attack': if (this.selectedId) this.attack(this.selectedId); else notify('Cliquez d\'abord sur un navire ennemi pour le cibler.', 'warn'); break;
       case 'cancelAttack': this.cancelAttack(); break;
       case 'skill1': case 'skill2': case 'skill3': case 'skill4': case 'skill5': this.useSkill(ACTIVE_SKILLS[Number(a.slice(5)) - 1].id); break;
-      case 'dock': this.dock(); break;
+      case 'dock': this.goToPort(); break;
       case 'pvp': this.net.send({ t: 'pvp', on: !this.me.pvp }); break;
     }
   }
@@ -709,22 +716,9 @@ export class Game {
     return out;
   }
 
-  /** Bouton ancre : accoster si possible, sinon naviguer vers le port le plus proche. */
+  /** Bouton Port / ancre : plus d'accostage, ouvre directement la fenêtre du port, en mer. */
   goToPort() {
-    if (store.get().docked) { store.set({ panel: 'port' }); return; }
-    if (store.get().hud.canDock) { this.dock(); return; }
-    const docks = this.zoneVis?.world.docks;
-    if (!docks || !this.pred) return;
-    let best: { x: number; z: number } | null = null, bd = Infinity;
-    for (const p of this.zone.ports) {
-      const d = docks[p.id];
-      if (!d) continue;
-      const dist = Math.hypot(d.x - this.pred.x, d.z - this.pred.z);
-      if (dist < bd) { bd = dist; best = d; }
-    }
-    if (!best) return;
-    this.net.send({ t: 'move', x: Math.round(best.x), z: Math.round(best.z) });
-    this.navRing.userData.pulse = 1;
+    store.set((st) => ({ panel: st.panel === 'port' ? null : 'port' }));
   }
 
   selectAmmo(id: AmmoId) { this.net.send({ t: 'ammo', id }); }
@@ -899,7 +893,7 @@ export class Game {
     ou.uFogDensity.value = fog.density;
     ou.uNight.value = this.sky.night;
     this.ocean.follow(this.camera.position);
-    this.renderer.toneMappingExposure = 0.48 + this.sky.night * 0.4 + flash * 0.4;
+    this.renderer.toneMappingExposure = (0.48 + this.sky.night * 0.4 + flash * 0.4) * (s.settings.brightness ?? 1.3);
 
     // Phares et fenêtres la nuit
     if (this.zoneVis) {
@@ -1084,6 +1078,7 @@ export class Game {
         e.obj.rotation.y = this.t * 0.2;
         e.obj.rotation.z = Math.sin(this.t * 1.3 + c.x) * 0.12;
         if (e.obj.userData.treasure && Math.random() < 0.3) this.fx.sparkle(c.x, y + 1, c.z);
+        for (const ch of e.obj.children) if (ch.userData.halo) { const k = 1 + 0.18 * Math.sin(this.t * 4); ch.scale.set(k, 1, k); }
       }
     }
   }
@@ -1217,7 +1212,7 @@ export class Game {
     if (nav) {
       const pulse = 1 + 0.15 * Math.sin(this.t * 5);
       this.navRing.position.set(nav[0], waveHeight(nav[0], nav[1], this.t) + 0.8, nav[1]);
-      this.navRing.scale.setScalar(pulse * (1 + this.rig.viewDist / 600));
+      this.navRing.scale.setScalar(pulse * (0.6 + this.rig.viewDist / 900));
     }
     const tid = me?.target || this.selectedId;
     const mine = this.ents.get(this.myId);

@@ -106,12 +106,28 @@ export class Zone {
     this.undock(link);
   }
 
-  addPlayer(link: PlayerLink, docked: boolean) {
+  /** Arrivée sur la carte : il n'y a plus d'accostage, le navire est toujours en mer (devant le port de la carte). */
+  addPlayer(link: PlayerLink, _legacyDocked = false) {
     link.zoneId = this.def.id;
     link.known.clear();
     this.links.set(link.entityId, link);
+    if (!this.def.ports.some((p) => p.id === link.port)) link.port = this.def.ports.find((p) => p.main)?.id ?? this.def.ports[0].id;
     link.docked = true;
-    if (!docked) this.undock(link);
+    this.undock(link);
+  }
+
+  /** Remplace le navire en mer, sur place (changement de navire depuis le chantier). */
+  swapShip(link: PlayerLink) {
+    const old = this.ships.get(link.entityId);
+    if (!old || old.sinking >= 0) return;
+    const { def, stats, tier } = activeStats(link.profile);
+    const s = this.makeShip(link.entityId, 'player', def, stats, playerLevel(link.profile), 'france', link.name, old.k.x, old.k.z, old.k.h);
+    s.tier = tier;
+    s.link = link;
+    s.ammo = link.profile.ammo[old.ammo] > 0 ? old.ammo : 'rond';
+    s.energy = old.energy;
+    this.ships.set(s.id, s);
+    for (const l of this.links.values()) l.known.delete(s.id); // tout le monde reçoit la nouvelle fiche du navire
   }
 
   removePlayer(link: PlayerLink) {
@@ -146,7 +162,8 @@ export class Zone {
     s.ammo = link.profile.ammo[s.ammo] > 0 ? s.ammo : 'rond';
     this.ships.set(s.id, s);
     link.docked = false;
-    link.input = { sail: 1, rudder: 0 };
+    link.input = { sail: 0, rudder: 0 }; // le navire attend les ordres (il n'avance plus tout seul)
+    link.nav = null;
     link.known.clear();
     return null;
   }
@@ -1020,12 +1037,17 @@ export class Zone {
     link.deadTimer = 0;
     const s = this.ships.get(link.entityId);
     const port = s ? this.nearestPort(s.k.x, s.k.z) : this.def.ports.find((p) => p.id === link.port) ?? this.def.ports[0];
+    // Le navire est renfloué en mer, devant le port le plus proche, coque et voiles réparées.
     this.ships.delete(link.entityId);
     link.docked = true;
     link.port = port.id;
     link.profile.port = port.id;
     link.hpRatio = 1;
     link.sailRatio = 1;
+    link.targetId = 0;
+    link.attacking = false;
+    this.undock(link);
+    link.notify(`Votre navire a été renfloué devant ${port.name}.`, 'info');
     link.touch();
   }
 

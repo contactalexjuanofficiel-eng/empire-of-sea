@@ -48,7 +48,8 @@ export function MissionsPanel() {
           <div className="daily-list">
             {DAILY.map((x) => {
               const a = p.daily.active.find((y) => y.id === x.id);
-              const wait = (p.daily.cooldown[x.id] ?? 0) > now;
+              // Vert : disponible ; or : en cours ; rouge : impossible (délai de 12 h, ou autre mission déjà en cours).
+              const wait = (p.daily.cooldown[x.id] ?? 0) > now || (!a && p.daily.active.length >= DAILY_SLOTS);
               return <button key={x.id} className={`daily-btn ${sel === x.id ? 'on' : ''} ${a ? 'active' : wait ? 'wait' : ''}`} onClick={() => setSel(x.id)}>{x.name}</button>;
             })}
           </div>

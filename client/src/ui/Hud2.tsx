@@ -12,7 +12,7 @@ import { GRADES } from '../../../shared/ranks';
 import { ROLES, SHIP_BY_ID, shipRole } from '../../../shared/ships';
 import { FACTION_LABEL, tierRequirement, ZONE_BY_ID } from '../../../shared/zones';
 import { keyLabel } from '../game/Input';
-import { store, useStore, type Panel } from '../store';
+import { askConfirm, store, useStore, type Panel } from '../store';
 import { game, Icon, Price, send } from './common';
 import { TUTORIAL } from '../../../shared/tutorial';
 import { Minimap } from './Hud';
@@ -75,9 +75,10 @@ export function TopNav() {
         {btn('classement', 'trophee', 'Classements', panel === 'classement', () => togglePanel('classement'))}
         {btn('tableau', 'profil', 'Tableau', panel === 'profil', () => togglePanel('profil'))}
         {btn('sortie', 'porte', 'Sortie', false, () => {
-          if (!confirm('Quitter la partie et revenir à l\'écran de connexion ?')) return;
-          try { localStorage.removeItem('edm.token'); } catch { /* stockage indisponible */ }
-          location.reload();
+          askConfirm('Quitter la partie et revenir à l\'écran de connexion ?', () => {
+            try { localStorage.removeItem('edm.token'); } catch { /* stockage indisponible */ }
+            location.reload();
+          });
         }, 'exit')}
       </nav>
       <div className={`tn-perf net-${conn}`}>
@@ -152,7 +153,7 @@ export function MapBlock() {
           <span className="mb-pl" title="Capitaines sur cette carte">({n})</span>
           <button className="mb-code" onClick={() => togglePanel('carte')} title={z?.name}>{z?.code}</button>
           <span className="mb-sector" title="Votre secteur (colonne, rangée)">{sector}</span>
-          <button className="mb-anchor" onClick={() => game().goToPort()} title="Rejoindre le port le plus proche (ou accoster)"><Icon name="ancre" size={16} /></button>
+          <button className="mb-anchor" onClick={() => game().goToPort()} title="Ouvrir le port (chantier, arsenal, équipement…)"><Icon name="ancre" size={16} /></button>
         </div>
       </div>
     </div>
@@ -423,7 +424,7 @@ export function BottomDock() {
         <div className="bd-combat">
           {attacking ? <button className="cb stop" onClick={() => game().cancelAttack()} title={`Cesser le feu (${keyLabel(keys.cancelAttack)})`}>Cesser le feu</button>
             : <button className="cb attack" disabled={!target?.hostile} onClick={() => target && game().attack(target.id)} title={`Attaquer la cible (${keyLabel(keys.attack)})`}>Attaquer</button>}
-          <button className={`cb ${hud.canDock ? 'dock' : ''}`} onClick={() => game().goToPort()} title="Accoster, ou rejoindre le port le plus proche">{hud.canDock ? 'Accoster' : 'Vers le port'}</button>
+          <button className={`cb ${hud.hp < hud.maxHp * 0.999 ? 'dock' : ''}`} onClick={() => send({ t: 'shop', a: 'repair' })} title="Réparer coque et voiles (hors combat, payant)">Réparer</button>
         </div>
       </div>
     </div>
@@ -440,7 +441,7 @@ export function TutorialBox() {
       <div className="tuto-head">
         <span className="tuto-step num">{p.tutorial + 1} / {TUTORIAL.length}</span>
         <b>{st.title}</b>
-        <button className="tuto-skip" onClick={() => { if (confirm('Passer le tutoriel ?')) send({ t: 'tuto', a: 'skip' }); }}>Passer</button>
+        <button className="tuto-skip" onClick={() => askConfirm('Passer le tutoriel ? Vous ne recevrez pas les récompenses des étapes restantes.', () => send({ t: 'tuto', a: 'skip' }))}>Passer</button>
       </div>
       <p>{st.text}</p>
       <div className="tuto-pips">{TUTORIAL.map((_, i) => <i key={i} className={i < p.tutorial ? 'done' : i === p.tutorial ? 'on' : ''} />)}</div>

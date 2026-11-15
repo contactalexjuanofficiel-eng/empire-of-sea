@@ -29,7 +29,7 @@ export interface ChatLine { id: number; ch: ChatChannel; from: string; text: str
 export interface Notice { id: number; text: string; kind: string; t: number }
 export type Panel = null | 'port' | 'inventaire' | 'profil' | 'classement' | 'guilde' | 'carte' | 'aide' | 'parametres' | 'missions' | 'boutique' | 'capitaines' | 'bonus' | 'rangs' | 'flotte' | 'evenement';
 export interface TargetInfo { id: number; name: string; kind: string; level: number; hp: number; dist: number; hostile: boolean; faction: string; ship?: string }
-export interface Settings { quality: 'haute' | 'moyenne' | 'basse'; volume: number; muted: boolean; autoCam: boolean; labels: boolean; camMode: 'dessus' | '3d'; autoAttack: boolean; keys: Record<string, string> }
+export interface Settings { quality: 'haute' | 'moyenne' | 'basse'; volume: number; muted: boolean; autoCam: boolean; labels: boolean; camMode: 'dessus' | '3d'; autoAttack: boolean; keys: Record<string, string>; brightness: number }
 
 export interface AppState {
   screen: 'login' | 'create' | 'loading' | 'game';
@@ -56,6 +56,8 @@ export interface AppState {
   settings: Settings;
   chatFocus: number;
   chatOpen: boolean;
+  /** Confirmation dans le style du jeu (remplace la fenêtre du navigateur). */
+  confirm: { text: string; ok: () => void } | null;
   fps: number;
   maps: MapInfo[];
   grade: { grade: number; points: number; next: number | null; prev: number | null; counts: number[]; position: number } | null;
@@ -64,7 +66,7 @@ export interface AppState {
 }
 
 const loadSettings = (): Settings => {
-  const d: Settings = { quality: 'moyenne', volume: 0.7, muted: false, autoCam: true, labels: true, camMode: 'dessus', autoAttack: true, keys: defaultKeys() };
+  const d: Settings = { quality: 'moyenne', volume: 0.7, muted: false, autoCam: true, labels: true, camMode: 'dessus', autoAttack: true, keys: defaultKeys(), brightness: 1.3 };
   try {
     const s = { ...d, ...JSON.parse(localStorage.getItem('edm.settings') || '{}') } as Settings;
     s.keys = { ...defaultKeys(), ...(s.keys || {}) };
@@ -98,6 +100,7 @@ const initial: AppState = {
   settings: loadSettings(),
   chatFocus: 0,
   chatOpen: true,
+  confirm: null,
   fps: 0,
   maps: [],
   grade: null,
@@ -139,3 +142,6 @@ export function saveSettings(s: Settings) {
   store.set({ settings: s });
   try { localStorage.setItem('edm.settings', JSON.stringify(s)); } catch { /* stockage indisponible */ }
 }
+
+/** Demande une confirmation dans une fenêtre du jeu. */
+export function askConfirm(text: string, ok: () => void) { store.set({ confirm: { text, ok } }); }

@@ -123,7 +123,7 @@ export class Hub {
         s.dirty = false;
         s.sentProfileAt = now;
         s.send({ t: 'profile', p: s.profile });
-        if (s.docked) this.sendPort(s);
+        this.sendPort(s);
       }
       if (now - s.savedAt > 15000) this.save(s);
     }
@@ -184,12 +184,12 @@ export class Hub {
       s.port = s.profile.port = def.ports[0].id;
     }
     const zone = this.zones.get(s.profile.zone) ?? this.zones.get(START_ZONE)!;
-    zone.addPlayer(s, true);
+    zone.addPlayer(s);
     s.send({ t: 'welcome', id: s.entityId, name: s.name, profile: s.profile, zone: zone.def.id, port: s.port, st: zone.time });
     this.sendPort(s);
     this.sendGuild(s);
     this.gradeTimer = Math.min(this.gradeTimer, 1); // calcule le rang du nouvel arrivant
-    s.notify(`Bienvenue à ${zone.def.ports.find((p) => p.id === s.port)?.name ?? 'bord'}, capitaine ${s.name}.`, 'info');
+    s.notify(`Bienvenue à bord, capitaine ${s.name}.`, 'info');
     this.system(`${s.name} a pris la mer.`, zone);
   }
 
@@ -204,7 +204,7 @@ export class Hub {
   }
 
   private sendPort(s: Session) {
-    if (!s.docked || !s.port) return;
+    if (!s.port) return;
     const z = this.zones.get(s.zoneId)!;
     s.offers = missionOffers(z.def, z.world, s.port, Date.now(), s.profile);
     s.send({ t: 'port', port: s.port, offers: s.offers, prices: portPrices(z.def, s.port, Date.now() / 1000, s.profile.skills.commerce) });
@@ -295,12 +295,9 @@ export class Hub {
         if (ship && ACTIVE_SKILL_BY_ID[m.id]) { const e = zone.useSkill(ship, m.id); err(e); if (!e) tutorialEvent(s, 'skill'); }
         break;
       case 'dock':
-        err(zone.dock(s));
-        if (s.docked) { this.sendPort(s); tutorialEvent(s, 'dock'); }
-        break;
       case 'undock':
-        if (s.docked) { err(zone.undock(s)); if (!s.docked) tutorialEvent(s, 'undock'); }
-        break;
+        break; // plus d'accostage : le port s'ouvre depuis la barre du haut, en mer
+
       case 'pvp': {
         if (zone.def.pvp === 'libre') { err('Cette zone est en guerre ouverte : le combat entre joueurs est permanent.'); return; }
         if (ship && zone.time - ship.lastHit < 15) { err('Impossible de changer de pavillon en plein combat.'); return; }
@@ -310,9 +307,21 @@ export class Hub {
       }
       case 'shop': {
         const before = activeShip(s.profile).uid;
+        if (ship) {
+          // En mer : la réparation part de l'état réel du navire, et pas en plein combat.
+          if (m.a === 'repair' && zone.time - ship.lastHit < 10) return err('Impossible de réparer en plein combat : éloignez-vous quelques secondes.');
+          s.hpRatio = ship.hp / ship.stats.hp;
+          s.sailRatio = ship.sailHp / ship.stats.sailHp;
+        }
         const r = shop(s, zone.def, m, Date.now() / 1000, this.owners.get(zone.def.id) ?? null);
         err(r);
-        if (!r && (m.a === 'upgrade' || m.a === 'skill' || before !== activeShip(s.profile).uid)) zone.refreshShip(s);
+        if (r) break;
+        if (m.a === 'repair') {
+          if (ship) { ship.hp = ship.stats.hp; ship.sailHp = ship.stats.sailHp; ship.burning = 0; }
+          tutorialEvent(s, 'repair');
+        }
+        if (before !== activeShip(s.profile).uid) zone.swapShip(s);
+        else zone.refreshShip(s);
         break;
       }
       case 'mission':
@@ -333,18 +342,16 @@ export class Hub {
         } else if (def.tier > s.profile.tier) return err(`Carte ${def.code} verrouillée : accomplissez la mission de passage de l'étage ${s.profile.tier}.`);
         if (s.deadTimer > 0) return;
         if (ship && zone.time - ship.lastHit < 10) return err('Impossible de changer de carte en plein combat.');
-        const atSea = !s.docked && !!ship;
         zone.removePlayer(s);
         s.nav = null; s.targetId = 0; s.attacking = false;
         const dest = this.zones.get(def.id)!;
         s.port = def.ports.find((p) => p.main)?.id ?? def.ports[0].id;
         s.profile.zone = def.id;
         s.profile.port = s.port;
-        dest.addPlayer(s, true);
-        if (atSea) dest.arriveAtSea(s);
+        dest.addPlayer(s);
         s.touch();
         s.send({ t: 'zone', zone: def.id, port: s.port, id: s.entityId });
-        if (!atSea) this.sendPort(s);
+        this.sendPort(s);
         s.notify(`Carte ${def.code} — ${def.name} : vous arrivez devant ${def.ports.find((p) => p.id === s.port)!.name}.`, 'event');
         break;
       }
@@ -390,7 +397,7 @@ export class Hub {
     s.port = def.ports.find((p) => p.main)?.id ?? def.ports[0].id;
     s.profile.zone = def.id;
     s.profile.port = s.port;
-    this.zones.get(def.id)!.addPlayer(s, true);
+    this.zones.get(def.id)!.addPlayer(s);
     s.touch();
     s.send({ t: 'zone', zone: def.id, port: s.port, id: s.entityId });
     this.sendPort(s);

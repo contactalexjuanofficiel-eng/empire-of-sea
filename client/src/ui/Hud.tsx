@@ -1,4 +1,4 @@
-// Interface en mer (éléments communs) : mini-carte, discussion, annonces, boss, invites d'accostage, aide.
+// Interface en mer (éléments communs) : mini-carte, discussion, annonces, boss, pavillon, naufrage, aide.
 import { useEffect, useRef, useState } from 'react';
 import type { ChatChannel } from '../../../shared/protocol';
 import { ZONE_BY_ID } from '../../../shared/zones';
@@ -165,16 +165,13 @@ export function SeaPrompts() {
   const pvpZone = ZONE_BY_ID[zone]?.pvp === 'libre';
   return (
     <>
-      {hud.canDock && hud.dead <= 0 && (
-        <button className="dock-prompt" onClick={() => game().dock()}><Icon name="ancre" /> Accoster à {hud.canDock} <kbd>P</kbd></button>
-      )}
       <div className={`pvp-flag ${hud.pvp || pvpZone ? 'on' : ''}`} onClick={() => !pvpZone && send({ t: 'pvp', on: !hud.pvp })} title={pvpZone ? 'Zone de guerre ouverte : PvP permanent hors des ports' : 'Pavillon de combat (B) : autorise le PvP avec les autres capitaines au pavillon rouge'}>
         <Icon name="drapeau" size={16} /> {pvpZone ? 'Zone PvP' : hud.pvp ? 'Pavillon rouge' : 'Pavillon blanc'}{hud.safe && <em> · zone protégée</em>}
       </div>
       {hud.dead > 0 && (
         <div className="death">
           <h2>Votre navire a sombré</h2>
-          <p>Les chaloupes vous ramènent au port… {Math.ceil(hud.dead)} s</p>
+          <p>Votre équipage renfloue le navire… retour en mer dans {Math.ceil(hud.dead)} s</p>
         </div>
       )}
     </>

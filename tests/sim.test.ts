@@ -63,8 +63,7 @@ test('monde : génération déterministe, ports sur la terre, collisions avec le
 test('combat : une bordée touche, coule un PNJ et rapporte or, XP et butin', () => {
   const zone = new Zone(ZONE_BY_ID['manche-1'], { relation: () => 'neutral' });
   const link = fakeLink('Testeur', 1);
-  zone.addPlayer(link, true);
-  assert.equal(zone.undock(link), null);
+  zone.addPlayer(link);
   const me = zone.ships.get(link.entityId)!;
   // On place le joueur au large, cap au sud, et un sloop pirate à 150 m par bâbord.
   me.k.x = 0; me.k.z = 0; me.k.h = 0;
@@ -107,9 +106,10 @@ test('PvP : interdit par défaut en Manche, autorisé quand les deux hissent le 
 test('économie : achats vérifiés côté serveur (niveau, fonds, port)', () => {
   const link = fakeLink('Marchand', 4);
   const z = ZONE_BY_ID['manche-1'];
-  link.docked = false;
-  assert.match(shop(link, z, { a: 'buyShip', ship: 'cygne' }, 0)!, /amarré/);
-  link.docked = true;
+  // Plus d'accostage : on achète en mer, mais il faut un port sur la carte.
+  link.port = null;
+  assert.match(shop(link, z, { a: 'buyShip', ship: 'cygne' }, 0)!, /port/);
+  link.port = 'brest';
   assert.match(shop(link, z, { a: 'buyShip', ship: 'cygne' }, 0)!, /niveau/);
   link.profile.xp = 5000;
   link.profile.or = 10;
@@ -353,7 +353,7 @@ test('tutoriel : les étapes se valident dans l\'ordre et rapportent leur récom
   const link = fakeLink('Novice', 61);
   link.profile.tutorial = 0;
   const or0 = link.profile.or;
-  tutorialEvent(link, 'move'); // pas encore : il faut d'abord prendre la mer
+  tutorialEvent(link, 'kill'); // pas encore : il faut d'abord naviguer
   assert.equal(link.profile.tutorial, 0);
   for (const st of TUTORIAL) tutorialEvent(link, st.kind);
   assert.equal(link.profile.tutorial, TUTORIAL.length);
@@ -364,4 +364,20 @@ test('tutoriel : les étapes se valident dans l\'ordre et rapportent leur récom
   delete old.tutorial;
   assert.equal(sanitizeProfile(old as typeof link.profile, 'Novice').tutorial, TUTORIAL.length);
   assert.equal(sanitizeProfile(newProfile('Nouveau'), 'Nouveau').tutorial, 0);
+});
+
+test('sans port : on démarre en mer immobile, et un navire coulé est renfloué en mer', () => {
+  const zone = new Zone(ZONE_BY_ID['manche-1'], { relation: () => 'neutral' });
+  const link = fakeLink('Naufrage', 71);
+  zone.addPlayer(link);
+  assert.equal(link.docked, false);
+  const me = zone.ships.get(link.entityId)!;
+  assert.equal(link.input.sail, 0, 'le navire attend les ordres');
+  zone.damage(me, me.stats.hp * 50, 0, 'rond', null, false);
+  assert.ok(me.sinking >= 0);
+  for (let i = 0; i < 20 * 40 && link.deadTimer > 0; i++) zone.tick(0.05);
+  const again = zone.ships.get(link.entityId)!;
+  assert.ok(again && again.sinking < 0, 'navire renfloué');
+  assert.equal(link.docked, false, 'toujours en mer, pas au port');
+  assert.equal(again.hp, again.stats.hp);
 });

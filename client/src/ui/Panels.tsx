@@ -323,6 +323,7 @@ export function Settings() {
               <option value="moyenne">Moyenne</option>
               <option value="basse">Basse</option>
             </select></label>
+          <label className="opt"><span><b>Luminosité</b><small> — éclaircit ou assombrit la mer et le ciel</small></span><input type="range" min={0.6} max={2.2} step={0.05} value={s.brightness ?? 1.3} onChange={(e) => set({ brightness: Number(e.target.value) })} /></label>
           <label className="opt"><span><b>Volume</b></span><input type="range" min={0} max={1} step={0.05} value={s.volume} onChange={(e) => set({ volume: Number(e.target.value) })} /></label>
           <label className="check opt"><input type="checkbox" checked={s.muted} onChange={(e) => set({ muted: e.target.checked })} /><span><b>Couper le son</b></span></label>
           <label className="check opt"><input type="checkbox" checked={s.labels} onChange={(e) => set({ labels: e.target.checked })} /><span><b>Noms au-dessus des navires</b></span></label>
@@ -363,7 +364,7 @@ export function Help() {
         <h4>Équipement</h4>
         <p>Au port, onglet Équipement : installez canons de 30, 50 et 60 livres et mâts dans la limite de capacité du navire. Ils s'achètent à l'Arsenal (or, perles, diamants) et se trouvent dans le butin des PNJ.</p>
         <h4>Ports</h4>
-        <p>Approchez-vous d'un quai et appuyez sur <kbd>P</kbd> pour accoster : réparations, chantier naval, arsenal, améliorations, marché, missions et voyages vers d'autres mers. Les ports sont des zones protégées, défendues par des forts.</p>
+        <p>Le bouton <b>Port</b> (en haut, ou touche <kbd>P</kbd>) ouvre le port où que vous soyez en mer : réparations (hors combat), chantier naval, arsenal, améliorations, marché, missions et voyages vers d'autres mers. Les abords des ports restent des zones protégées, défendues par des forts. Un navire coulé est renfloué devant le port le plus proche.</p>
         <h4>Multijoueur</h4>
         <p>Les autres capitaines sont de vrais joueurs. Les PNJ portent toujours la mention « PNJ ». En Manche et en Atlantique, le PvP se fait sur consentement : hissez le pavillon rouge (<kbd>B</kbd>). Dans le Golfe de Gascogne, les Caraïbes, l'océan Indien et la Mer des Brumes, le PvP est libre hors des ports. Guildes, alliances, guerres et groupes : touche <kbd>U</kbd>.</p>
         <h4>Événements</h4>

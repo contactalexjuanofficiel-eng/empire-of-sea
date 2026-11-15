@@ -3,6 +3,7 @@ import { Create } from './Create';
 import { BossBar, Chat, Hints, Notices, SeaPrompts } from './Hud';
 import { BottomDock, Journal, MapBlock, Rulers, SideTabs, TargetCard, TopNav, TutorialBox } from './Hud2';
 import { Login } from './Login';
+import { ConfirmBox } from './common';
 import { Help, Inventory, GuildPanel, Leaderboard, ProfilePanel, Settings, WorldMap } from './Panels';
 import { PortPanel } from './Port';
 import { BonusPanel, CaptainsPanel, EventPanel, MissionsPanel, ShopPanel } from './Panels2';
@@ -37,7 +38,8 @@ export function App() {
       )}
       {chatOpen && <Chat />}
       <Notices />
-      {panel === 'port' && docked && <PortPanel />}
+      <ConfirmBox />
+      {panel === 'port' && <PortPanel />}
       {panel === 'inventaire' && <Inventory />}
       {panel === 'profil' && <ProfilePanel />}
       {panel === 'classement' && <Leaderboard />}

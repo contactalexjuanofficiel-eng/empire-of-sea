@@ -26,6 +26,7 @@ export function Create() {
           <>
             <p className="lead">Capitaine <b>{name}</b>, l'Amirauté vous confie votre première commission. Choisissez vos armes et vos couleurs.</p>
             <h3>Blason</h3>
+            <p className="muted small">Votre emblème : il s'affiche à côté de votre nom (profil, classements).</p>
             <div className="portraits">
               {PORTRAITS.map((p, i) => (
                 <button key={i} className={`portrait ${portrait === i ? 'on' : ''}`} onClick={() => setPortrait(i)} title={PORTRAIT_NAMES[i]}>
@@ -35,6 +36,7 @@ export function Create() {
             </div>
             <p className="muted center">{PORTRAIT_NAMES[portrait]}</p>
             <h3>Pavillon</h3>
+            <p className="muted small">Le drapeau qui flotte en haut du mât de tous vos navires : les autres capitaines le voient en mer.</p>
             <div className="flags">
               {FLAGS.map((f) => (
                 <button key={f.id} className={`flagopt ${flag === f.id ? 'on' : ''}`} onClick={() => setFlag(f.id)}>
@@ -49,6 +51,7 @@ export function Create() {
         )}
         {step === 1 && (
           <>
+            <p className="muted small">Votre premier navire, offert par l'Amirauté. Vous en commanderez d'autres plus tard (plus gros, plus puissants) au chantier naval.</p>
             <div className="starter-list">
               {STARTER_SHIPS.map((id) => {
                 const s = SHIP_BY_ID[id];

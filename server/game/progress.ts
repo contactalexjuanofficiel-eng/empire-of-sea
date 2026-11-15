@@ -58,6 +58,7 @@ export function onNpcKill(link: PlayerLink, s: ShipEnt) {
 }
 
 export function onLoot(link: PlayerLink, kind: string) {
+  tutorialEvent(link, 'loot');
   if (kind === 'coffre' || kind === 'tresor') dailyProgress(link, 'tresors', 1);
 }
 

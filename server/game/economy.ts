@@ -26,8 +26,8 @@ export function portPrices(zone: ZoneDef, portId: string, t: number, commerce: n
 /** Applique un achat. Retourne un message d'erreur, ou null si tout s'est bien passé. */
 export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: number, ownerTag: string | null = null): string | null {
   // Ces actions sont possibles en mer ; les autres demandent d'être à quai.
-  const anywhere = ['buyItem', 'useSkin', 'assign', 'recruit', 'eliteShip', 'buyAmmo', 'claimRank'];
-  if (!anywhere.includes(act.a) && (!link.docked || !link.port)) return 'Vous devez être amarré au port.';
+  // Plus d'accostage : tout se fait en mer, avec les prix et commandes du port de la carte.
+  if (!link.port) return 'Aucun port sur cette carte.';
   const p = link.profile;
   const lvl = playerLevel(p);
 

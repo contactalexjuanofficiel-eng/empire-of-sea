@@ -1,5 +1,6 @@
 // Éléments d'interface communs : icônes vectorielles originales, cadres, prix, jauges.
 import { ROLES, shipRole, type ShipDef } from '../../../shared/ships';
+import { store, useStore } from '../store';
 import type { ReactNode } from 'react';
 import { fmt } from '../../../shared/math';
 import type { Game } from '../game/Game';
@@ -27,7 +28,7 @@ const ICONS: Record<string, ReactNode> = {
   coffre: <>{P('M3 10h18v9H3zM3 10c0-3 3-5 9-5s9 2 9 5M11 12h2v3h-2z')}</>,
   crane: <><circle cx="12" cy="10" r="6" /><circle cx="10" cy="10" r="1.3" /><circle cx="14" cy="10" r="1.3" />{P('M10 16v3h4v-3M5 20l14-4M5 16l14 4')}</>,
   drapeau: <>{P('M5 21V3M5 4h12l-2 4 2 4H5')}</>,
-  reglages: <><circle cx="12" cy="12" r="3" />{P('M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2')}</>,
+  reglages: <><circle cx="12" cy="12" r="3" />{P('M10.3 2.6h3.4l.5 2.6 1.9.8 2.2-1.5 2.4 2.4-1.5 2.2.8 1.9 2.6.5v3.4l-2.6.5-.8 1.9 1.5 2.2-2.4 2.4-2.2-1.5-1.9.8-.5 2.6h-3.4l-.5-2.6-1.9-.8-2.2 1.5-2.4-2.4 1.5-2.2-.8-1.9-2.6-.5v-3.4l2.6-.5.8-1.9-1.5-2.2 2.4-2.4 2.2 1.5 1.9-.8z')}</>,
   trophee: <>{P('M8 3h8v6a4 4 0 0 1-8 0zM8 5H4c0 3 2 5 4 5M16 5h4c0 3-2 5-4 5M12 13v4M8 21h8M9 17h6')}</>,
   guilde: <>{P('M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z')}{P('M9 12l2 2 4-4')}</>,
   parchemin: <>{P('M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M9 9h7M9 13h7M9 17h4')}</>,
@@ -95,4 +96,22 @@ export function RoleBadge({ def }: { def: ShipDef }) {
   if (def.look.monster) return null;
   const r = ROLES[shipRole(def)];
   return <span className="role-badge" style={{ borderColor: r.color, color: r.color }} title={r.desc}>{r.name} · {r.short}</span>;
+}
+
+/** Fenêtre de confirmation du jeu (Oui / Non), à la place de la boîte du navigateur. */
+export function ConfirmBox() {
+  const c = useStore((s) => s.confirm);
+  if (!c) return null;
+  const close = () => store.set({ confirm: null });
+  return (
+    <div className="confirm-veil" onClick={close}>
+      <div className="confirm-box" onClick={(e) => e.stopPropagation()}>
+        <p>{c.text}</p>
+        <div className="row">
+          <button className="btn" onClick={close}>Non</button>
+          <button className="btn-gold" onClick={() => { close(); c.ok(); }}>Oui</button>
+        </div>
+      </div>
+    </div>
+  );
 }
