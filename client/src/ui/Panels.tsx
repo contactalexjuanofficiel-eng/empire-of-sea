@@ -370,6 +370,8 @@ export function Help() {
         <h4>Événements</h4>
         <p>Régulièrement, « Le Spectre des Brumes » surgit dans chaque mer : un boss à affronter à plusieurs, récompenses partagées selon les dégâts. Les épaves cachent des coffres, les repaires pirates peuvent être réduits au silence.</p>
       </div>
-    </Frame>
+          <h3>Crédits</h3>
+        <p className="small muted">Modèle 3D « Red Pirate Ship » par M.Umeyr (sketchfab.com/Lymite), licence Creative Commons Attribution 4.0 — adapté (allégé, mis à l'échelle) pour Empire Of Sea.</p>
+</Frame>
   );
 }

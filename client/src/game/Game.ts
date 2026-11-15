@@ -276,9 +276,9 @@ export class Game {
   private onMessage(m: S2C) {
     switch (m.t) {
       case 'need_create':
-        // Nouveau capitaine : pas d'écran de création, on part directement en mer sur La Bayonnaise.
+        // Nouveau capitaine : pas d'écran de création, on part directement en mer sur Le Corsaire.
         store.set({ screen: 'loading', name: m.name });
-        this.sendCreate(0, 'tricolore', 'bayonnaise');
+        this.sendCreate(0, 'tricolore', 'corsaire');
         break;
       case 'welcome':
         this.clearEntities();

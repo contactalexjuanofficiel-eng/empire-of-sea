@@ -124,7 +124,7 @@ export function createCharacter(p: Profile, portrait: number, flag: FlagChoice, 
   p.created = true;
   p.portrait = Math.max(0, Math.min(7, Math.floor(portrait) || 0));
   p.flag = (['royal', 'tricolore', 'imperial'] as const).includes(flag) ? flag : 'royal';
-  const s = giveShip(p, ['bayonnaise', 'mutine', 'saint_michel'].includes(ship) ? ship : 'bayonnaise');
+  const s = giveShip(p, ['corsaire', 'bayonnaise', 'mutine', 'saint_michel'].includes(ship) ? ship : 'corsaire');
   p.active = s.uid;
 }
 
