@@ -146,7 +146,7 @@ La région de chaque carte s'affiche dans l'écran Cartes (bande de couleur sous
   sur une carte de guerre (rotation). Pendant 15 minutes : combat libre pour tous hors des ports,
   10 points par capitaine coulé, 1 par navire PNJ. La guilde gagnante prend le contrôle de la carte
   et ses membres connectés reçoivent 20 000 or, 5 perles et 4 000 XP.
-- **Territoires** : chaque carte contrôlée rapporte 250 × étage d'or toutes les 10 minutes aux membres connectés.
+- **Territoires** : chaque carte contrôlée rapporte 250 × étage d'or toutes les 10 minutes aux membres connectés ; le contrôle des cartes est enregistré en base (il survit au redémarrage du serveur).
 - **Repaire de guilde** : réparations gratuites dans les ports d'une carte contrôlée par sa guilde.
 - On prend aussi une carte en abattant son boss (meilleur dégât de la guilde).
 

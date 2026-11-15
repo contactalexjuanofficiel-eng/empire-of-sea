@@ -327,7 +327,8 @@ test('escadre et raid : suivre le chef en formation, bonus d\'escadre, combat li
 test('raid de guilde : les points vont aux guildes, la gagnante prend la carte ; un territoire rapporte de l\'or', async () => {
   const { Hub } = await import('../server/Hub.ts');
   const { openStore } = await import('../server/db.ts');
-  const hub = new Hub(openStore(':memory:'));
+  const store = openStore(':memory:');
+  const hub = new Hub(store);
   const zid = 'manche-2';
   hub.forceRaid(zid);
   const z = hub.zones.get(zid)!;
@@ -342,6 +343,8 @@ test('raid de guilde : les points vont aux guildes, la gagnante prend la carte ;
   hub.finishRaid();
   assert.equal(z.raidActive, false);
   assert.equal(hub.owners.get(zid), 'ROI');
+  // Le territoire est enregistré : un serveur redémarré le retrouve.
+  assert.equal(new Hub(store).owners.get(zid), 'ROI');
 });
 
 test('tutoriel : les étapes se valident dans l\'ordre et rapportent leur récompense', async () => {

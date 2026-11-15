@@ -68,11 +68,17 @@ export class Hub {
         onConquest: (z, l) => {
           const tag = this.guilds.of(l.name)?.tag ?? null;
           if (!tag) return;
-          this.owners.set(z.def.id, tag);
+          this.setOwner(z.def.id, tag);
           this.systemAll(`La guilde [${tag}] prend le contrôle de la carte ${z.def.code} (${z.def.name}) !`);
         },
       }));
     }
+    this.loadTerritories();
+  }
+
+  /** Territoires enregistrés (appelé à la construction). */
+  private loadTerritories() {
+    for (const [zone, tag] of Object.entries(this.store.loadTerritories())) if (this.zones.has(zone)) this.owners.set(zone, tag);
   }
 
   start() {
@@ -437,7 +443,7 @@ export class Hub {
     const best = [...r.scores].sort((a, b) => b[1] - a[1])[0];
     if (!best) { this.systemAll(`Le raid sur ${zone.def.code} se termine sans vainqueur.`); return; }
     const [tag] = best;
-    this.owners.set(r.zone, tag);
+    this.setOwner(r.zone, tag);
     this.systemAll(`🏆 La guilde [${tag}] remporte le raid et prend le contrôle de la carte ${zone.def.code} (${zone.def.name}) !`);
     for (const s of this.sessions.values()) if (s.guildTag === tag) grant(s, { or: RAID_REWARD.or, perles: RAID_REWARD.perles, xp: RAID_REWARD.xp }, 'Victoire de guilde au raid');
   }
@@ -463,6 +469,12 @@ export class Hub {
       if (!def) continue;
       for (const s of this.sessions.values()) if (s.guildTag === tag) grant(s, { or: territoryIncome(def.tier) }, `Revenus du territoire ${def.code}`);
     }
+  }
+
+  /** Change le propriétaire d'une carte et l'enregistre (les territoires survivent au redémarrage du serveur). */
+  setOwner(zoneId: string, tag: string | null) {
+    if (tag) this.owners.set(zoneId, tag); else this.owners.delete(zoneId);
+    this.store.saveTerritory(zoneId, tag);
   }
 
   private tierProgress(z: Zone, s: Session) {

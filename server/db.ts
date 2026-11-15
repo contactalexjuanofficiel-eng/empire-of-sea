@@ -21,6 +21,9 @@ export interface Store {
   loadGuilds(): GuildRow[];
   saveGuild(g: GuildRow): void;
   deleteGuild(id: string): void;
+  /** Territoires : guilde (tag) qui contrôle chaque carte. */
+  loadTerritories(): Record<string, string>;
+  saveTerritory(zoneId: string, tag: string | null): void;
   close(): void;
 }
 
@@ -52,6 +55,11 @@ export function openStore(file: string): Store {
       id TEXT PRIMARY KEY,
       data TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS territories (
+      zone TEXT PRIMARY KEY,
+      tag TEXT NOT NULL,
+      since INTEGER NOT NULL
+    );
   `);
   const q = {
     findAccount: db.prepare('SELECT id, name, salt, hash FROM accounts WHERE name = ?'),
@@ -67,6 +75,9 @@ export function openStore(file: string): Store {
     loadGuilds: db.prepare('SELECT data FROM guilds'),
     saveGuild: db.prepare('INSERT INTO guilds (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data'),
     deleteGuild: db.prepare('DELETE FROM guilds WHERE id = ?'),
+    loadTerritories: db.prepare('SELECT zone, tag FROM territories'),
+    saveTerritory: db.prepare('INSERT INTO territories (zone, tag, since) VALUES (?, ?, ?) ON CONFLICT(zone) DO UPDATE SET tag = excluded.tag, since = excluded.since'),
+    deleteTerritory: db.prepare('DELETE FROM territories WHERE zone = ?'),
   };
   q.purge.run(Date.now());
   return {
@@ -92,6 +103,8 @@ export function openStore(file: string): Store {
     }),
     saveGuild: (g) => { q.saveGuild.run(g.id, JSON.stringify(g)); },
     deleteGuild: (id) => { q.deleteGuild.run(id); },
+    loadTerritories: () => Object.fromEntries((q.loadTerritories.all() as { zone: string; tag: string }[]).map((r) => [r.zone, r.tag])),
+    saveTerritory: (zone, tag) => { if (tag) q.saveTerritory.run(zone, tag, Date.now()); else q.deleteTerritory.run(zone); },
     close: () => db.close(),
   };
 }
