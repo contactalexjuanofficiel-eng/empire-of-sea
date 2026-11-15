@@ -7,7 +7,7 @@ import { fmt } from '../../../shared/math';
 import { levelFromXp, rankOf, reputationName, RANKS } from '../../../shared/progression';
 import type { LeaderEntry } from '../../../shared/protocol';
 import { computeStats, RARITY_COLOR, SHIP_BY_ID, SHIP_CLASSES } from '../../../shared/ships';
-import { FACTION_LABEL, MAX_TIER, MODERN_ZONES, tierRequirement, ZONES, ZONE_BY_ID } from '../../../shared/zones';
+import { FACTION_LABEL, MAX_TIER, tierRequirement, ZONES, ZONE_BY_ID } from '../../../shared/zones';
 import { saveSettings, store, useStore } from '../store';
 import { EQUIP_NAME, EQUIP_ORDER } from '../../../shared/equipment';
 import { shipBonus } from '../../../shared/extras';
@@ -249,21 +249,6 @@ export function WorldMap() {
               })}
             </div>
           ))}
-          <div className="map-era">Ère moderne — Marine nationale</div>
-          <div className="map-row">
-            {MODERN_ZONES.map((m) => {
-              const locked = lvl < Math.max(1, m.levels[0] - 1);
-              const inf = info(m.id);
-              return (
-                <button key={m.id} className={`map-cell modern ${locked ? 'locked' : 'open'} ${m.id === zone ? 'here' : ''} ${m.id === sel ? 'sel' : ''}`} onClick={() => setSel(m.id)}>
-                  <span className="mc-code">{m.code}</span>
-                  {m.id === zone && <span className="mc-here"><Icon name="profil" size={16} /></span>}
-                  {!!inf?.players && <span className="mc-pl">{inf.players}</span>}
-                  {locked && <span className="mc-lock">🔒</span>}
-                </button>
-              );
-            })}
-          </div>
         </div>
         <div className="wm-info">
           <h3>Carte {z.code} — {z.name}</h3>
@@ -284,10 +269,7 @@ export function WorldMap() {
           <div className="kv"><span>Ennemis</span><b>{enemies.map((f) => FACTION_LABEL[f]).join(', ')}</b></div>
           <div className="kv"><span>Récompenses</span><b>× {z.rewardMul.toFixed(2).replace('.', ',')}</b></div>
           <div className="kv"><span>Contrôlée par</span><b>{info(z.id)?.owner ? `[${info(z.id)!.owner}]` : 'Personne (vainquez le boss !)'}</b></div>
-          {z.era === 'moderne' && <p className="muted small">Carte de l'ère moderne : vous y naviguez avec un navire moderne (une vedette rapide est offerte au premier passage). Votre navire d'époque vous attend au retour.</p>}
-          {z.id === zone ? <p className="ok">Vous êtes sur cette carte.</p> : z.era === 'moderne' && lvl < Math.max(1, z.levels[0] - 1) ? (
-            <p className="war">Niveau {z.levels[0] - 1} requis.</p>
-          ) : z.era !== 'moderne' && z.tier > p.tier ? (
+          {z.id === zone ? <p className="ok">Vous êtes sur cette carte.</p> : z.tier > p.tier ? (
             <p className="war">Verrouillée : accomplissez d'abord la mission de passage.</p>
           ) : (
             <button className="btn-gold big" onClick={() => send({ t: 'travel', zone: z.id })}>Aller sur la carte {z.code}</button>

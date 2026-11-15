@@ -107,6 +107,8 @@ export function sanitizeProfile(raw: Profile, name: string): Profile {
   if (!ZONE_BY_ID[p.zone].ports.some((x) => x.id === p.port)) p.port = ZONE_BY_ID[p.zone].ports[0].id;
   if (p.created && !p.ships.length) giveShip(p, 'bayonnaise');
   if (!p.ships.some((s) => s.uid === p.active)) p.active = p.ships[0]?.uid ?? '';
+  // Les cartes modernes ont été retirées : un capitaine resté sur un navire moderne reprend son navire d'époque.
+  if (SHIP_BY_ID[activeShip(p)?.def ?? '']?.era === 'moderne') switchEra(p, false);
   for (const k of AMMO_ORDER) p.ammo[k] = Math.max(0, Math.floor(p.ammo[k] || 0));
   for (const k of CONSUMABLE_ORDER) p.items[k] = Math.max(0, Math.floor(p.items[k] || 0));
   p.missions = Array.isArray(raw.missions) ? raw.missions.slice(0, 3) : [];

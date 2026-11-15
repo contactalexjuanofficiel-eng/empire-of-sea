@@ -8,10 +8,9 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { MODERN_CATEGORIES } from '../../../shared/modern';
 import { levelFromXp } from '../../../shared/progression';
 import { computeStats, MODERN_PLAYER_SHIPS, RARITY_COLOR, RARITY_LABEL, SHIP_BY_ID, SHIP_CLASSES } from '../../../shared/ships';
-import { ZONE_BY_ID } from '../../../shared/zones';
 import { makeShipModel, type AnyShipModel } from '../game/render/factory';
 import { store, useStore } from '../store';
-import { Frame, Price, send, StatBar, RoleBadge } from './common';
+import { Frame, StatBar, RoleBadge } from './common';
 
 const close = () => store.set((s) => ({ panel: s.docked ? 'port' : null }));
 
@@ -103,13 +102,10 @@ export function ShipViewer({ shipId, onModel }: { shipId: string; onModel?: (m: 
 
 export function FleetPanel() {
   const p = useStore((s) => s.profile)!;
-  const docked = useStore((s) => s.docked);
-  const zone = ZONE_BY_ID[useStore((s) => s.zone)];
   const [sel, setSel] = useState(MODERN_PLAYER_SHIPS[0].id);
   const model = useRef<AnyShipModel | null>(null);
   const def = SHIP_BY_ID[sel];
   const st = computeStats(def);
-  const owned = p.ships.find((s) => s.def === def.id);
   const lvl = levelFromXp(p.xp).level;
   const cls = SHIP_CLASSES[def.cls];
   const exportGlb = () => {
@@ -157,16 +153,7 @@ export function FleetPanel() {
           <StatBar label="Puissance de feu" value={st.broadside} max={MAX.fire} fmtValue={`${Math.round(st.broadside)}`} />
           <StatBar label="Chargement" value={st.cargo} max={MAX.cargo} fmtValue={`${st.cargo} t`} />
           <div className="sd-actions">
-            {owned ? (
-              owned.uid === p.active ? <span className="ok">Navire actif</span>
-                : zone?.era === 'moderne' ? <button className="btn-gold big" disabled={!docked} onClick={() => send({ t: 'shop', a: 'selectShip', uid: owned.uid })}>Sélectionner</button>
-                : <span className="muted small">Utilisable sur les cartes de l'ère moderne (M1 à M5)</span>
-            ) : (
-              <>
-                <Price p={def.price} />
-                <button className="btn-gold big" disabled={!docked || lvl < def.level} onClick={() => send({ t: 'shop', a: 'buyShip', ship: def.id })}>{!docked ? 'Achat au port' : lvl < def.level ? `Niveau ${def.level} requis` : 'Acheter'}</button>
-              </>
-            )}
+            <span className="muted small">Galerie 3D : les navires modernes ne sont pas jouables pour l'instant.</span>
             <button className="btn" onClick={exportGlb} title="Télécharger le modèle 3D au format standard GLB">Exporter en GLB</button>
           </div>
         </div>

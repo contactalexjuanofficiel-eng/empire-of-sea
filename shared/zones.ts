@@ -40,8 +40,6 @@ export interface ZoneDef {
   rewardMul: number;
   /** Carte bonus (ouverte le dimanche) : boss qui surgit après un nombre de navires coulés. */
   bonus?: BonusDef;
-  /** Ère moderne : navires modernes uniquement. */
-  era?: 'moderne';
   /** Grande région maritime (ennemis, boss et ressource propres). */
   region?: RegionId;
   name: string;
@@ -373,35 +371,8 @@ export function isBonusDay(now = new Date()) {
   return now.toLocaleString('en-US', { timeZone: 'Europe/Paris', weekday: 'short' }) === 'Sun';
 }
 
-/** Ère moderne « Marine nationale » : cinq cartes où naviguent les 25 navires modernes. */
-const modern = (base: number, id: string, code: string, name: string, levels: [number, number], desc: string, ports: PortDef[], enemies: EnemySpawn[], seed: number): ZoneDef => ({
-  ...SEAS[base], id, sea: SEAS[base].id, tier: 0, variant: 1, code, rewardMul: 1.2, seed, era: 'moderne',
-  name, levels, desc, pvp: 'consentement', ports, enemies, npcCount: 20, pirateForts: 0, wrecks: 4, boss: false,
-});
-export const MODERN_ZONES: ZoneDef[] = [
-  modern(0, 'moderne-brest', 'M1', 'Rade de Brest', [1, 8], 'La plus grande base navale de l\'Atlantique. Des trafiquants en go-fast et des chalutiers pirates rôdent à l\'entrée du goulet.', [
-    { id: 'base_brest', name: 'Base navale de Brest', x: -2400, z: 2200, r: 330, main: true, produces: ['armes', 'toile'], demands: ['vin', 'cafe'] },
-    { id: 'le_conquet', name: 'Le Conquet', x: 2300, z: -2200, r: 280, produces: ['sel', 'bois'], demands: ['sucre', 'soie'] },
-  ], [{ ship: 'm_go_fast', faction: 'pirate', level: 2, weight: 5 }, { ship: 'm_chalutier_pirate', faction: 'pirate', level: 4, weight: 3 }], 4401),
-  modern(1, 'moderne-pertuis', 'M2', 'Pertuis charentais', [6, 14], 'Entre l\'île de Ré et Oléron, les contrebandiers se cachent dans les pertuis. Des patrouilleurs rebelles les escortent.', [
-    { id: 'la_pallice', name: 'La Pallice', x: 2400, z: 2400, r: 320, main: true, produces: ['sel', 'vin'], demands: ['armes', 'cafe'] },
-    { id: 'royan', name: 'Royan', x: -2300, z: -2300, r: 290, produces: ['vin'], demands: ['toile', 'epices'] },
-  ], [{ ship: 'm_go_fast', faction: 'pirate', level: 6, weight: 4 }, { ship: 'm_chalutier_pirate', faction: 'pirate', level: 8, weight: 3 }, { ship: 'm_patrouilleur_rebelle', faction: 'pirate', level: 10, weight: 2 }], 4402),
-  modern(3, 'moderne-toulon', 'M3', 'Rade de Toulon', [12, 20], 'Le port de guerre de la Méditerranée. Des patrouilleurs rebelles et des frégates hostiles croisent au large des îles d\'Hyères.', [
-    { id: 'base_toulon', name: 'Base navale de Toulon', x: -2200, z: 2400, r: 340, main: true, produces: ['armes'], demands: ['epices', 'soie'] },
-    { id: 'hyeres', name: 'Hyères', x: 2500, z: 2000, r: 300, produces: ['vin', 'sel'], demands: ['bois'] },
-  ], [{ ship: 'm_patrouilleur_rebelle', faction: 'pirate', level: 14, weight: 4 }, { ship: 'm_go_fast', faction: 'pirate', level: 12, weight: 3 }, { ship: 'm_fregate_hostile', faction: 'anglais', level: 18, weight: 1 }], 4403),
-  modern(4, 'moderne-antilles', 'M4', 'Antilles', [18, 28], 'Les eaux turquoise de la Martinique et de la Guadeloupe, sillonnées par les narcotrafiquants et leurs escortes armées.', [
-    { id: 'fort_de_france', name: 'Fort-de-France', x: -2600, z: 2600, r: 360, main: true, produces: ['rhum', 'sucre'], demands: ['armes', 'vin'] },
-    { id: 'pointe_a_pitre_m', name: 'Pointe-à-Pitre', x: 2800, z: 2000, r: 320, produces: ['cafe'], demands: ['sel', 'bois'] },
-  ], [{ ship: 'm_fregate_hostile', faction: 'anglais', level: 22, weight: 3 }, { ship: 'm_patrouilleur_rebelle', faction: 'pirate', level: 20, weight: 4 }, { ship: 'm_go_fast', faction: 'pirate', level: 18, weight: 3 }], 4404),
-  modern(5, 'moderne-reunion', 'M5', 'La Réunion', [26, 40], 'L\'océan Indien, ses cyclones et ses flottes hostiles. On raconte qu\'un kraken hante les fosses au large.', [
-    { id: 'le_port', name: 'Le Port', x: -2400, z: -2600, r: 350, main: true, produces: ['epices', 'sucre'], demands: ['armes', 'vin'] },
-    { id: 'dzaoudzi', name: 'Dzaoudzi', x: 2800, z: 2600, r: 320, produces: ['epices'], demands: ['toile', 'bois'] },
-  ], [{ ship: 'm_fregate_hostile', faction: 'anglais', level: 30, weight: 5 }, { ship: 'm_patrouilleur_rebelle', faction: 'pirate', level: 28, weight: 3 }, { ship: 'kraken', faction: 'monstre', level: 32, weight: 1 }], 4405),
-];
 
-export const ZONE_BY_ID: Record<string, ZoneDef> = Object.fromEntries([...ZONES, ...BONUS_ZONES, ...MODERN_ZONES].map((z) => [z.id, z]));
+export const ZONE_BY_ID: Record<string, ZoneDef> = Object.fromEntries([...ZONES, ...BONUS_ZONES].map((z) => [z.id, z]));
 export const START_ZONE = 'manche-1';
 export const MAX_TIER = MAP_SEAS.length;
 

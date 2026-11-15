@@ -8,13 +8,13 @@ import { levelFromXp } from '../shared/progression.ts';
 import { assignGrades, GRADES, rankPoints } from '../shared/ranks.ts';
 import { PROTOCOL_VERSION, TICK_RATE, type C2S, type ChatChannel, type GuildInfo, type LeaderEntry, type MissionOffer, type Profile, type S2C } from '../shared/protocol.ts';
 import { SHIP_BY_ID } from '../shared/ships.ts';
-import { MODERN_ZONES, BONUS_ZONES, isBonusDay, MAX_TIER, START_ZONE, tierRequirement, ZONE_BY_ID, ZONES } from '../shared/zones.ts';
+import { BONUS_ZONES, isBonusDay, MAX_TIER, START_ZONE, tierRequirement, ZONE_BY_ID, ZONES } from '../shared/zones.ts';
 import type { Store } from './db.ts';
 import { acceptMission, portPrices, shop } from './game/economy.ts';
 import { dailyAbandon, dailyStart } from './game/progress.ts';
 import { missionOffers } from './game/missions.ts';
 import { allocId, DAY_SECONDS, Zone } from './game/Zone.ts';
-import { activeShip, createCharacter, newProfile, playerLevel, sanitizeProfile, switchEra } from './profile.ts';
+import { activeShip, createCharacter, newProfile, playerLevel, sanitizeProfile } from './profile.ts';
 import { GUILD_COST, Guilds } from './social/guilds.ts';
 import type { PlayerLink } from './types.ts';
 
@@ -52,7 +52,7 @@ export class Hub {
 
   constructor(private store: Store) {
     this.guilds = new Guilds(store);
-    for (const def of [...ZONES, ...BONUS_ZONES, ...MODERN_ZONES]) {
+    for (const def of [...ZONES, ...BONUS_ZONES]) {
       this.zones.set(def.id, new Zone(def, {
         relation: (a, b) => this.relation(a, b),
         broadcastChat: (text) => this.systemAll(text),
@@ -295,15 +295,9 @@ export class Hub {
           if (def.bonus.maxLevel && lvl > def.bonus.maxLevel) return err(`${def.name} est réservée aux capitaines de niveau ${def.bonus.maxLevel} au plus.`);
           if (def.bonus.rank === 'debutant' && Date.now() - s.lastHardBonus < 15 * 60 * 1000) return err('Vous sortez d\'une carte bonus plus dure : patientez 15 minutes.');
           if (def.bonus.rank !== 'debutant') s.lastHardBonus = Date.now();
-        } else if (def.era === 'moderne') {
-          if (playerLevel(s.profile) < Math.max(1, def.levels[0] - 1)) return err(`${def.name} : niveau ${def.levels[0] - 1} requis.`);
         } else if (def.tier > s.profile.tier) return err(`Carte ${def.code} verrouillée : accomplissez la mission de passage de l'étage ${s.profile.tier}.`);
         if (s.deadTimer > 0) return;
         if (ship && zone.time - ship.lastHit < 10) return err('Impossible de changer de carte en plein combat.');
-        if ((ZONE_BY_ID[s.zoneId]?.era === 'moderne') !== (def.era === 'moderne')) {
-          if (!switchEra(s.profile, def.era === 'moderne')) return err('Il vous faut un navire de cette époque.');
-          s.hpRatio = s.sailRatio = 1;
-        }
         const atSea = !s.docked && !!ship;
         zone.removePlayer(s);
         s.nav = null; s.targetId = 0; s.attacking = false;

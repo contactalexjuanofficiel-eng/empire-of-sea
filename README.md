@@ -130,12 +130,10 @@ en prend le contrôle (son blason s'affiche dans la grille des cartes). Les PNJ 
 
 La région de chaque carte s'affiche dans l'écran Cartes (bande de couleur sous chaque case).
 
-## Ère moderne : 25 navires de la Marine nationale
+## Navires modernes (galerie)
 
-Une époque à part, avec ses propres cartes **M1 à M5** (Rade de Brest, Pertuis charentais, Rade de Toulon, Antilles,
-La Réunion) et ses ennemis (go-fast, chalutiers pirates, patrouilleurs rebelles, frégates hostiles — tous « (PNJ) »).
-En entrant sur une carte moderne, on prend un navire moderne (une vedette rapide est offerte la première fois) ;
-le navire d'époque est retrouvé au retour.
+Les 25 navires de la Marine nationale restent visibles en 3D dans **Flotte moderne** (rotation, zoom, export GLB),
+mais ne sont pas jouables pour l'instant : les cartes modernes M1 à M5 ont été retirées.
 
 | Catégorie | Navires |
 |---|---|
