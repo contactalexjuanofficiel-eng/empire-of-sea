@@ -173,10 +173,12 @@ varying float vAge; varying float vSide; varying vec3 vW;
 float h(vec2 p){ return fract(sin(dot(p, vec2(12.99,78.23)))*43758.5); }
 float n(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),u.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),u.x),u.y); }
 void main(){
-  float edge = 1.0 - abs(vSide);
-  float foam = n(vW.xz * 0.9 + uTime * 0.3) * 0.55 + n(vW.xz * 3.1) * 0.45;
-  float core = smoothstep(0.0, 0.5, edge);
-  float a = (1.0 - vAge) * smoothstep(0.35, 0.8, foam + (1.0 - edge) * 0.35 * (1.0 - vAge)) * (0.4 + 0.6 * core);
+  float s = abs(vSide);
+  // Sillage en V : deux lignes d'écume sur les bords + remous au centre qui s'efface vite.
+  float edges = smoothstep(0.62, 0.86, s) * (1.0 - smoothstep(0.9, 1.0, s));
+  float center = (1.0 - smoothstep(0.0, 0.45, s)) * (1.0 - smoothstep(0.0, 0.35, vAge));
+  float foam = n(vW.xz * 1.8 + uTime * 0.4) * 0.6 + n(vW.xz * 5.3 - uTime * 0.2) * 0.4;
+  float a = (1.0 - vAge) * (edges * 0.9 + center * 0.7) * smoothstep(0.32, 0.7, foam);
   float d = length(vW - uCam);
   float f = 1.0 - exp(-uFogDensity * uFogDensity * d * d);
   gl_FragColor = vec4(mix(uTint, uFogColor, f), a * 0.55 * (1.0 - f));

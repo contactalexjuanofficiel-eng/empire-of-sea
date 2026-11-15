@@ -113,7 +113,7 @@ export class Game {
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.45, 0.5, 2.2);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.5, 0.5, 3.2);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
@@ -905,9 +905,11 @@ export class Game {
     const dist = clamp(Math.hypot(ax - p.x, az - p.z), 40, range);
     this.aim = { x: p.x + Math.sin(yaw) * dist, z: p.z + Math.cos(yaw) * dist, side, inArc, dist };
     const idx = side === 'babord' ? 0 : 1;
+    const lum = 0.15 + 0.85 * this.sky.daylight;
     const ready = this.me.reload[idx] <= 0.05;
     const col = !ready ? 0xd0402a : inArc ? 0xf0c25a : 0xb89a5a;
     (this.aimRing.material as THREE.MeshBasicMaterial).color.setHex(col);
+    (this.aimRing.material as THREE.MeshBasicMaterial).opacity = 0.45 + 0.4 * lum;
     (this.aimLine.material as THREE.LineDashedMaterial).color.setHex(col);
     this.aimRing.position.set(this.aim.x, waveHeight(this.aim.x, this.aim.z, this.t) + 0.6, this.aim.z);
     this.aimRing.scale.setScalar(1 + dist / 250);
@@ -931,10 +933,10 @@ export class Game {
       const aimed = (i === 0 ? 'babord' : 'tribord') === side && inArc;
       const ready = this.me.reload[i] <= 0.05;
       const fm = this.fanMats[i];
-      fm.opacity = (i === 0 ? 'babord' : 'tribord') === side ? 0.045 : 0;
+      fm.opacity = (i === 0 ? 'babord' : 'tribord') === side ? 0.035 * lum : 0;
       fm.color.setHex(ready ? 0xf0c25a : 0xd0402a);
       const lm = (this.fans.children[i * 2] as THREE.Mesh).userData.outline as THREE.LineBasicMaterial;
-      lm.opacity = aimed ? 0.75 : (i === 0 ? 'babord' : 'tribord') === side ? 0.45 : 0.15;
+      lm.opacity = (aimed ? 0.75 : (i === 0 ? 'babord' : 'tribord') === side ? 0.45 : 0.15) * (0.4 + 0.6 * lum);
       lm.color.setHex(ready ? 0xf0c25a : 0xd0402a);
     }
   }
