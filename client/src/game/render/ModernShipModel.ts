@@ -73,15 +73,15 @@ const tricolorTex = () => tex('tri', 256, 128, (g) => {
 });
 
 // ---------------------------------------------------------------- coque d'acier
-interface HullShape { L: number; B: number; draft: number; F: number; transom: number; vpow: number; flare: number; rake: number; sheer: number; knuckle?: boolean }
+export interface HullShape { L: number; B: number; draft: number; F: number; transom: number; vpow: number; flare: number; rake: number; sheer: number; knuckle?: boolean }
 
 export function hullHalfWidth(h: HullShape, t: number) {
   if (t < 0.55) return h.transom + (1 - h.transom) * Math.sin((t / 0.55) * Math.PI / 2);
   return Math.pow(Math.max(0, Math.cos(((t - 0.55) / 0.45) * Math.PI / 2)), 0.75);
 }
-const deckAt = (h: HullShape, t: number) => h.F * (1 + h.sheer * Math.pow(Math.max(0, (t - 0.55) / 0.45), 2));
+export const deckAt = (h: HullShape, t: number) => h.F * (1 + h.sheer * Math.pow(Math.max(0, (t - 0.55) / 0.45), 2));
 
-function buildSteelHull(h: HullShape, colHull: number, colBoot: number) {
+export function buildSteelHull(h: HullShape, colHull: number, colBoot: number) {
   const S = 44;
   const pos: number[] = [], col: number[] = [], idx: number[] = [];
   const cH = new THREE.Color(colHull), cAnti = new THREE.Color(0x7a2a22), cBoot = new THREE.Color(colBoot);

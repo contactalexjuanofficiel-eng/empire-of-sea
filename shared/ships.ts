@@ -80,6 +80,8 @@ export interface ShipDef {
   rig?: 'carre' | 'barque' | 'goelette' | 'dundee';
   noPorts?: boolean;
   modern?: ModernSpec;
+  /** Forme 3D régionale (jonque, galère, felouque, drakkar) au lieu du gréement européen. */
+  regional?: 'jonque' | 'galere' | 'felouque' | 'drakkar';
   /** Classe de combat imposée (sinon déduite de la classe de coque et des caractéristiques). */
   role?: ShipRole;
 }
@@ -174,16 +176,16 @@ export const SHIPS: ShipDef[] = [
   // Mers du Nord
   N({ id: 'corsaire_dunkerque', name: 'Corsaire de Dunkerque', cls: 'fregate', rarity: 'commun', level: 10, price: {}, canons: 32, mod: { speed: 1.08, hp: 0.95 }, look: { hull: 0x1c2430, stripe: 0xb8c4cc, trim: 0x8a9aa6, sail: 0xc8ccc8, flag: 'hollandais' }, history: '', npcOnly: true }),
   N({ id: 'baleinier_arme', name: 'Baleinier armé', cls: 'brick', rarity: 'commun', level: 8, price: {}, canons: 14, mod: { hp: 1.3, speed: 0.85 }, look: { hull: 0x4a3a2a, stripe: 0x2a2a2a, trim: 0x6a5a4a, sail: 0xb0a890, flag: 'anglais' }, history: '', npcOnly: true }),
-  N({ id: 'jarl_glaces', name: 'Le Jarl des Glaces', cls: 'trois_ponts', rarity: 'legendaire', level: 30, price: {}, canons: 110, mod: { hp: 6.5, speed: 0.8, reload: 0.85 }, look: { hull: 0xd8e6ee, stripe: 0x5a7a9a, trim: 0x9fe0ff, sail: 0xe8f4ff, flag: 'aucun', glow: 0x9fe0ff }, history: 'Un vaisseau pris dans les glaces depuis un siècle, qui dérive avec les icebergs.', npcOnly: true }),
+  N({ id: 'jarl_glaces', name: 'Le Jarl des Glaces', cls: 'trois_ponts', regional: 'drakkar', size: { L: 62, B: 11 }, rarity: 'legendaire', level: 30, price: {}, canons: 110, mod: { hp: 6.5, speed: 0.8, reload: 0.85 }, look: { hull: 0xd8e6ee, stripe: 0x5a7a9a, trim: 0x9fe0ff, sail: 0xe8f4ff, flag: 'aucun', glow: 0x9fe0ff }, history: 'Un vaisseau pris dans les glaces depuis un siècle, qui dérive avec les icebergs.', npcOnly: true }),
   // Méditerranée et Mer Égée
-  N({ id: 'galere_barbaresque', name: 'Galère barbaresque', cls: 'brick', rarity: 'commun', level: 9, price: {}, canons: 12, mod: { speed: 1.12, turn: 1.2, hp: 0.85 }, look: { hull: 0x5a2a1a, stripe: 0xc8a040, trim: 0xd4a83a, sail: 0xe0d0b0, flag: 'barbaresque' }, history: '', npcOnly: true }),
-  N({ id: 'felouque', name: 'Felouque des îles', cls: 'corvette', rarity: 'commun', level: 7, price: {}, canons: 10, mod: { speed: 1.18, hp: 0.7 }, look: { hull: 0xd8c8a8, stripe: 0x2a5a8a, trim: 0x2a5a8a, sail: 0xf0e8d8, flag: 'barbaresque' }, history: '', npcOnly: true }),
+  N({ id: 'galere_barbaresque', name: 'Galère barbaresque', cls: 'brick', regional: 'galere', size: { L: 44, B: 7 }, rarity: 'commun', level: 9, price: {}, canons: 12, mod: { speed: 1.12, turn: 1.2, hp: 0.85 }, look: { hull: 0x5a2a1a, stripe: 0xc8a040, trim: 0xd4a83a, sail: 0xe0d0b0, flag: 'barbaresque' }, history: '', npcOnly: true }),
+  N({ id: 'felouque', name: 'Felouque des îles', cls: 'corvette', regional: 'felouque', size: { L: 24, B: 5.5 }, rarity: 'commun', level: 7, price: {}, canons: 10, mod: { speed: 1.18, hp: 0.7 }, look: { hull: 0xd8c8a8, stripe: 0x2a5a8a, trim: 0x2a5a8a, sail: 0xf0e8d8, flag: 'barbaresque' }, history: '', npcOnly: true }),
   N({ id: 'colosse_bronze', name: 'Le Colosse de Bronze', cls: 'amiral', rarity: 'legendaire', level: 32, price: {}, canons: 120, mod: { hp: 5.5, speed: 0.75, reload: 0.85, range: 1.1 }, look: { hull: 0x6a4a20, stripe: 0xc88a30, trim: 0xffb84a, sail: 0xc8a060, flag: 'barbaresque', glow: 0xff9a3a }, history: 'Un vaisseau cuirassé de bronze, dit-on forgé avec le métal d\'une antique statue.', npcOnly: true }),
   // Amériques
   N({ id: 'boucanier', name: 'Brigantin boucanier', cls: 'brick', rarity: 'commun', level: 12, price: {}, canons: 18, mod: { speed: 1.06 }, look: { hull: 0x2a1a10, stripe: 0x8a1d1d, trim: 0xb8892b, sail: 0x3a3430, flag: 'pirate' }, history: '', npcOnly: true }),
   N({ id: 'roi_flibustiers', name: 'Le Roi des Flibustiers', cls: 'amiral', rarity: 'legendaire', level: 34, price: {}, canons: 116, mod: { hp: 5.8, speed: 0.85, reload: 0.8 }, look: { hull: 0x140c08, stripe: 0xa83232, trim: 0xffd060, sail: 0x2a2420, flag: 'pirate', glow: 0xff5a3a }, history: 'Le chef de tous les Frères de la Côte, sur un vaisseau amiral volé à l\'Espagne.', npcOnly: true }),
   // Mers d'Asie
-  N({ id: 'jonque_pirate', name: 'Jonque de pirates', cls: 'fregate', rarity: 'commun', level: 22, price: {}, canons: 28, mod: { hp: 1.1, speed: 0.95 }, look: { hull: 0x5a3a1a, stripe: 0x8a2a1a, trim: 0xd4a83a, sail: 0x9a4a2a, flag: 'pirate' }, history: '', npcOnly: true }),
+  N({ id: 'jonque_pirate', name: 'Jonque de pirates', cls: 'fregate', regional: 'jonque', size: { L: 40, B: 10 }, rarity: 'commun', level: 22, price: {}, canons: 28, mod: { hp: 1.1, speed: 0.95 }, look: { hull: 0x5a3a1a, stripe: 0x8a2a1a, trim: 0xd4a83a, sail: 0x9a4a2a, flag: 'pirate' }, history: '', npcOnly: true }),
   N({ id: 'dragon_typhons', name: 'Le Dragon des Typhons', cls: 'amiral', rarity: 'legendaire', level: 36, price: {}, canons: 0, mod: { hp: 6, speed: 1.0, turn: 1.2 }, look: { hull: 0x1f7a5a, stripe: 0x0f3a2a, trim: 0xffd060, sail: 0, flag: 'aucun', monster: 'serpent' }, history: 'Le gardien des mers de Chine, qui naît dans l\'œil des typhons.', npcOnly: true }),
 ];
 

@@ -135,6 +135,10 @@ en prend le contrôle (son blason s'affiche dans la grille des cartes). Les PNJ 
 | Mers lointaines | Mer des Brumes (10) | monstres, vaisseaux fantômes | Le Spectre des Brumes | Épices des Indes |
 
 La région de chaque carte s'affiche dans l'écran Cartes (bande de couleur sous chaque case).
+Les ennemis lointains ont leur propre silhouette 3D (`client/src/game/render/RegionalShipModel.ts`) : jonque à voiles
+lattées, galère à rames animées et éperon, felouque à voiles latines, drakkar des glaces aux boucliers et volutes.
+
+![Navires régionaux](docs/captures/navires-regionaux.jpg)
 
 ## Escadres et guerre de guildes
 
