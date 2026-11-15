@@ -336,24 +336,39 @@ export function buildZoneVisual(zone: ZoneDef): ZoneVisual {
       flag.position.set(f.x + 4.5, h + 26, f.z);
       group.add(flag);
     } else {
-      // Repaire pirate : palissade, tour de guet, pavillon noir.
-      for (let k = 0; k < 40; k++) {
-        const a = (k / 40) * Math.PI * 2;
-        woods.push(box(1.4, 7 + Math.random() * 2, 1.4, f.x + Math.sin(a) * 22, h + 3, f.z + Math.cos(a) * 22));
+      // Île fortifiée : tour ronde de pierre crénelée, toit de bois, canon et pavillon noir.
+      const top = h + 20;
+      stones.push(new THREE.CylinderGeometry(6.5, 8, 20, 14).translate(f.x, h + 9, f.z));
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        stones.push(box(2, 2.4, 2, f.x + Math.sin(a) * 6.6, top + 1, f.z + Math.cos(a) * 6.6, a));
       }
-      for (const [dx, dz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) woods.push(box(0.8, 16, 0.8, f.x + dx, h + 8, f.z + dz));
-      woods.push(box(9, 1, 9, f.x, h + 16, f.z), box(9, 3, 0.4, f.x, h + 18, f.z + 4.5), box(9, 3, 0.4, f.x, h + 18, f.z - 4.5));
-      for (let k = -1; k <= 1; k++) {
-        const a = f.facing + k * 0.5;
-        const g = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.55, 4, 8).rotateX(Math.PI / 2), gunMat);
-        g.position.set(f.x + Math.sin(a) * 20, h + 4, f.z + Math.cos(a) * 20);
-        g.rotation.y = a;
-        group.add(g);
-      }
-      woods.push(box(0.4, 14, 0.4, f.x, h + 24, f.z));
-      const flag = new THREE.Mesh(new THREE.PlaneGeometry(8, 5.5), new THREE.MeshStandardMaterial({ map: flagTexture('pirate'), side: THREE.DoubleSide }));
-      flag.position.set(f.x + 4, h + 28, f.z);
+      const roof = new THREE.ConeGeometry(5.5, 6, 10).translate(f.x, top + 5, f.z);
+      woods.push(roof);
+      const g = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.65, 5, 8).rotateX(Math.PI / 2), gunMat);
+      g.position.set(f.x + Math.sin(f.facing) * 6, top - 3, f.z + Math.cos(f.facing) * 6);
+      g.rotation.y = f.facing;
+      group.add(g);
+      woods.push(box(0.4, 10, 0.4, f.x, top + 10, f.z));
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(7, 4.5), new THREE.MeshStandardMaterial({ map: flagTexture('pirate'), side: THREE.DoubleSide }));
+      flag.position.set(f.x + 3.5, top + 13, f.z);
       group.add(flag);
+      // Rempart jusqu'à la tour suivante de la même île.
+      const nextT = world.forts.find((o) => o.islandId === f.islandId && o.faction === 'pirate' && o.tower === (f.tower % 3) + 1);
+      if (nextT) {
+        const steps = 10;
+        for (let k = 1; k < steps; k++) {
+          const t = k / steps;
+          const a1 = Math.atan2(f.x - isl.x, f.z - isl.z), a2 = Math.atan2(nextT.x - isl.x, nextT.z - isl.z);
+          let da = a2 - a1;
+          if (da < 0) da += Math.PI * 2;
+          const a = a1 + da * t;
+          const rr = Math.hypot(f.x - isl.x, f.z - isl.z) * (1 - t) + Math.hypot(nextT.x - isl.x, nextT.z - isl.z) * t;
+          const x = isl.x + Math.sin(a) * rr, z = isl.z + Math.cos(a) * rr;
+          const hh = Math.max(1, islandHeight(isl, x, z));
+          stones.push(box(3, 7, (rr * da) / steps + 1.5, x, hh + 2.5, z, a + Math.PI / 2));
+        }
+      }
     }
   }
   if (stones.length) {

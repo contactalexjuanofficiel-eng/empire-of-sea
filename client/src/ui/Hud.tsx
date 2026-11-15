@@ -51,7 +51,11 @@ export function MenuButtons() {
   const docked = useStore((s) => s.docked);
   const open = (p: Panel) => store.set({ panel: panel === p ? (docked ? 'port' : null) : p });
   const items: [Panel, string, string, string][] = [
-    ['carte', 'carte', 'Carte du monde', 'M'],
+    ['carte', 'carte', 'Cartes', 'M'],
+    ['bonus', 'etoile', 'Cartes bonus (dimanche)', ''],
+    ['missions', 'parchemin', 'Missions', 'J'],
+    ['boutique', 'coffre', 'Boutique de l\'Amirauté', 'O'],
+    ['capitaines', 'epee', 'Capitaines', 'L'],
     ['inventaire', 'sac', 'Inventaire', 'I'],
     ['profil', 'profil', 'Profil', 'C'],
     ['guilde', 'guilde', 'Guilde & groupe', 'U'],
@@ -108,22 +112,25 @@ export function ShipStatus() {
   );
 }
 
+const ITEM_ICON: Record<string, string> = { kit: 'marteau', seau: 'seau', poudre: 'poudre', reparation: 'marteau', vitesse: 'vent', harpon_bronze: 'epee', harpon_argent: 'epee', harpon_or: 'epee', feu_gregeois: 'feu', brulot: 'feu', bouclier: 'guilde', corne: 'drapeau', fumigene: 'vent', lanterne: 'etoile', parchemin: 'parchemin', coffre_amiral: 'coffre' };
+
 export function Weapons() {
   const hud = useStore((s) => s.hud);
   const p = useStore((s) => s.profile);
   const keys = useStore((s) => s.settings.keys);
+  const me = useStore((s) => s.attacking);
   if (!p) return null;
-  const r = (i: 0 | 1) => 1 - Math.min(1, hud.reload[i] / Math.max(0.1, hud.reloadMax));
+  const r = 1 - Math.min(1, hud.reload[0] / Math.max(0.1, hud.reloadMax * 0.65));
+  const owned = CONSUMABLE_ORDER.filter((id) => (p.items[id] ?? 0) > 0);
   return (
     <div className="weapons">
-      <div className="reloads">
-        {(['babord', 'tribord'] as const).map((side, i) => (
-          <button key={side} className={`reload ${hud.aim === side ? 'aimed' : ''} ${hud.reload[i] <= 0.05 ? 'ready' : ''}`} onClick={() => game().fire(side)} title={`Bordée ${side === 'babord' ? 'bâbord' : 'tribord'}`}>
-            <span className="rl-label">{side === 'babord' ? 'Bâbord' : 'Tribord'}</span>
-            <span className="rl-bar"><i style={{ width: `${r(i as 0 | 1) * 100}%` }} /></span>
-            <span className="rl-t">{hud.reload[i] > 0.05 ? `${hud.reload[i].toFixed(1)} s` : 'Prêt'}</span>
-          </button>
-        ))}
+      <div className="reloads one">
+        <button className={`reload ${hud.reload[0] <= 0.05 ? 'ready' : ''} ${me ? 'aimed' : ''}`} onClick={() => game().fire()} title="Tirer une salve (vers la cible sélectionnée)">
+          <span className="rl-label">Canons</span>
+          <span className="rl-bar"><i style={{ width: `${r * 100}%` }} /></span>
+          <span className="rl-t">{hud.reload[0] > 0.05 ? `${hud.reload[0].toFixed(1)} s` : 'Prêts'}</span>
+        </button>
+        <button className={`btn small fish-btn ${hud.fishing ? 'on' : ''}`} onClick={() => send({ t: 'fish', on: !hud.fishing })} title={`Pêcher (${keyLabel(keys.fish)}) : navire à l'arrêt, hors des ports`}>🎣 {hud.fishing ? 'Pêche…' : 'Pêcher'}</button>
       </div>
       <div className="slots">
         {AMMO_ORDER.map((id, i) => {
@@ -138,19 +145,21 @@ export function Weapons() {
             </button>
           );
         })}
-        <span className="sep" />
-        {CONSUMABLE_ORDER.map((id, ci) => {
+      </div>
+      <div className="slots items-row">
+        {owned.map((id, ci) => {
           const c = CONSUMABLES[id];
           const cd = hud.cd[id] ?? 0;
           return (
             <button key={id} className={`slot cons ${cd > 0 ? 'cool' : ''}`} onClick={() => game().useItem(id)} title={`${c.name} — ${c.desc}`}>
-              <span className="k">{keyLabel(keys[`hot${6 + ci}`])}</span>
-              <Icon name={id === 'kit' ? 'marteau' : id === 'seau' ? 'seau' : 'poudre'} size={20} />
+              <span className="k">{ci < 3 ? keyLabel(keys[`hot${8 + ci}`]) : ''}</span>
+              <Icon name={ITEM_ICON[id] ?? 'coffre'} size={20} />
               <span className="q">{p.items[id] ?? 0}</span>
               {cd > 0 && <span className="cdv">{Math.ceil(cd)}</span>}
             </button>
           );
         })}
+        {!owned.length && <span className="muted small">Aucun objet — ouvrez la Boutique (touche {keyLabel(keys.shop)}).</span>}
       </div>
     </div>
   );
@@ -374,7 +383,7 @@ export function Hints() {
   if (!show || docked) return null;
   return (
     <div className="hints" onClick={() => setShow(false)}>
-      <b>Commandes</b> · <b>clic sur la mer</b> : naviguer · <b>clic sur un ennemi</b> : attaquer · molette : zoom · clic droit glissé : déplacer la vue · barre rapide <kbd>1</kbd>–<kbd>8</kbd> · toutes les touches se règlent dans Paramètres
+      <b>Commandes</b> · <b>clic sur la mer</b> : naviguer · <b>clic sur un ennemi</b> : attaquer · molette : zoom · clic droit glissé : déplacer la vue · munitions <kbd>1</kbd>–<kbd>7</kbd> · objets <kbd>8</kbd> <kbd>9</kbd> <kbd>0</kbd> · <kbd>N</kbd> pêcher · toutes les touches se règlent dans Paramètres
     </div>
   );
 }

@@ -8,6 +8,8 @@ import type { MissionOffer } from '../../../shared/protocol';
 import { computeStats, PLAYER_SHIPS, RARITY_COLOR, RARITY_LABEL, SHIP_BY_ID, SHIP_CLASSES } from '../../../shared/ships';
 import { ZONE_BY_ID } from '../../../shared/zones';
 import { store, useStore } from '../store';
+import { EliteShipsTab, MatelotTab } from './Panels2';
+import { FISH, FISH_ORDER, playerBonus } from '../../../shared/extras';
 import { Frame, game, Icon, Price, send, StatBar } from './common';
 
 const TABS: [string, string, string][] = [
@@ -16,6 +18,7 @@ const TABS: [string, string, string][] = [
   ['equipement', 'canon', 'Équipement'],
   ['arsenal', 'poudre', 'Arsenal'],
   ['ameliorations', 'etoile', 'Améliorations'],
+  ['matelot', 'marteau', 'Matelot de pont'],
   ['marche', 'balance', 'Marché'],
 ];
 
@@ -42,6 +45,7 @@ export function PortPanel() {
           {tab === 'arsenal' && <Arsenal />}
           {tab === 'ameliorations' && <Ameliorations />}
           {tab === 'marche' && <Marche />}
+          {tab === 'matelot' && <MatelotTab />}
         </div>
         <footer className="port-foot">
           <RepairButton />
@@ -108,6 +112,19 @@ function Capitainerie() {
 }
 
 function Chantier() {
+  const [mode, setMode] = useState<'flotte' | 'elite'>('flotte');
+  return (
+    <div>
+      <div className="eq-tabs">
+        <button className={`btn ${mode === 'flotte' ? 'on' : ''}`} onClick={() => setMode('flotte')}>Navires du Roi</button>
+        <button className={`btn ${mode === 'elite' ? 'on' : ''}`} onClick={() => setMode('elite')}>Navires élites</button>
+      </div>
+      {mode === 'flotte' ? <ChantierFlotte /> : <EliteShipsTab />}
+    </div>
+  );
+}
+
+function ChantierFlotte() {
   const p = useStore((s) => s.profile)!;
   const preview = useStore((s) => s.preview);
   const lvl = levelFromXp(p.xp).level;
@@ -181,7 +198,7 @@ function Equipement() {
   const [qty, setQty] = useState(10);
   const ship = p.ships.find((s) => s.uid === p.active)!;
   const def = SHIP_BY_ID[ship.def];
-  const st = computeStats(def, ship.up, p.skills, ship.fit);
+  const st = computeStats(def, ship.up, p.skills, ship.fit, playerBonus(p).stat);
   const ids = kind === 'canon' ? CANNON_ORDER : MAST_ORDER;
   const cap = kind === 'canon' ? def.canons : MAST_CAPACITY[def.cls];
   const used = fitCount(ship.fit, kind);
@@ -368,6 +385,12 @@ function Marche() {
           })}
         </tbody>
       </table>
+      <h4>Vivier</h4>
+      <div className="row">
+        {FISH_ORDER.filter((f) => (p.fish?.[f] ?? 0) > 0).map((f) => <span key={f} className="fish-tag">{FISH[f].name} × {p.fish[f]}</span>)}
+        {!FISH_ORDER.some((f) => (p.fish?.[f] ?? 0) > 0) && <span className="muted">Aucun poisson. Pêchez en mer, navire à l'arrêt.</span>}
+        <button className="btn-gold" onClick={() => send({ t: 'shop', a: 'sellFish' })}>Vendre toute la pêche</button>
+      </div>
       <p className="muted small">Achetez bon marché (en vert) là où une marchandise est produite, revendez cher (en or) là où elle est demandée. La cargaison est perdue si votre navire coule.</p>
     </div>
   );

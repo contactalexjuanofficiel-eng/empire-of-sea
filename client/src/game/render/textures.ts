@@ -232,6 +232,14 @@ export function flagTexture(style: FlagStyle) {
         g.fillStyle = '#1e6b3e';
         g.beginPath(); g.arc(102, 60, 28, 0, Math.PI * 2); g.fill();
         break;
+      case 'hollandais':
+        g.fillStyle = '#e07a1a'; g.fillRect(0, 0, 192, 43);
+        g.fillStyle = '#f4f1e6'; g.fillRect(0, 43, 192, 42);
+        g.fillStyle = '#1f3a8a'; g.fillRect(0, 85, 192, 43);
+        break;
+      case 'aucun':
+        g.clearRect(0, 0, 192, 128);
+        break;
       case 'spectre':
         g.fillStyle = '#2b3b36';
         g.fillRect(0, 0, 192, 128);

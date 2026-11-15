@@ -4,6 +4,7 @@ import { BossBar, Chat, Hints, MapBadge, MenuButtons, Minimap, Missions, Nearby,
 import { Login } from './Login';
 import { Help, Inventory, GuildPanel, Leaderboard, ProfilePanel, Settings, WorldMap } from './Panels';
 import { PortPanel } from './Port';
+import { BonusPanel, CaptainsPanel, MissionsPanel, ShopPanel } from './Panels2';
 
 export function App() {
   const screen = useStore((s) => s.screen);
@@ -40,6 +41,10 @@ export function App() {
       {panel === 'carte' && <WorldMap />}
       {panel === 'parametres' && <Settings />}
       {panel === 'aide' && <Help />}
+      {panel === 'missions' && <MissionsPanel />}
+      {panel === 'boutique' && <ShopPanel />}
+      {panel === 'capitaines' && <CaptainsPanel />}
+      {panel === 'bonus' && <BonusPanel />}
       {conn === 'lost' && <div className="conn-lost">Connexion au serveur perdue — tentative de reconnexion…</div>}
     </div>
   );

@@ -1,9 +1,10 @@
 // Entrées clavier et souris. Les touches sont configurables (Paramètres) ; on enregistre le code physique
 // de la touche (e.code), donc les raccourcis restent à la même place sur AZERTY et QWERTY.
 export type Action =
-  | 'attack' | 'cancelAttack' | 'fireBoth' | 'fireBabord' | 'fireTribord'
+  | 'attack' | 'cancelAttack' | 'fireBoth'
   | 'sailUp' | 'sailDown' | 'left' | 'right'
-  | 'hot1' | 'hot2' | 'hot3' | 'hot4' | 'hot5' | 'hot6' | 'hot7' | 'hot8'
+  | 'hot1' | 'hot2' | 'hot3' | 'hot4' | 'hot5' | 'hot6' | 'hot7' | 'hot8' | 'hot9' | 'hot10'
+  | 'fish' | 'missions' | 'shop' | 'captains'
   | 'camUp' | 'camDown' | 'camLeft' | 'camRight' | 'camCenter' | 'camMode'
   | 'dock' | 'maps' | 'inventory' | 'profile' | 'ranking' | 'guild' | 'chat' | 'escape' | 'pvp';
 
@@ -12,22 +13,22 @@ export interface KeyDef { action: Action; label: string; group: string; def: str
 export const KEY_DEFS: KeyDef[] = [
   { action: 'attack', label: 'Attaquer la cible', group: 'Combat', def: 'KeyA' },
   { action: 'cancelAttack', label: 'Annuler l\'attaque', group: 'Combat', def: 'KeyE' },
-  { action: 'fireBoth', label: 'Double bordée', group: 'Combat', def: 'Space' },
-  { action: 'fireBabord', label: 'Bordée bâbord', group: 'Combat', def: '' },
-  { action: 'fireTribord', label: 'Bordée tribord', group: 'Combat', def: '' },
-  { action: 'hot1', label: 'Barre rapide 1', group: 'Barre rapide', def: 'Digit1' },
-  { action: 'hot2', label: 'Barre rapide 2', group: 'Barre rapide', def: 'Digit2' },
-  { action: 'hot3', label: 'Barre rapide 3', group: 'Barre rapide', def: 'Digit3' },
-  { action: 'hot4', label: 'Barre rapide 4', group: 'Barre rapide', def: 'Digit4' },
-  { action: 'hot5', label: 'Barre rapide 5', group: 'Barre rapide', def: 'Digit5' },
-  { action: 'hot6', label: 'Barre rapide 6', group: 'Barre rapide', def: 'Digit6' },
-  { action: 'hot7', label: 'Barre rapide 7', group: 'Barre rapide', def: 'Digit7' },
-  { action: 'hot8', label: 'Barre rapide 8', group: 'Barre rapide', def: 'Digit8' },
+  { action: 'fireBoth', label: 'Tirer une salve', group: 'Combat', def: 'Space' },
+  { action: 'hot1', label: 'Munition 1', group: 'Barre rapide', def: 'Digit1' },
+  { action: 'hot2', label: 'Munition 2', group: 'Barre rapide', def: 'Digit2' },
+  { action: 'hot3', label: 'Munition 3', group: 'Barre rapide', def: 'Digit3' },
+  { action: 'hot4', label: 'Munition 4', group: 'Barre rapide', def: 'Digit4' },
+  { action: 'hot5', label: 'Munition 5', group: 'Barre rapide', def: 'Digit5' },
+  { action: 'hot6', label: 'Munition 6', group: 'Barre rapide', def: 'Digit6' },
+  { action: 'hot7', label: 'Munition 7', group: 'Barre rapide', def: 'Digit7' },
+  { action: 'hot8', label: 'Objet 1', group: 'Barre rapide', def: 'Digit8' },
+  { action: 'hot9', label: 'Objet 2', group: 'Barre rapide', def: 'Digit9' },
+  { action: 'hot10', label: 'Objet 3', group: 'Barre rapide', def: 'Digit0' },
   { action: 'camUp', label: 'Caméra haut', group: 'Caméra', def: 'KeyT' },
   { action: 'camDown', label: 'Caméra bas', group: 'Caméra', def: 'KeyG' },
   { action: 'camLeft', label: 'Caméra gauche', group: 'Caméra', def: 'KeyF' },
   { action: 'camRight', label: 'Caméra droite', group: 'Caméra', def: 'KeyH' },
-  { action: 'camCenter', label: 'Centrer la caméra', group: 'Caméra', def: 'Digit9' },
+  { action: 'camCenter', label: 'Centrer la caméra', group: 'Caméra', def: 'KeyX' },
   { action: 'camMode', label: 'Vue du dessus / vue 3D', group: 'Caméra', def: 'KeyV' },
   { action: 'sailUp', label: 'Voilure +', group: 'Navigation au clavier', def: 'ArrowUp' },
   { action: 'sailDown', label: 'Voilure −', group: 'Navigation au clavier', def: 'ArrowDown' },
@@ -35,6 +36,10 @@ export const KEY_DEFS: KeyDef[] = [
   { action: 'right', label: 'Barre à tribord', group: 'Navigation au clavier', def: 'ArrowRight' },
   { action: 'dock', label: 'Accoster', group: 'Autres', def: 'KeyP' },
   { action: 'maps', label: 'Cartes', group: 'Autres', def: 'KeyM' },
+  { action: 'missions', label: 'Missions', group: 'Autres', def: 'KeyJ' },
+  { action: 'shop', label: 'Boutique', group: 'Autres', def: 'KeyO' },
+  { action: 'captains', label: 'Capitaines', group: 'Autres', def: 'KeyL' },
+  { action: 'fish', label: 'Pêcher', group: 'Autres', def: 'KeyN' },
   { action: 'inventory', label: 'Inventaire', group: 'Autres', def: 'KeyI' },
   { action: 'profile', label: 'Profil', group: 'Autres', def: 'KeyC' },
   { action: 'ranking', label: 'Classements', group: 'Autres', def: 'KeyK' },

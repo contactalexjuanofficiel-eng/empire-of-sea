@@ -5,7 +5,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { AMMO, AMMO_ORDER, type AmmoId, type ConsumableId } from '../../../shared/items';
+import { AMMO, AMMO_ORDER, CONSUMABLE_ORDER, type AmmoId, type ConsumableId } from '../../../shared/items';
 import { clamp, fmt, wrapAngle } from '../../../shared/math';
 import { collideShip, GRAVITY, stepShip, type ShipKinematics, type Wind } from '../../../shared/physics';
 import { F_BURNING, F_PVP, F_REPAIRING, F_SAFE, F_SINKING, type EntityMeta, type GameEvent, type MeState, type S2C, type Side, type WeatherState } from '../../../shared/protocol';
@@ -20,6 +20,8 @@ import { Input, type Action } from './Input';
 import { Effects, WakeTrail } from './render/Effects';
 import { Ocean } from './render/Ocean';
 import { ShipModel } from './render/ShipModel';
+import { MonsterModel } from './render/MonsterModel';
+import { playerBonus, SHOOT_RANKS } from '../../../shared/extras';
 import { SkyEnv } from './render/SkyEnv';
 import { buildZoneVisual, type ZoneVisual } from './render/WorldBuilder';
 import { seaState, waveHeight } from './render/waves';
@@ -34,7 +36,7 @@ interface ClientEnt {
   snaps: Snap[];
   cur: Snap;
   seen: number;
-  model?: ShipModel;
+  model?: ShipModel | MonsterModel;
   wake?: WakeTrail;
   obj?: THREE.Object3D;
   label?: HTMLDivElement;
@@ -81,6 +83,7 @@ export class Game {
   private clock = new THREE.Clock();
   t = 0;
   private dockModel: ShipModel | null = null;
+  private bobber: THREE.Group | null = null;
   private dockModelKey = '';
   private showcase: ShipModel | null = null;
   private showcaseKey = '';
@@ -368,7 +371,7 @@ export class Game {
     if (!p) return;
     const s = p.ships.find((x) => x.uid === p.active) ?? p.ships[0];
     if (!s) return;
-    this.myStats = computeStats(SHIP_BY_ID[s.def], s.up, p.skills, s.fit);
+    this.myStats = computeStats(SHIP_BY_ID[s.def], s.up, p.skills, s.fit, playerBonus(p).stat);
     this.rig.setShip(this.myStats.length);
   }
 
@@ -392,7 +395,7 @@ export class Game {
     const e: ClientEnt = { id, meta, snaps: [], cur: { ...snap }, seen: snap.t, sinkT: snap.flags & F_SINKING ? 5 : -1, pose: { heave: 0, pitch: 0, roll: 0 }, fxT: 0 };
     if (meta.kind === 'player' || meta.kind === 'npc' || meta.kind === 'boss') {
       const def = SHIP_BY_ID[meta.ship ?? 'bayonnaise'];
-      e.model = new ShipModel(def, meta.kind === 'player' ? meta.flag : undefined);
+      e.model = def.look.monster ? new MonsterModel(def) : new ShipModel(def, meta.kind === 'player' ? meta.flag : undefined, meta.skin);
       e.model.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
       this.scene.add(e.model.root);
       e.wake = new WakeTrail(def ? e.model.dims.B * 0.55 : 4);
@@ -403,7 +406,7 @@ export class Game {
         e.model.body.add(l);
       }
     } else if (meta.kind === 'loot') {
-      e.obj = this.makeLoot(meta.loot === 'tresor');
+      e.obj = meta.loot === 'coffre' ? this.makeChest() : this.makeLoot(meta.loot === 'tresor');
       this.scene.add(e.obj);
     }
     if (id !== this.myId && meta.kind !== 'fort') {
@@ -419,6 +422,23 @@ export class Game {
       this.refreshLabel(e, true);
     }
     return e;
+  }
+
+  /** Coffre flottant : petit coffre cerclé de fer qui scintille. */
+  private makeChest() {
+    const g = new THREE.Group();
+    const wood = new THREE.MeshStandardMaterial({ color: 0x6a4424, roughness: 0.75 });
+    const iron = new THREE.MeshStandardMaterial({ color: 0xc9a24a, metalness: 1, roughness: 0.3, emissive: 0x4a3200, emissiveIntensity: 0.5 });
+    const box = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.6, 1.8), wood);
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.6, 10, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), wood);
+    lid.position.y = 0.8;
+    for (const x of [-0.9, 0.9]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.6, 1.9), iron); b.position.set(x, 0.4, 0); g.add(b); }
+    const lock = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.2), iron);
+    lock.position.set(0, 0.5, 0.95);
+    g.add(box, lid, lock);
+    g.scale.setScalar(1.6);
+    g.userData.treasure = true;
+    return g;
   }
 
   private makeLoot(treasure: boolean) {
@@ -470,9 +490,16 @@ export class Game {
       const lvl = document.createElement('span');
       lvl.className = 'lv';
       lvl.textContent = m.kind === 'loot' ? '' : m.kind === 'fort' ? '⚑' : String(m.level);
+      if (m.kind === 'player' && m.shootRank) {
+        const r = document.createElement('span');
+        r.className = 'rank-badge';
+        r.textContent = '✪'.repeat(Math.min(3, Math.ceil(m.shootRank / 3))) + m.shootRank;
+        r.title = SHOOT_RANKS[m.shootRank]?.name ?? '';
+        name.appendChild(r);
+      }
       const txt = document.createElement('span');
       if (m.kind === 'player') txt.textContent = `${m.tag ? `[${m.tag}] ` : ''}${m.name}`;
-      else if (m.kind === 'npc') txt.textContent = `${m.name} · ${FACTION_LABEL[m.faction]} (PNJ)`;
+      else if (m.kind === 'npc') txt.textContent = m.faction === 'monstre' ? `${m.name} (Monstre)` : `${m.name} · ${FACTION_LABEL[m.faction]} (PNJ)`;
       else if (m.kind === 'boss') txt.textContent = `☠ ${m.name} (BOSS)`;
       else txt.textContent = m.name;
       if (m.kind !== 'loot') name.appendChild(lvl);
@@ -506,6 +533,11 @@ export class Game {
     if (a === 'maps') { store.set({ panel: s.panel === 'carte' ? (s.docked ? 'port' : null) : 'carte' }); return; }
     if (a === 'camMode') { const m = s.settings.camMode === 'dessus' ? '3d' : 'dessus'; saveSettings({ ...s.settings, camMode: m }); this.applySettings(); return; }
     if (a === 'camCenter') { this.rig.center(); return; }
+    if (a === 'missions' || a === 'shop' || a === 'captains') {
+      const panel = a === 'shop' ? 'boutique' : a === 'captains' ? 'capitaines' : 'missions';
+      store.set({ panel: s.panel === panel ? (s.docked ? 'port' : null) : panel });
+      return;
+    }
     if (a === 'inventory') { store.set({ panel: s.panel === 'inventaire' ? (s.docked ? 'port' : null) : 'inventaire' }); return; }
     if (a === 'profile') { store.set({ panel: s.panel === 'profil' ? (s.docked ? 'port' : null) : 'profil' }); return; }
     if (a === 'ranking') { store.set({ panel: s.panel === 'classement' ? (s.docked ? 'port' : null) : 'classement' }); return; }
@@ -514,21 +546,14 @@ export class Game {
     switch (a) {
       case 'sailUp': this.sail = Math.min(3, this.sail + 1); break;
       case 'sailDown': this.sail = Math.max(0, this.sail - 1); break;
-      case 'fireBoth': this.fire('both'); break;
-      case 'fireBabord': this.fire('babord'); break;
-      case 'fireTribord': this.fire('tribord'); break;
-      case 'hot1': case 'hot2': case 'hot3': case 'hot4': case 'hot5': case 'hot6': case 'hot7': case 'hot8': this.hotbar(Number(a.slice(3))); break;
+      case 'fireBoth': this.fire(); break;
+      case 'hot1': case 'hot2': case 'hot3': case 'hot4': case 'hot5': case 'hot6': case 'hot7': case 'hot8': case 'hot9': case 'hot10': this.hotbar(Number(a.slice(3))); break;
+      case 'fish': this.net.send({ t: 'fish', on: !this.me.fishing }); break;
       case 'attack': if (this.selectedId) this.attack(this.selectedId); else notify('Cliquez d\'abord sur un navire ennemi pour le cibler.', 'warn'); break;
       case 'cancelAttack': this.cancelAttack(); break;
       case 'dock': this.dock(); break;
       case 'pvp': this.net.send({ t: 'pvp', on: !this.me.pvp }); break;
     }
-  }
-
-  /** Barre rapide : 1 à 5 munitions, 6 kit de réparation, 7 pompes, 8 poudre fine. */
-  hotbar(n: number) {
-    if (n <= 5) this.selectAmmo(AMMO_ORDER[n - 1]);
-    else this.useItem((['kit', 'seau', 'poudre'] as const)[n - 6]);
   }
 
   attack(id: number) {
@@ -569,7 +594,8 @@ export class Game {
       else this.net.send({ t: 'target', id: best.id, attack: false });
       return;
     }
-    // 2) sinon, la mer : on y navigue (si l'on clique sur une île, on s'arrête au rivage).
+    // 2) sinon, la mer. En vue 3D : salve vers le point visé. En vue du dessus : navigation.
+    if (this.rig.mode === '3d') { this.fire(); return; }
     if (ray.direction.y >= -0.001) return;
     const t = -ray.origin.y / ray.direction.y;
     let tx = ray.origin.x + ray.direction.x * t, tz = ray.origin.z + ray.direction.z * t;
@@ -591,21 +617,24 @@ export class Game {
   dock() { this.net.send({ t: 'dock' }); }
   undock() { this.net.send({ t: 'undock' }); store.set({ panel: null }); }
 
-  fire(side: Side | 'both') {
+  /** Salve vers la cible sélectionnée, sinon vers le point visé : les canons tirent dans toutes les directions. */
+  fire() {
     if (!this.pred) return;
+    const t = this.me?.target ? this.ents.get(this.me.target) : this.selectedId ? this.ents.get(this.selectedId) : undefined;
     let x = this.aim.x, z = this.aim.z;
-    if (!this.aim.side) {
-      x = this.pred.x + Math.cos(this.pred.h) * 200;
-      z = this.pred.z - Math.sin(this.pred.h) * 200;
-    }
-    if (side !== 'both' && side !== this.aim.side) {
-      // Tir par touche sur le bord opposé à la visée : perpendiculaire, même distance.
-      const sgn = side === 'babord' ? 1 : -1;
-      const d = Math.max(120, this.aim.dist);
-      x = this.pred.x + Math.cos(this.pred.h) * sgn * d;
-      z = this.pred.z - Math.sin(this.pred.h) * sgn * d;
-    }
-    this.net.send({ t: 'fire', side, x: Math.round(x), z: Math.round(z) });
+    if (t) { x = t.cur.x; z = t.cur.z; }
+    else if (!this.aim.side) return;
+    this.net.send({ t: 'fire', side: 'both', x: Math.round(x), z: Math.round(z) });
+  }
+
+  /** Barre rapide : 1 à 7 munitions, 8 à 10 les trois premiers objets possédés. */
+  hotbar(n: number) {
+    if (n <= 7) { this.selectAmmo(AMMO_ORDER[n - 1]); return; }
+    const p = store.get().profile;
+    if (!p) return;
+    const owned = CONSUMABLE_ORDER.filter((id) => (p.items[id] ?? 0) > 0);
+    const id = owned[n - 8];
+    if (id) this.useItem(id);
   }
 
   private muzzle(x: number, y: number, z: number, owner: number) {
@@ -943,10 +972,10 @@ export class Game {
     const dock = this.zoneVis.world.docks[portId];
     if (!dock) return;
     const shipId = s.panel === 'port' && s.portTab === 'chantier' && s.preview ? s.preview : (p.ships.find((x) => x.uid === p.active)?.def ?? 'bayonnaise');
-    const key = `${shipId}:${p.flag}:${portId}`;
+    const key = `${shipId}:${p.flag}:${portId}:${p.skin}`;
     if (this.dockModelKey !== key) {
       this.removeDockModel();
-      this.dockModel = new ShipModel(SHIP_BY_ID[shipId] ?? SHIP_BY_ID.bayonnaise, p.flag);
+      this.dockModel = new ShipModel(SHIP_BY_ID[shipId] ?? SHIP_BY_ID.bayonnaise, p.flag, p.skin);
       this.dockModelKey = key;
       this.scene.add(this.dockModel.root);
     }
@@ -993,7 +1022,7 @@ export class Game {
     const show = !s.docked && !!this.pred && !!this.myStats && !(this.me && this.me.dead > 0) && !s.panel;
     this.updateMarkers(show);
     this.aimRing.visible = this.aimLine.visible = show && this.rig.mode === '3d';
-    this.fans.visible = show;
+    this.fans.visible = false;
     if (!show || !this.pred || !this.myStats || !this.me) { this.aim.side = null; return; }
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((this.input.mouseX - rect.left) / rect.width) * 2 - 1, -((this.input.mouseY - rect.top) / rect.height) * 2 + 1);
@@ -1156,6 +1185,7 @@ export class Game {
         z: p?.z ?? 0,
         weather: this.weather.kind,
         day: this.day,
+        fishing: !!me?.fishing,
       },
       nearby: nearby.slice(0, 8),
       attacking: !!me?.attacking,

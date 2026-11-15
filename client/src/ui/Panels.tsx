@@ -8,6 +8,7 @@ import { computeStats, RARITY_COLOR, SHIP_BY_ID, SHIP_CLASSES } from '../../../s
 import { FACTION_LABEL, MAX_TIER, tierRequirement, ZONES, ZONE_BY_ID } from '../../../shared/zones';
 import { saveSettings, store, useStore } from '../store';
 import { EQUIP_NAME, EQUIP_ORDER } from '../../../shared/equipment';
+import { FISH_RANKS, playerBonus, rankIndex, SHOOT_RANKS } from '../../../shared/extras';
 import { defaultKeys, KEY_DEFS, keyLabel } from '../game/Input';
 import { Frame, game, Icon, PORTRAITS, PORTRAIT_NAMES, send } from './common';
 
@@ -56,7 +57,7 @@ export function ProfilePanel() {
   const guild = useStore((s) => s.guild);
   const lv = levelFromXp(p.xp);
   const ship = p.ships.find((s) => s.uid === p.active)!;
-  const st = computeStats(SHIP_BY_ID[ship.def], ship.up, p.skills, ship.fit);
+  const st = computeStats(SHIP_BY_ID[ship.def], ship.up, p.skills, ship.fit, playerBonus(p).stat);
   const zonesDisc = ZONES.map((z) => ({ z, n: p.discovered.filter((d) => d.startsWith(z.id + ':')).length }));
   return (
     <Frame title="Profil du capitaine" icon="profil" onClose={close}>
@@ -69,6 +70,8 @@ export function ProfilePanel() {
             <div className="muted">{PORTRAIT_NAMES[p.portrait]} · Pavillon {p.flag === 'royal' ? 'royal' : p.flag === 'tricolore' ? 'tricolore' : 'impérial'}</div>
             <div className="xpbar big"><i style={{ width: `${lv.need ? (lv.into / lv.need) * 100 : 100}%` }} /><span>Niveau {lv.level} · {fmt(lv.into)} / {fmt(lv.need)} XP</span></div>
             <div>Réputation : <b>{reputationName(p.reputation)}</b> ({fmt(p.reputation)})</div>
+            <div>Grade de tir : <b>{SHOOT_RANKS[rankIndex(SHOOT_RANKS, p.shootXp)].name}</b> ({fmt(p.shootXp)} pts) · Grade de pêche : <b>{FISH_RANKS[rankIndex(FISH_RANKS, p.fishXp)].name}</b> ({fmt(p.fishXp)} pts)</div>
+            <div>Points élite : <b>{fmt(p.elite)}</b> · Ferraille : <b>{fmt(p.ferraille)}</b></div>
           </div>
         </div>
         <div className="pf-cols">

@@ -16,11 +16,12 @@ export interface HudState {
   aim: 'babord' | 'tribord' | null;
   x: number; z: number;
   weather: string; day: number;
+  fishing: boolean;
 }
 export interface NearbyShip { id: number; name: string; kind: string; level: number; dist: number; hp: number; hostile: boolean; friend: boolean; tag?: string | null; ship?: string; faction: string }
 export interface ChatLine { id: number; ch: ChatChannel; from: string; text: string; tag?: string | null }
 export interface Notice { id: number; text: string; kind: string; t: number }
-export type Panel = null | 'port' | 'inventaire' | 'profil' | 'classement' | 'guilde' | 'carte' | 'aide' | 'parametres';
+export type Panel = null | 'port' | 'inventaire' | 'profil' | 'classement' | 'guilde' | 'carte' | 'aide' | 'parametres' | 'missions' | 'boutique' | 'capitaines' | 'bonus';
 export interface TargetInfo { id: number; name: string; kind: string; level: number; hp: number; dist: number; hostile: boolean; faction: string; ship?: string }
 export interface Settings { quality: 'haute' | 'moyenne' | 'basse'; volume: number; muted: boolean; autoCam: boolean; labels: boolean; camMode: 'dessus' | '3d'; autoAttack: boolean; keys: Record<string, string> }
 
@@ -58,6 +59,7 @@ const loadSettings = (): Settings => {
   try {
     const s = { ...d, ...JSON.parse(localStorage.getItem('edm.settings') || '{}') } as Settings;
     s.keys = { ...defaultKeys(), ...(s.keys || {}) };
+    if (s.keys.camCenter === 'Digit9') s.keys.camCenter = 'KeyX'; // ancienne touche, reprise par la barre rapide
     return s;
   } catch { return d; }
 };
@@ -70,7 +72,7 @@ const initial: AppState = {
   zone: 'manche',
   port: null,
   docked: true,
-  hud: { hp: 1, maxHp: 1, sailHp: 1, speed: 0, sail: 0, heading: 0, windDir: 0, windStr: 1, reload: [0, 0], reloadMax: 5, ammo: 'rond', cd: {}, dead: 0, pvp: false, safe: true, powder: 0, burning: false, repairing: false, canDock: null, aim: null, x: 0, z: 0, weather: 'clair', day: 0.5 },
+  hud: { hp: 1, maxHp: 1, sailHp: 1, speed: 0, sail: 0, heading: 0, windDir: 0, windStr: 1, reload: [0, 0], reloadMax: 5, ammo: 'rond', cd: {}, dead: 0, pvp: false, safe: true, powder: 0, burning: false, repairing: false, canDock: null, aim: null, x: 0, z: 0, weather: 'clair', day: 0.5, fishing: false },
   nearby: [],
   chat: [],
   notices: [],

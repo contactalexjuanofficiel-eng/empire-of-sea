@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHIP_BY_ID, SHIP_CLASSES, type ShipDef } from '../../../../shared/ships';
 import { deckTexture, emblemFor, flagTexture, sailTexture, woodTexture } from './textures';
+import { SKINS, type SkinId } from '../../../../shared/extras';
 
 export interface ShipDims {
   L: number;
@@ -493,6 +494,7 @@ function flagMaterial(tex: THREE.Texture, u: Record<string, THREE.IUniform>) {
 // ---------------------------------------------------------------------------- instance
 
 export class ShipModel {
+  readonly def: ShipDef;
   readonly root = new THREE.Group(); // cap + position
   readonly body = new THREE.Group(); // tangage / roulis / pilonnement
   readonly dims: ShipDims;
@@ -506,7 +508,11 @@ export class ShipModel {
   private lanternMat: THREE.MeshStandardMaterial;
   private mats: THREE.Material[] = [];
 
-  constructor(readonly def: ShipDef, flagOverride?: 'royal' | 'tricolore' | 'imperial') {
+  constructor(baseDef: ShipDef, flagOverride?: 'royal' | 'tricolore' | 'imperial', skin?: SkinId | null) {
+    // Pont décoré (doré, bleu) : on repeint préceintes, dorures, voiles et pont.
+    const sk = skin ? SKINS[skin] : undefined;
+    const def: ShipDef = sk ? { ...baseDef, look: { ...baseDef.look, stripe: sk.stripe, trim: sk.trim, sail: sk.sail } } : baseDef;
+    this.def = def;
     const a = assets(def);
     this.dims = a.dims;
     this.ports = a.ports;
@@ -517,7 +523,7 @@ export class ShipModel {
     const hull = new THREE.Mesh(a.hull, hullM);
     hull.castShadow = hull.receiveShadow = true;
 
-    const deck = new THREE.Mesh(a.deck, new THREE.MeshStandardMaterial({ map: deckTexture(), roughness: 0.85 }));
+    const deck = new THREE.Mesh(a.deck, new THREE.MeshStandardMaterial({ map: deckTexture(), roughness: sk ? 0.4 : 0.85, color: sk ? sk.deck : 0xffffff, metalness: sk?.id === 'dore' ? 0.6 : 0 }));
     deck.receiveShadow = true;
     const woodM = new THREE.MeshStandardMaterial({ color: 0x3b2a1c, roughness: 0.8 });
     const wood = new THREE.Mesh(a.wood, woodM);
