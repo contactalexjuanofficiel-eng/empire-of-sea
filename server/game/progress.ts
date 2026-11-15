@@ -2,9 +2,10 @@
 // grades de tir, points élite, missions quotidiennes, missions de niveau, pêche.
 import { AMMO, type AmmoId } from '../../shared/items.ts';
 import {
-  DAILY_BY_ID, DAILY_COOLDOWN_H, DAILY_SLOTS, ELITE_RATE, FISH, FISH_ORDER, FISH_RANKS, fishInterval, levelMission,
-  playerBonus, rankIndex, SHOOT_RANKS, SHOOT_XP, type DailyKind,
+  DAILY_BY_ID, DAILY_COOLDOWN_H, DAILY_SLOTS, ELITE_RATE, FISH, FISH_ORDER, fishInterval, levelMission,
+  playerBonus, SHOOT_XP, type DailyKind,
 } from '../../shared/extras.ts';
+import { BATTLE_STEPS, battlePoints, battleThreshold, FISH_STEPS, fishThreshold, stepOf } from '../../shared/ranks.ts';
 import { fmt } from '../../shared/math.ts';
 import { levelFromXp, xpToNext } from '../../shared/progression.ts';
 import type { PlayerLink } from '../types.ts';
@@ -13,10 +14,10 @@ import { grant } from './rewards.ts';
 
 function shootGain(link: PlayerLink, pts: number) {
   const p = link.profile;
-  const before = rankIndex(SHOOT_RANKS, p.shootXp);
+  const before = stepOf(battlePoints(p.shootXp), battleThreshold, BATTLE_STEPS);
   p.shootXp += pts;
-  const after = rankIndex(SHOOT_RANKS, p.shootXp);
-  if (after > before) link.notify(`Nouveau grade de tir : ${SHOOT_RANKS[after].name} ! (+1 % de dégâts)`, 'level');
+  const after = stepOf(battlePoints(p.shootXp), battleThreshold, BATTLE_STEPS);
+  if (after > before) link.notify(`Rang de bataille ${after} atteint ! Réclamez vos récompenses dans la fenêtre Rangs.`, 'level');
 }
 
 /** Dégâts infligés par un joueur : grade de tir, points élite, mission quotidienne. */
@@ -92,7 +93,8 @@ function dailyProgress(link: PlayerLink, id: DailyKind, amount: number) {
 export function tickFishing(link: PlayerLink, s: ShipEnt, tier: number, inCombat: boolean, dt: number): boolean {
   if (s.k.speed > 1.5 || inCombat || s.sinking >= 0) return false;
   const p = link.profile;
-  const grade = rankIndex(FISH_RANKS, p.fishXp);
+  const step = stepOf(p.fishXp, fishThreshold, FISH_STEPS);
+  const grade = Math.floor(step / 4);
   link.fishTimer += dt * (1 + playerBonus(p).econ.fish);
   if (link.fishTimer < fishInterval(grade)) return true;
   link.fishTimer = 0;
@@ -102,12 +104,11 @@ export function tickFishing(link: PlayerLink, s: ShipEnt, tier: number, inCombat
   let r = Math.random() * weights.reduce((a, b) => a + b, 0);
   let f = pool[0];
   for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { f = pool[i]; break; } }
-  const before = grade;
   p.fishXp += f.xp;
   if (f.id === 'huitre') { p.perles += 1; link.notify('Pêche : une huître perlière ! +1 perle', 'gain'); }
   else { p.fish[f.id] = (p.fish[f.id] ?? 0) + 1; link.notify(`Pêche : ${f.name} (+${f.xp} pts de pêche)`, 'info'); }
-  const after = rankIndex(FISH_RANKS, p.fishXp);
-  if (after > before) link.notify(`Nouveau grade de pêche : ${FISH_RANKS[after].name} !`, 'level');
+  const after = stepOf(p.fishXp, fishThreshold, FISH_STEPS);
+  if (after > step) link.notify(`Rang de pêche ${after} atteint ! Réclamez vos récompenses dans la fenêtre Rangs.`, 'level');
   link.touch();
   return true;
 }

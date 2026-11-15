@@ -21,7 +21,7 @@ function fakeLink(name: string, id: number): PlayerLink & { inbox: S2C[] } {
     send: (m) => inbox.push(m), notify: (text) => inbox.push({ t: 'notice', text }), touch: () => {},
     zoneId: 'manche-1', entityId: 100000 + id, docked: true, port: 'brest', input: { sail: 0, rudder: 0 }, seq: 0,
     pvp: false, hpRatio: 1, sailRatio: 1, known: new Set(), deadTimer: 0, groupId: null, guildTag: null,
-    nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0,
+    nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0, grade: 18,
   };
 }
 

@@ -75,6 +75,9 @@ export interface Profile {
   captainsActive: Partial<Record<CaptainCat, string | null>>;
   daily: { active: { id: DailyKind; progress: number; goal: number; tier: number }[]; cooldown: Partial<Record<DailyKind, number>> };
   levelMission: { level: number; progress: number };
+  /** Dernier échelon dont les récompenses ont été réclamées. */
+  battleClaimed: number;
+  fishClaimed: number;
 }
 
 // --- Messages client -> serveur --------------------------------------------
@@ -97,7 +100,8 @@ export type ShopAction =
   | { a: 'forge'; slot: number }
   | { a: 'recruit'; captain: string }
   | { a: 'assign'; captain: string | null; cat: CaptainCat }
-  | { a: 'eliteShip'; ship: string };
+  | { a: 'eliteShip'; ship: string }
+  | { a: 'claimRank'; kind: 'bataille' | 'peche' };
 
 export type C2S =
   | { t: 'hello'; token: string; v: number }
@@ -146,6 +150,7 @@ export interface EntityMeta {
   loot?: 'caisse' | 'tresor' | 'coffre';
   skin?: SkinId | null;
   shootRank?: number;
+  grade?: number;
 }
 
 export interface Ball { x: number; y: number; z: number; vx: number; vy: number; vz: number; d: number }
@@ -196,6 +201,7 @@ export type S2C =
   | { t: 'boss'; active: boolean; hp?: number; maxHp?: number; name?: string; x?: number; z?: number }
   | { t: 'pong'; c: number; st: number }
   | { t: 'maps'; list: MapInfo[] }
+  | { t: 'grade'; grade: number; points: number; next: number | null; prev: number | null; counts: number[]; position: number }
   | { t: 'err'; text: string };
 
 export interface MapInfo { id: string; players: number; owner: string | null; kills?: number; bossAt?: number; boss?: boolean; open?: boolean }

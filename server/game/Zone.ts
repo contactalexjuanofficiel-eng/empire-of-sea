@@ -17,7 +17,7 @@ import type { PlayerLink, Relation } from '../types.ts';
 import { newWaypoint, thinkNPC } from './ai.ts';
 import type { FortEnt, LootEnt, Projectile, ShipEnt } from './entities.ts';
 import { grant, progressMission } from './rewards.ts';
-import { rankIndex, SHOOT_RANKS } from '../../shared/extras.ts';
+import { BATTLE_STEPS, battlePoints, battleThreshold, stepOf } from '../../shared/ranks.ts';
 import { onDamage, onLoot, onNpcKill, onPlayerKill, tickFishing } from './progress.ts';
 
 let nextId = 1;
@@ -966,7 +966,7 @@ export class Zone {
         if (!link.known.has(s.id)) {
           link.known.add(s.id);
           const friend = s.link && s.id !== link.entityId ? this.hooks.relation(link, s.link) === 'friend' : false;
-          metas.push({ id: s.id, kind: s.kind, ship: s.def.id, name: s.name, level: s.level, faction: s.faction, tag: s.link?.guildTag ?? null, maxHp: s.stats.hp, flag: s.link?.profile.flag, friend, skin: s.link?.profile.skin ?? null, shootRank: s.link ? rankIndex(SHOOT_RANKS, s.link.profile.shootXp) : undefined });
+          metas.push({ id: s.id, kind: s.kind, ship: s.def.id, name: s.name, level: s.level, faction: s.faction, tag: s.link?.guildTag ?? null, maxHp: s.stats.hp, flag: s.link?.profile.flag, friend, skin: s.link?.profile.skin ?? null, shootRank: s.link ? stepOf(battlePoints(s.link.profile.shootXp), battleThreshold, BATTLE_STEPS) : undefined, grade: s.link?.grade });
         }
       }
       for (const f of this.forts.values()) {

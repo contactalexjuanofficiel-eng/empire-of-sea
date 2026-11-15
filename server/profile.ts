@@ -60,6 +60,8 @@ export function newProfile(name: string): Profile {
     captainsActive: {},
     daily: { active: [], cooldown: {} },
     buffs: {},
+    battleClaimed: 0,
+    fishClaimed: 0,
     levelMission: { level: 1, progress: 0 },
   };
 }

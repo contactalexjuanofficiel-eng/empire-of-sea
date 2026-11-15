@@ -9,6 +9,7 @@ import { SHIP_BY_ID } from '../../../shared/ships';
 import { FACTION_LABEL, ZONE_BY_ID } from '../../../shared/zones';
 import { store, useStore, type Panel } from '../store';
 import { keyLabel } from '../game/Input';
+import { GRADES } from '../../../shared/ranks';
 import { game, Icon, PORTRAITS, send } from './common';
 
 const knots = (v: number) => (v * 0.7).toFixed(1);
@@ -19,6 +20,7 @@ export function TopBar() {
   const ping = useStore((s) => s.ping);
   const conn = useStore((s) => s.connection);
   const fps = useStore((s) => s.fps);
+  const grade = useStore((s) => s.grade?.grade);
   if (!p) return null;
   const lv = levelFromXp(p.xp);
   return (
@@ -27,7 +29,7 @@ export function TopBar() {
         <div className="portrait-sm">{PORTRAITS[p.portrait]}</div>
         <div>
           <div className="cap-name">{p.name}</div>
-          <div className="cap-rank">{rankOf(lv.level)} · Niv. {lv.level}</div>
+          <div className="cap-rank">{GRADES[grade ?? GRADES.length - 1].name} · Niv. {lv.level}</div>
           <div className="xpbar" title={`${fmt(lv.into)} / ${fmt(lv.need)} XP`}><i style={{ width: `${lv.need ? (lv.into / lv.need) * 100 : 100}%` }} /></div>
         </div>
       </div>
@@ -56,6 +58,7 @@ export function MenuButtons() {
     ['missions', 'parchemin', 'Missions', 'J'],
     ['boutique', 'coffre', 'Boutique de l\'Amirauté', 'O'],
     ['capitaines', 'epee', 'Capitaines', 'L'],
+    ['rangs', 'etoile', 'Rangs', ''],
     ['inventaire', 'sac', 'Inventaire', 'I'],
     ['profil', 'profil', 'Profil', 'C'],
     ['guilde', 'guilde', 'Guilde & groupe', 'U'],

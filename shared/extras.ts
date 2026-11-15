@@ -2,6 +2,7 @@
 // forge du matelot de pont, capitaines recrutés, points élite. Partagé client/serveur.
 import type { Profile } from './protocol.ts';
 import type { StatBonus } from './ships.ts';
+import { BATTLE_STEPS, battlePoints, battleThreshold, stepOf } from './ranks.ts';
 
 type Price = { or?: number; perles?: number; diamants?: number };
 
@@ -100,7 +101,7 @@ export function playerBonus(p: Pick<Profile, 'shootXp' | 'forge' | 'skin' | 'cap
   const stat: Required<StatBonus> = { hp: 0, dmg: 0, armor: 0, speed: 0, reload: 0, range: 0 };
   const econ: Required<Econ> = { gold: 0, xp: 0, elite: 0, fish: 0 };
   const add = (b: StatBonus) => { for (const k of Object.keys(b) as (keyof StatBonus)[]) stat[k] += b[k] ?? 0; };
-  stat.dmg += 0.01 * rankIndex(SHOOT_RANKS, p.shootXp ?? 0); // +1 % de dégâts par grade de tir
+  stat.dmg += 0.01 * Math.floor(stepOf(battlePoints(p.shootXp ?? 0), battleThreshold, BATTLE_STEPS) / 4); // +1 % de dégâts tous les 4 rangs de bataille
   (p.forge ?? []).forEach((ok, i) => { if (ok && FORGE[i]) add(FORGE[i].bonus); });
   if (p.skin && SKINS[p.skin as SkinId]) stat.hp += SKINS[p.skin as SkinId].hp;
   for (const id of Object.values(p.captainsActive ?? {})) {

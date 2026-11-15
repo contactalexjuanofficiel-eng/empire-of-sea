@@ -1,5 +1,7 @@
 // Économie : chantier naval, arsenal, améliorations, marché, compétences. Toutes les vérifications sont ici.
 import { CAPTAIN_BY_ID, FORGE, SKINS } from '../../shared/extras.ts';
+import { BATTLE_STEPS, battlePoints, battleReward, battleThreshold, FISH_STEPS, fishReward, fishThreshold, stepOf } from '../../shared/ranks.ts';
+import type { AmmoId, ConsumableId } from '../../shared/items.ts';
 import { sellFish } from './progress.ts';
 import { CANNONS, fitCount, isCannon, isMast, MAST_CAPACITY, MASTS } from '../../shared/equipment.ts';
 import { AMMO, CONSUMABLES, GOODS, MAX_SKILL, MAX_UPGRADE, UPGRADE_INFO, upgradeCost, type GoodId } from '../../shared/items.ts';
@@ -23,7 +25,7 @@ export function portPrices(zone: ZoneDef, portId: string, t: number, commerce: n
 /** Applique un achat. Retourne un message d'erreur, ou null si tout s'est bien passé. */
 export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: number): string | null {
   // Ces actions sont possibles en mer ; les autres demandent d'être à quai.
-  const anywhere = ['buyItem', 'useSkin', 'assign', 'recruit', 'eliteShip', 'buyAmmo'];
+  const anywhere = ['buyItem', 'useSkin', 'assign', 'recruit', 'eliteShip', 'buyAmmo', 'claimRank'];
   if (!anywhere.includes(act.a) && (!link.docked || !link.port)) return 'Vous devez être amarré au port.';
   const p = link.profile;
   const lvl = playerLevel(p);
@@ -239,6 +241,21 @@ export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: n
       }
       link.hpRatio = 1;
       link.sailRatio = 1;
+      break;
+    }
+    case 'claimRank': {
+      const bat = act.kind === 'bataille';
+      const cur = bat ? stepOf(battlePoints(p.shootXp), battleThreshold, BATTLE_STEPS) : stepOf(p.fishXp, fishThreshold, FISH_STEPS);
+      const from = bat ? p.battleClaimed : p.fishClaimed;
+      if (cur <= from) return 'Aucune récompense à réclamer pour l\'instant.';
+      for (let n = from + 1; n <= cur; n++) {
+        const r = bat ? battleReward(n) : fishReward(n);
+        p.or += r.or ?? 0; p.perles += r.perles ?? 0; p.diamants += r.diamants ?? 0;
+        for (const [k, v] of Object.entries(r.ammo ?? {})) p.ammo[k as AmmoId] = (p.ammo[k as AmmoId] ?? 0) + (v ?? 0);
+        for (const [k, v] of Object.entries(r.items ?? {})) p.items[k as ConsumableId] = (p.items[k as ConsumableId] ?? 0) + (v ?? 0);
+      }
+      if (bat) p.battleClaimed = cur; else p.fishClaimed = cur;
+      link.notify(`Récompenses des rangs ${from + 1} à ${cur} réclamées !`, 'gain');
       break;
     }
     default:

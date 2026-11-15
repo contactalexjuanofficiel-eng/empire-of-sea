@@ -8,7 +8,8 @@ import { computeStats, RARITY_COLOR, SHIP_BY_ID, SHIP_CLASSES } from '../../../s
 import { FACTION_LABEL, MAX_TIER, tierRequirement, ZONES, ZONE_BY_ID } from '../../../shared/zones';
 import { saveSettings, store, useStore } from '../store';
 import { EQUIP_NAME, EQUIP_ORDER } from '../../../shared/equipment';
-import { FISH_RANKS, playerBonus, rankIndex, SHOOT_RANKS } from '../../../shared/extras';
+import { playerBonus } from '../../../shared/extras';
+import { BATTLE_STEPS, battlePoints, battleThreshold, FISH_STEPS, fishThreshold, GRADES, stepOf } from '../../../shared/ranks';
 import { defaultKeys, KEY_DEFS, keyLabel } from '../game/Input';
 import { Frame, game, Icon, PORTRAITS, PORTRAIT_NAMES, send } from './common';
 
@@ -70,7 +71,7 @@ export function ProfilePanel() {
             <div className="muted">{PORTRAIT_NAMES[p.portrait]} · Pavillon {p.flag === 'royal' ? 'royal' : p.flag === 'tricolore' ? 'tricolore' : 'impérial'}</div>
             <div className="xpbar big"><i style={{ width: `${lv.need ? (lv.into / lv.need) * 100 : 100}%` }} /><span>Niveau {lv.level} · {fmt(lv.into)} / {fmt(lv.need)} XP</span></div>
             <div>Réputation : <b>{reputationName(p.reputation)}</b> ({fmt(p.reputation)})</div>
-            <div>Grade de tir : <b>{SHOOT_RANKS[rankIndex(SHOOT_RANKS, p.shootXp)].name}</b> ({fmt(p.shootXp)} pts) · Grade de pêche : <b>{FISH_RANKS[rankIndex(FISH_RANKS, p.fishXp)].name}</b> ({fmt(p.fishXp)} pts)</div>
+            <div>Rang : <b>{GRADES[store.get().grade?.grade ?? GRADES.length - 1].name}</b> · Rang de bataille <b>{stepOf(battlePoints(p.shootXp), battleThreshold, BATTLE_STEPS)}</b> · Rang de pêche <b>{stepOf(p.fishXp, fishThreshold, FISH_STEPS)}</b> <button className="btn small" onClick={() => store.set({ panel: 'rangs' })}>Voir les rangs</button></div>
             <div>Points élite : <b>{fmt(p.elite)}</b> · Ferraille : <b>{fmt(p.ferraille)}</b></div>
           </div>
         </div>

@@ -31,6 +31,8 @@ export interface PlayerLink {
   attacking: boolean;
   fishing: boolean;
   fishTimer: number;
+  /** Grade général (index dans GRADES), recalculé chaque minute. */
+  grade: number;
 }
 
 export type Relation = 'friend' | 'neutral' | 'war';

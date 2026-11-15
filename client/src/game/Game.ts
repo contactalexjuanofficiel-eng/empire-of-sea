@@ -21,7 +21,8 @@ import { Effects, WakeTrail } from './render/Effects';
 import { Ocean } from './render/Ocean';
 import { ShipModel } from './render/ShipModel';
 import { MonsterModel } from './render/MonsterModel';
-import { playerBonus, SHOOT_RANKS } from '../../../shared/extras';
+import { playerBonus } from '../../../shared/extras';
+import { GRADES } from '../../../shared/ranks';
 import { SkyEnv } from './render/SkyEnv';
 import { buildZoneVisual, type ZoneVisual } from './render/WorldBuilder';
 import { seaState, waveHeight } from './render/waves';
@@ -313,6 +314,9 @@ export class Game {
       case 'maps':
         store.set({ maps: m.list });
         break;
+      case 'grade':
+        store.set({ grade: { grade: m.grade, points: m.points, next: m.next, prev: m.prev, counts: m.counts, position: m.position } });
+        break;
       case 'pong':
         this.rtt = clamp(performance.now() / 1000 - m.c, 0.005, 2);
         store.set({ ping: Math.round(this.rtt * 1000) });
@@ -490,12 +494,20 @@ export class Game {
       const lvl = document.createElement('span');
       lvl.className = 'lv';
       lvl.textContent = m.kind === 'loot' ? '' : m.kind === 'fort' ? '⚑' : String(m.level);
-      if (m.kind === 'player' && m.shootRank) {
-        const r = document.createElement('span');
-        r.className = 'rank-badge';
-        r.textContent = '✪'.repeat(Math.min(3, Math.ceil(m.shootRank / 3))) + m.shootRank;
-        r.title = SHOOT_RANKS[m.shootRank]?.name ?? '';
-        name.appendChild(r);
+      if (m.kind === 'player') {
+        const gr = GRADES[m.grade ?? GRADES.length - 1];
+        const lys = document.createElement('span');
+        lys.className = `grade-lys metal-${gr.metal}`;
+        lys.textContent = '⚜';
+        lys.title = gr.name;
+        name.insertBefore(lys, name.firstChild);
+        if (m.shootRank) {
+          const r = document.createElement('span');
+          r.className = 'rank-badge';
+          r.textContent = `⛨${m.shootRank}`;
+          r.title = `Rang de bataille ${m.shootRank}`;
+          name.appendChild(r);
+        }
       }
       const txt = document.createElement('span');
       if (m.kind === 'player') txt.textContent = `${m.tag ? `[${m.tag}] ` : ''}${m.name}`;

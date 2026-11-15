@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import type { WebSocket } from 'ws';
 import { AMMO, CONSUMABLES } from '../shared/items.ts';
 import { levelFromXp } from '../shared/progression.ts';
+import { assignGrades, GRADES, rankPoints } from '../shared/ranks.ts';
 import { PROTOCOL_VERSION, TICK_RATE, type C2S, type ChatChannel, type GuildInfo, type LeaderEntry, type MissionOffer, type Profile, type S2C } from '../shared/protocol.ts';
 import { SHIP_BY_ID } from '../shared/ships.ts';
 import { BONUS_ZONES, isBonusDay, MAX_TIER, START_ZONE, tierRequirement, ZONE_BY_ID, ZONES } from '../shared/zones.ts';
@@ -44,6 +45,7 @@ export class Hub {
   /** Guilde qui contrôle chaque carte (dernier boss vaincu). */
   readonly owners = new Map<string, string>();
   private mapsTimer = 0;
+  private gradeTimer = 2;
   private last = performance.now();
 
   constructor(private store: Store) {
@@ -84,6 +86,8 @@ export class Hub {
       z.tick(dt);
       z.broadcast((t / DAY_SECONDS + z.def.ambiance.timeOffset) % 1);
     }
+    this.gradeTimer -= dt;
+    if (this.gradeTimer <= 0) { this.gradeTimer = 60; this.computeGrades(); }
     this.mapsTimer -= dt;
     if (this.mapsTimer <= 0) {
       this.mapsTimer = 3;
@@ -134,7 +138,7 @@ export class Hub {
       zoneId: profile.zone, entityId: allocId(), docked: true, port: profile.port,
       input: { sail: 0, rudder: 0 }, seq: 0, pvp: false, hpRatio: 1, sailRatio: 1,
       known: new Set(), deadTimer: 0, groupId: null, guildTag: this.guilds.of(name)?.tag ?? null,
-      nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0,
+      nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0, grade: 18,
       dirty: false, sentProfileAt: 0, savedAt: performance.now(), lastChat: 0, msgBudget: 80, offers: [], created: profile.created, lastHardBonus: 0,
     };
     this.sessions.set(accountId, s);
@@ -164,6 +168,7 @@ export class Hub {
     s.send({ t: 'welcome', id: s.entityId, name: s.name, profile: s.profile, zone: zone.def.id, port: s.port, st: zone.time });
     this.sendPort(s);
     this.sendGuild(s);
+    this.gradeTimer = Math.min(this.gradeTimer, 1); // calcule le rang du nouvel arrivant
     s.notify(`Bienvenue à ${zone.def.ports.find((p) => p.id === s.port)?.name ?? 'bord'}, capitaine ${s.name}.`, 'info');
     this.system(`${s.name} a pris la mer.`, zone);
   }
@@ -313,6 +318,26 @@ export class Hub {
         this.group(s, m.a, m.name);
         break;
     }
+  }
+
+  /** Rang général : classement de tous les capitaines, grades attribués selon les places disponibles. */
+  computeGrades() {
+    const map = new Map<string, Profile>();
+    for (const r of this.store.allProfiles()) if (r.p.created) map.set(lc(r.name), r.p);
+    for (const s of this.sessions.values()) if (s.created) map.set(lc(s.name), s.profile);
+    const list = [...map.entries()].map(([k, p]) => ({ k, pts: rankPoints(p) })).sort((a, b) => b.pts - a.pts);
+    const grades = assignGrades(list.map((x) => x.pts));
+    const counts = GRADES.map(() => 0);
+    grades.forEach((g) => counts[g]++);
+    list.forEach((x, i) => {
+      const s = this.byName.get(x.k);
+      if (!s) return;
+      const g = grades[i];
+      if (s.grade !== g) { s.grade = g; this.forgetEverywhere(s.entityId); }
+      const above = list.findLast((_, j) => grades[j] === g - 1);
+      const below = list.find((_, j) => grades[j] === g + 1);
+      s.send({ t: 'grade', grade: g, points: x.pts, next: g > 0 && above ? above.pts : null, prev: below ? below.pts : null, counts, position: i + 1 });
+    });
   }
 
   /** Envoie un joueur sur une autre carte, à quai dans le port principal. */
