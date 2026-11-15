@@ -1,5 +1,4 @@
 import { useStore } from '../store';
-import { Create } from './Create';
 import { BossBar, Chat, Hints, Notices, SeaPrompts } from './Hud';
 import { BottomDock, Journal, MapBlock, Rulers, SideTabs, TargetCard, TopNav, TutorialBox } from './Hud2';
 import { Login } from './Login';
@@ -18,7 +17,6 @@ export function App() {
   const chatOpen = useStore((s) => s.chatOpen);
 
   if (screen === 'login') return <><Login /><Notices /></>;
-  if (screen === 'create') return <><Create /><Notices /></>;
   if (screen === 'loading') return <div className="loading"><div className="spinner" /><p>Les cartographes dressent la carte…</p></div>;
 
   return (

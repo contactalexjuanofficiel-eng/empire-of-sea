@@ -267,7 +267,9 @@ export class Game {
   private onMessage(m: S2C) {
     switch (m.t) {
       case 'need_create':
-        store.set({ screen: 'create', name: m.name });
+        // Nouveau capitaine : pas d'écran de création, on part directement en mer sur La Bayonnaise.
+        store.set({ screen: 'loading', name: m.name });
+        this.sendCreate(0, 'tricolore', 'bayonnaise');
         break;
       case 'welcome':
         this.clearEntities();

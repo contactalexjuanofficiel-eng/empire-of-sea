@@ -32,11 +32,8 @@ async function register(p) {
   await p.page.fill('input[autocomplete=username]', p.name);
   await p.page.fill('input[type=password]', 'motdepasse1');
   await p.page.click('button.btn-gold');
-  await p.page.waitForSelector('.create-panel', { timeout: 180000 });
-  await p.page.click('text=Continuer');
-  await p.page.locator('.starter').nth(p.shipIdx).click();
-  await p.page.click('text=Appareiller avec');
-  await p.page.waitForSelector('.port', { timeout: 180000 });
+  // Pas d'écran de création : le nouveau capitaine arrive directement en mer.
+  await p.page.waitForSelector('.bdock', { timeout: 180000 });
 }
 
 const A = await player(`Capitaine${Date.now() % 10000}`, 0);
@@ -44,17 +41,17 @@ await sleep(4000);
 await A.page.screenshot({ path: `${OUT}/01-ecran-titre.png` });
 await register(A);
 await sleep(2500);
-await A.page.screenshot({ path: `${OUT}/02-port.png` });
+await A.page.screenshot({ path: `${OUT}/02-en-mer.png` });
+await A.page.click('.tn-btn:has-text("Port")');
+await sleep(800);
 await A.page.click('text=Chantier naval');
 await sleep(1500);
 await A.page.screenshot({ path: `${OUT}/03-chantier.png` });
+await A.page.click('.port .frame-head button');
 
 const B = await player(`Corsaire${Date.now() % 10000}`, 1, true);
 await register(B);
 
-for (const p of [A, B]) {
-  await p.page.click('text=Prendre la mer');
-}
 await sleep(3000);
 // A avance à pleine voile et tourne un peu
 await A.page.keyboard.press('KeyW');
