@@ -31,6 +31,8 @@ import { SkyEnv } from './render/SkyEnv';
 import { buildZoneVisual, type ZoneVisual } from './render/WorldBuilder';
 import { seaState, waveHeight } from './render/waves';
 
+/** Bascule des navires vers la caméra en vue aérienne (radians) : rendu de trois-quarts. */
+const SHIP_VIEW_TILT = -0.55;
 const INTERP = 0.12; // délai d'interpolation (s)
 const ARC = 0.6; // demi-angle de tir des sabords (rad), identique au serveur
 
@@ -104,6 +106,10 @@ export class Game {
   private lastCannon = new Map<number, number>();
   private raycaster = new THREE.Raycaster();
   private tmpV2 = new THREE.Vector2();
+  private tiltQ = new THREE.Quaternion();
+  private headQ = new THREE.Quaternion();
+  private tiltAxis = new THREE.Vector3();
+  private upAxis = new THREE.Vector3(0, 1, 0);
   private tmpV = new THREE.Vector3();
   private loadingZone = false;
   private navRing!: THREE.Mesh;
@@ -1061,7 +1067,15 @@ export class Game {
           roll += Math.min(0.6, s2 * 0.07);
         }
         m.root.position.set(c.x, 0, c.z);
-        m.root.rotation.y = c.h;
+        if (this.rig.mode === 'dessus' && e.meta.kind !== 'fort') {
+          // Vue aérienne façon jeux navals classiques : la mer reste vue d'en haut, mais chaque navire est
+          // basculé vers la caméra pour être vu de trois-quarts (flanc, sabords et voiles visibles). Affichage seulement.
+          this.tiltQ.setFromAxisAngle(this.tiltAxis.set(Math.cos(this.rig.isoYaw), 0, -Math.sin(this.rig.isoYaw)), SHIP_VIEW_TILT);
+          this.headQ.setFromAxisAngle(this.upAxis, c.h);
+          m.root.quaternion.multiplyQuaternions(this.tiltQ, this.headQ);
+        } else {
+          m.root.rotation.set(0, c.h, 0);
+        }
         m.body.position.y = y;
         m.body.rotation.set(pitch, 0, roll);
         const windRel = wrapAngle(c.h - this.wind.dir);

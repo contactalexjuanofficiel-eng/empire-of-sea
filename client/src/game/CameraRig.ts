@@ -19,11 +19,11 @@ export class CameraRig {
   /** « dessus » : vue plongeante nord en haut (par défaut) ; « 3d » : derrière le navire. */
   mode: 'dessus' | '3d' = 'dessus';
   readonly pan = new THREE.Vector3();
-  private topDist = 620;
+  private topDist = 480;
   /** Vue aérienne : orientation (0 = nord en haut) et inclinaison (≈ 55°, façon isométrique). */
   isoYaw = 0;
   private isoYawTarget = 0;
-  readonly isoPitch = 1.3; // ≈ 75° : vue plongeante façon MMORPG naval classique, navires petits au centre
+  readonly isoPitch = 1.12; // ≈ 75° : vue plongeante façon MMORPG naval classique, navires petits au centre
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
