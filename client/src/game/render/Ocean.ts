@@ -112,9 +112,25 @@ export class Ocean {
   readonly uniforms: Record<string, THREE.IUniform>;
   private spacing: number;
 
-  constructor() {
+  constructor(resolution = 300) {
+    this.mesh = new THREE.Mesh(Ocean.grid(resolution).geo, undefined);
+    this.spacing = Ocean.grid(resolution).spacing;
+    this.uniforms = Ocean.makeUniforms();
+    this.mesh.material = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: this.uniforms });
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = -1;
+  }
+
+  /** Change la finesse du maillage (selon la qualité graphique choisie). */
+  setResolution(resolution: number) {
+    const g = Ocean.grid(resolution);
+    this.mesh.geometry.dispose();
+    this.mesh.geometry = g.geo;
+    this.spacing = g.spacing;
+  }
+
+  private static grid(N: number) {
     // Grille non uniforme : très dense près de la caméra, de plus en plus lâche jusqu'à l'horizon.
-    const N = 400;
     const EXTENT = 14000;
     const A = 0.0214;
     const geo = new THREE.PlaneGeometry(2, 2, N, N);
@@ -127,9 +143,11 @@ export class Ocean {
     }
     geo.computeBoundingSphere();
     geo.boundingSphere!.radius = EXTENT * 2;
-    this.spacing = A * (2 / N) * EXTENT;
+    return { geo, spacing: A * (2 / N) * EXTENT };
+  }
 
-    this.uniforms = {
+  private static makeUniforms(): Record<string, THREE.IUniform> {
+    return {
       uTime: { value: 0 },
       uWaveScale: { value: 1 },
       uCamPos: { value: new THREE.Vector3() },
@@ -146,10 +164,6 @@ export class Ocean {
       uZoneHalf: { value: 4000 },
       uNight: { value: 0 },
     };
-    const mat = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: this.uniforms });
-    this.mesh = new THREE.Mesh(geo, mat);
-    this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = -1;
   }
 
   follow(cam: THREE.Vector3) {

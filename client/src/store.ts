@@ -45,10 +45,11 @@ export interface AppState {
   preview: string;
   settings: Settings;
   chatFocus: number;
+  fps: number;
 }
 
 const loadSettings = (): Settings => {
-  const d: Settings = { quality: 'haute', volume: 0.7, muted: false, autoCam: true, labels: true };
+  const d: Settings = { quality: 'moyenne', volume: 0.7, muted: false, autoCam: true, labels: true };
   try { return { ...d, ...JSON.parse(localStorage.getItem('edm.settings') || '{}') }; } catch { return d; }
 };
 
@@ -75,6 +76,7 @@ const initial: AppState = {
   preview: 'bayonnaise',
   settings: loadSettings(),
   chatFocus: 0,
+  fps: 0,
 };
 
 type Listener = () => void;

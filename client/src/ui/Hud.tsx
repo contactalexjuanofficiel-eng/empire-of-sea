@@ -17,6 +17,7 @@ export function TopBar() {
   const zone = useStore((s) => s.zone);
   const ping = useStore((s) => s.ping);
   const conn = useStore((s) => s.connection);
+  const fps = useStore((s) => s.fps);
   if (!p) return null;
   const lv = levelFromXp(p.xp);
   return (
@@ -37,7 +38,7 @@ export function TopBar() {
       </div>
       <div className="zone-name">
         <Icon name="globe" /> {ZONE_BY_ID[zone]?.name}
-        <span className={`net net-${conn}`} title="Latence">{conn === 'on' ? `${ping} ms` : conn === 'lost' ? 'Connexion perdue…' : '…'}</span>
+        <span className={`net net-${conn}`} title="Latence">{conn === 'on' ? `${ping} ms · ${fps} i/s` : conn === 'lost' ? 'Connexion perdue…' : '…'}</span>
       </div>
     </div>
   );

@@ -12,7 +12,7 @@ import { F_BURNING, F_PVP, F_REPAIRING, F_SAFE, F_SINKING, type EntityMeta, type
 import { computeStats, SHIP_BY_ID, type ShipStats } from '../../../shared/ships';
 import { DOCK_RADIUS, FACTION_LABEL, ZONE_BY_ID, type ZoneDef } from '../../../shared/zones';
 import { Connection } from '../net/Connection';
-import { notify, pushChat, store } from '../store';
+import { notify, pushChat, saveSettings, store } from '../store';
 import { GameAudio } from './Audio';
 import { CameraRig } from './CameraRig';
 import { Input, type Action } from './Input';
@@ -52,7 +52,7 @@ export class Game {
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
   private sky: SkyEnv;
-  private ocean = new Ocean();
+  private ocean = new Ocean(store.get().settings.quality === 'haute' ? 320 : store.get().settings.quality === 'moyenne' ? 220 : 140);
   private fx = new Effects();
   private rig: CameraRig;
   readonly input: Input;
@@ -94,6 +94,9 @@ export class Game {
   private raycaster = new THREE.Raycaster();
   private tmpV = new THREE.Vector3();
   private loadingZone = false;
+  private fpsFrames = 0;
+  private fpsTime = 0;
+  private slowStreak = 0;
   /** Aperçu visuel : ?heure=0.5 (midi) ou 0.74 (coucher de soleil) force l'heure affichée. */
   private forcedDay = (() => { const v = Number(new URLSearchParams(location.search).get('heure')); return Number.isFinite(v) && v > 0 && v < 1 ? v : null; })();
 
@@ -161,14 +164,15 @@ export class Game {
   // ------------------------------------------------------------------ réglages
   applySettings() {
     const s = store.get().settings;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     this.renderer.setPixelRatio(s.quality === 'haute' ? dpr : s.quality === 'moyenne' ? 1 : 0.75);
+    this.ocean.setResolution(s.quality === 'haute' ? 320 : s.quality === 'moyenne' ? 220 : 140);
     this.renderer.shadowMap.enabled = s.quality !== 'basse';
     this.sky.sun.castShadow = s.quality !== 'basse';
     this.sky.sun.shadow.mapSize.setScalar(s.quality === 'haute' ? 2048 : 1024);
     this.sky.sun.shadow.map?.dispose();
     (this.sky.sun.shadow as { map: THREE.WebGLRenderTarget | null }).map = null;
-    this.bloom.enabled = s.quality !== 'basse';
+    this.bloom.enabled = s.quality === 'haute';
     this.rig.autoFollow = s.autoCam;
     this.audio.setVolume(s.volume, s.muted);
     this.resize();
@@ -690,6 +694,29 @@ export class Game {
     if (inGame && this.pingTimer <= 0) { this.pingTimer = 2; this.net.send({ t: 'ping', c: performance.now() / 1000 }); }
 
     this.composer.render(dt);
+    this.measureFps();
+  }
+
+  /** Compte les images par seconde et baisse la qualité si l'ordinateur peine. */
+  private measureFps() {
+    this.fpsFrames++;
+    const now = performance.now();
+    if (!this.fpsTime) this.fpsTime = now;
+    if (now - this.fpsTime < 2000) return;
+    const fps = Math.round((this.fpsFrames * 1000) / (now - this.fpsTime));
+    this.fpsFrames = 0;
+    this.fpsTime = now;
+    store.set({ fps });
+    const st = store.get().settings;
+    if (fps < 28 && st.quality !== 'basse' && !document.hidden) {
+      if (++this.slowStreak >= 2) {
+        this.slowStreak = 0;
+        const next = st.quality === 'haute' ? 'moyenne' : 'basse';
+        saveSettings({ ...st, quality: next });
+        this.applySettings();
+        notify(`Qualité graphique abaissée automatiquement (${next}) pour plus de fluidité. Modifiable dans Paramètres.`, 'info');
+      }
+    } else this.slowStreak = 0;
   }
 
   private updateInput(dt: number) {

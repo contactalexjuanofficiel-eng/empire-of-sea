@@ -158,7 +158,7 @@ export function buildZoneVisual(zone: ZoneDef): ZoneVisual {
   islandsGeo.computeVertexNormals();
   const islands = new THREE.Mesh(islandsGeo, terrainMat);
   islands.receiveShadow = true;
-  islands.castShadow = true;
+  islands.castShadow = false;
   group.add(islands);
   disposables.push(islandsGeo);
 
@@ -201,7 +201,7 @@ export function buildZoneVisual(zone: ZoneDef): ZoneVisual {
     if (!treeLists[k].length) return;
     const im = new THREE.InstancedMesh(g, treeMat, treeLists[k].length);
     treeLists[k].forEach((m, i) => im.setMatrixAt(i, m));
-    im.castShadow = true;
+    im.castShadow = false;
     im.receiveShadow = true;
     group.add(im);
     disposables.push(g);
@@ -210,7 +210,7 @@ export function buildZoneVisual(zone: ZoneDef): ZoneVisual {
   const rockMesh = new THREE.InstancedMesh(rockGeo, new THREE.MeshStandardMaterial({ color: pal.rock, roughness: 1, flatShading: true }), Math.max(1, rockList.length));
   rockList.forEach((m, i) => rockMesh.setMatrixAt(i, m));
   rockMesh.count = rockList.length;
-  rockMesh.castShadow = true;
+  rockMesh.castShadow = false;
   group.add(rockMesh);
 
   // --- Villes portuaires
@@ -294,10 +294,9 @@ export function buildZoneVisual(zone: ZoneDef): ZoneVisual {
   if (walls.length) {
     const wm = new THREE.InstancedMesh(unitBox, wallMat, walls.length);
     walls.forEach((m, i) => { wm.setMatrixAt(i, m); wm.setColorAt(i, wallCols[i]); });
-    wm.castShadow = wm.receiveShadow = true;
+    wm.receiveShadow = true;
     const rm = new THREE.InstancedMesh(roofGeo, roofMat, roofs.length);
     roofs.forEach((m, i) => { rm.setMatrixAt(i, m); rm.setColorAt(i, roofCols[i]); });
-    rm.castShadow = true;
     const win = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), windowsMat, Math.max(1, wins.length));
     wins.forEach((m, i) => win.setMatrixAt(i, m));
     win.count = wins.length;
@@ -360,13 +359,12 @@ export function buildZoneVisual(zone: ZoneDef): ZoneVisual {
   if (stones.length) {
     const sg = mergeGeometries(stones.map((g) => g.toNonIndexed()))!;
     const sm = new THREE.Mesh(sg, stoneMat);
-    sm.castShadow = sm.receiveShadow = true;
+    sm.receiveShadow = true;
     group.add(sm);
   }
   if (woods.length) {
     const wg = mergeGeometries(woods.map((g) => g.toNonIndexed()))!;
     const wm = new THREE.Mesh(wg, woodMat);
-    wm.castShadow = true;
     group.add(wm);
   }
 

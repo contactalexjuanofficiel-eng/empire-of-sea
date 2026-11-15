@@ -28,10 +28,10 @@ varying vec3 vW;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 45758.5453); }
 float n(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),u.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x),u.y); }
-float fbm(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<5;i++){ s+=a*n(p); p*=2.03; a*=0.5; } return s; }
+float fbm(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<4;i++){ s+=a*n(p); p*=2.03; a*=0.5; } return s; }
 void main(){
   vec2 p = vW.xz * 0.00035 + uWind * uTime * 0.004;
-  float d = fbm(p) * 0.75 + fbm(p * 3.1 + 7.0) * 0.25;
+  float d = fbm(p);
   float a = smoothstep(1.0 - uCover, 1.0 - uCover + 0.35, d);
   float dist = length(vW.xz - uCam.xz);
   a *= 1.0 - smoothstep(9000.0, 15000.0, dist);
@@ -79,7 +79,7 @@ export class SkyEnv {
   private envSky = new Sky();
   private envRT: THREE.WebGLRenderTarget | null = null;
   private lastEnvSun = new THREE.Vector3(9, 9, 9);
-  private lastEnvTime = -99;
+  private lastEnvTime = -99; // reflets du ciel recalculés au plus toutes les 8 s
   private lightning = 0;
   onThunder: ((delay: number) => void) | null = null;
 
@@ -238,7 +238,7 @@ export class SkyEnv {
     }
 
     // Carte d'environnement (reflets) : régénérée quand le soleil a bougé.
-    if (this.lastEnvSun.distanceTo(this.sunDir) > 0.03 || (t - this.lastEnvTime > 20 && Math.abs(this.lastEnvTime - t) > 0)) {
+    if (this.lastEnvSun.distanceTo(this.sunDir) > 0.08 && t - this.lastEnvTime > 8) {
       this.lastEnvSun.copy(this.sunDir);
       this.lastEnvTime = t;
       const eu = this.envSky.material.uniforms;
