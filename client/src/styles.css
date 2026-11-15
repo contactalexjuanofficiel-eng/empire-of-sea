@@ -891,3 +891,4 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .hud .notices { top: 200px; }
 .hud .bossbar { top: 62px; z-index: 5; }
 .tuto { top: 92px; }
+.mk td.livery { white-space: nowrap; } .mk td.livery i { display: inline-block; width: 14px; height: 14px; border: 2px solid; margin-right: 6px; vertical-align: -2px; }

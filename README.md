@@ -153,6 +153,16 @@ lattées, galère à rames animées et éperon, felouque à voiles latines, drak
 
 ![Navires régionaux](docs/captures/navires-regionaux.jpg)
 
+## Livrées élites (navires des joueurs)
+
+Chaque navire élite change d'apparence à chaque niveau élite (1 à 15) : coque, bandeau, dorures, voiles et pont
+(Toile neuve, Vert de Bretagne, Cuivre de Saint-Malo, Olive de campagne, Or pâle, Or royal, Argent de Versailles,
+Corbeau, Nuit dorée, Braise, Bronze du Ponant, Émeraude noire, Pourpre de l'Amiral, Abysse, Légende des mers).
+Effets visibles par tous : éclats dorés dès 10, braises dès 13, aura dorée au 15. Les bonus (santé, vitesse, dégâts,
+harpons, réparations, canons) suivent le tableau du chantier. Les PNJ ne sont pas concernés.
+
+![Livrées élites](docs/captures/livrees-elites.jpg)
+
 ## Escadres et guerre de guildes
 
 - **Escadre** : dans un groupe (onglet Groupe, 5 capitaines au plus), les membres peuvent « Suivre le chef en escadre » :

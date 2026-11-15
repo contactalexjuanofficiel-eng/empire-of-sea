@@ -1,5 +1,6 @@
 // Simulation autoritaire d'une zone maritime : un « shard » indépendant.
 // Le serveur peut faire tourner chaque zone dans son propre processus plus tard (voir docs/ARCHITECTURE.md).
+import { eliteLevel } from '../../shared/elite.ts';
 import { FLEET_BONUS_MAX, FLEET_BONUS_PER_ALLY, FLEET_BONUS_RADIUS, FLEET_SPACING } from '../../shared/fleet.ts';
 import { REGION_BY_ID } from '../../shared/regions.ts';
 import { skillCooldownMul, skillPower, ACTIVE_SKILL_BY_ID, BASE_CRIT, CRIT_MUL, ENERGY_MAX, ENERGY_REGEN, SHIELD_DELAY, SHIELD_RATIO, SHIELD_REGEN, SKILL_CRIT_BONUS, SKILL_DMG_BONUS, type ActiveSkillId } from '../../shared/combat.ts';
@@ -1079,7 +1080,7 @@ export class Zone {
         if (!link.known.has(s.id)) {
           link.known.add(s.id);
           const friend = s.link && s.id !== link.entityId ? this.hooks.relation(link, s.link) === 'friend' : false;
-          metas.push({ id: s.id, kind: s.kind, ship: s.def.id, name: s.name, level: s.level, faction: s.faction, tag: s.link?.guildTag ?? null, maxHp: s.stats.hp, flag: s.link?.profile.flag, friend, skin: s.link?.profile.skin ?? null, shootRank: s.link ? stepOf(battlePoints(s.link.profile.shootXp), battleThreshold, BATTLE_STEPS) : undefined, grade: s.link?.grade });
+          metas.push({ id: s.id, kind: s.kind, ship: s.def.id, name: s.name, level: s.level, faction: s.faction, tag: s.link?.guildTag ?? null, maxHp: s.stats.hp, flag: s.link?.profile.flag, friend, skin: s.link?.profile.skin ?? null, elite: s.link && s.def.elite ? eliteLevel(s.link.profile.elite ?? 0).level : 0, shootRank: s.link ? stepOf(battlePoints(s.link.profile.shootXp), battleThreshold, BATTLE_STEPS) : undefined, grade: s.link?.grade });
         }
       }
       for (const f of this.forts.values()) {

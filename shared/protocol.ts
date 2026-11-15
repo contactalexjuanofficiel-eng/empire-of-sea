@@ -162,6 +162,8 @@ export interface EntityMeta {
   hostile?: boolean;
   loot?: 'caisse' | 'tresor' | 'coffre';
   skin?: SkinId | null;
+  /** Niveau élite du navire (livrée visible par tous), 0 si le navire n'est pas élite. */
+  elite?: number;
   shootRank?: number;
   grade?: number;
 }

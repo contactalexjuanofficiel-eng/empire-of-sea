@@ -1,6 +1,7 @@
 // Modèles 3D de navires générés de façon procédurale à partir des caractéristiques de chaque bâtiment :
 // coque à membrures, préceintes et sabords, galerie de poupe éclairée, mâture à trois étages de voiles,
 // voiles qui se déploient selon l'allure demandée, gréement, canons en batterie, pavillon et lanternes.
+import { ELITE_LIVERIES, eliteLook } from '../../../../shared/elite';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -532,10 +533,12 @@ export class ShipModel {
   private lanternMat: THREE.MeshStandardMaterial;
   private mats: THREE.Material[] = [];
 
-  constructor(baseDef: ShipDef, flagOverride?: 'royal' | 'tricolore' | 'imperial', skin?: SkinId | null) {
-    // Pont décoré (doré, bleu) : on repeint préceintes, dorures, voiles et pont.
-    const sk = skin ? SKINS[skin] : undefined;
-    const def: ShipDef = sk ? { ...baseDef, look: { ...baseDef.look, stripe: sk.stripe, trim: sk.trim, sail: sk.sail } } : baseDef;
+  constructor(baseDef: ShipDef, flagOverride?: 'royal' | 'tricolore' | 'imperial', skin?: SkinId | null, elite = 0) {
+    // Navire élite : livrée de son niveau (coque, bandeau, dorures, voiles), prioritaire sur le pont décoré.
+    // Sinon, pont décoré (doré, bleu) : on repeint préceintes, dorures, voiles et pont.
+    const sk = skin && !(elite && baseDef.elite) ? SKINS[skin] : undefined;
+    const def: ShipDef = elite && baseDef.elite ? { ...baseDef, look: eliteLook(baseDef.look, elite) }
+      : sk ? { ...baseDef, look: { ...baseDef.look, stripe: sk.stripe, trim: sk.trim, sail: sk.sail } } : baseDef;
     this.def = def;
     const a = assets(def);
     this.dims = a.dims;
@@ -547,7 +550,10 @@ export class ShipModel {
     const hull = new THREE.Mesh(a.hull, hullM);
     hull.castShadow = hull.receiveShadow = true;
 
-    const deck = new THREE.Mesh(a.deck, new THREE.MeshStandardMaterial({ map: deckTexture(), roughness: sk ? 0.4 : 0.85, color: sk ? sk.deck : 0xffffff, metalness: sk?.id === 'dore' ? 0.6 : 0 }));
+    // Vu de dessus, c'est surtout le pont qu'on voit : il prend la teinte de la livrée élite.
+    const livery = elite && baseDef.elite ? ELITE_LIVERIES[Math.max(1, Math.min(15, elite)) - 1] : null;
+    const deckColor = livery ? new THREE.Color(0xffffff).lerp(new THREE.Color(livery.sail), 0.65) : new THREE.Color(sk ? sk.deck : 0xffffff);
+    const deck = new THREE.Mesh(a.deck, new THREE.MeshStandardMaterial({ map: deckTexture(), roughness: sk || livery ? 0.45 : 0.85, color: deckColor, metalness: sk?.id === 'dore' || (livery && livery.level >= 5) ? 0.35 : 0 }));
     deck.receiveShadow = true;
     const woodM = new THREE.MeshStandardMaterial({ color: 0x3b2a1c, roughness: 0.8 });
     const wood = new THREE.Mesh(a.wood, woodM);

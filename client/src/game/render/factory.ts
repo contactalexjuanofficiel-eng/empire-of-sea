@@ -8,9 +8,9 @@ import { ShipModel } from './ShipModel';
 
 export type AnyShipModel = ShipModel | MonsterModel | ModernShipModel | RegionalShipModel;
 
-export function makeShipModel(def: ShipDef, flag?: 'royal' | 'tricolore' | 'imperial', skin?: SkinId | null): AnyShipModel {
+export function makeShipModel(def: ShipDef, flag?: 'royal' | 'tricolore' | 'imperial', skin?: SkinId | null, elite = 0): AnyShipModel {
   if (def.look.monster) return new MonsterModel(def);
   if (def.modern) return new ModernShipModel(def);
   if (def.regional) return new RegionalShipModel(def);
-  return new ShipModel(def, flag, skin);
+  return new ShipModel(def, flag, skin, elite);
 }

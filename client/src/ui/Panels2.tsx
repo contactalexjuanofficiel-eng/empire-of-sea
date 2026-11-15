@@ -2,7 +2,7 @@
 import { RaidBox } from './Hud2';
 import { useEffect, useState } from 'react';
 import { CAPTAIN_CATS, CAPTAINS, DAILY, DAILY_SLOTS, FORGE, levelMission, shipBonus, SKINS, type SkinId } from '../../../shared/extras';
-import { ELITE_LEVELS, ELITE_SIGNATURES, eliteLevel } from '../../../shared/elite';
+import { ELITE_LEVELS, ELITE_LIVERIES, ELITE_SIGNATURES, eliteLevel } from '../../../shared/elite';
 import { CONSUMABLE_ORDER, CONSUMABLES, ITEM_CATS } from '../../../shared/items';
 import { fmt } from '../../../shared/math';
 import { levelFromXp } from '../../../shared/progression';
@@ -300,16 +300,18 @@ export function EliteShipsTab() {
       <div className="elite-levels">
         <h4>Niveau élite {lvl.level} / {ELITE_LEVELS.length}{nextLvl ? ` — prochain niveau à ${fmt(nextLvl.points)} points` : ' — niveau maximal'}</h4>
         <table className="mk">
-          <thead><tr><th>Niveau</th><th>Points élite</th><th>Santé</th><th>Vitesse</th><th>Bonus</th></tr></thead>
+          <thead><tr><th>Niveau</th><th>Livrée</th><th>Points élite</th><th>Santé</th><th>Vitesse</th><th>Bonus</th></tr></thead>
           <tbody>
             {ELITE_LEVELS.map((l) => (
               <tr key={l.level} className={l.level === lvl.level ? 'me' : l.level < lvl.level ? 'done' : ''}>
-                <td>{l.level}</td><td>{fmt(l.points)}</td><td>+{Math.round(l.hp * 100)} %</td><td>+{(l.speed * 100).toFixed(1).replace('.', ',')} %</td><td>{l.feature}</td>
+                <td>{l.level}</td>
+                <td className="livery"><i style={{ background: `#${ELITE_LIVERIES[l.level - 1].sail.toString(16).padStart(6, '0')}`, borderColor: `#${ELITE_LIVERIES[l.level - 1].trim.toString(16).padStart(6, '0')}` }} />{ELITE_LIVERIES[l.level - 1].name}{ELITE_LIVERIES[l.level - 1].fx ? ` ✦` : ''}</td>
+                <td>{fmt(l.points)}</td><td>+{Math.round(l.hp * 100)} %</td><td>+{(l.speed * 100).toFixed(1).replace('.', ',')} %</td><td>{l.feature}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="muted small">Les bonus de niveau élite s'appliquent quand vous commandez un navire élite, en plus de sa spécialité.</p>
+        <p className="muted small">Les bonus de niveau élite s'appliquent quand vous commandez un navire élite, en plus de sa spécialité. Chaque niveau repeint aussi le navire (livrée visible par tous les capitaines) ; ✦ : effet visible en mer (éclats dorés dès 10, braises dès 13, aura dorée au 15).</p>
       </div>
       <div className="elite-foot">
         <span>Vos points élite actuels : <b>{fmt(p.elite)}</b></span>

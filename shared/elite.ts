@@ -71,3 +71,33 @@ export function eliteBonus(def: ShipDef | undefined, elitePoints: number): StatB
     reload: sig.reload ?? 0,
   };
 }
+
+// --- Livrées élites : chaque niveau élite repeint le navire (coque, bandeau, dorures, voiles) ---------------
+// Le navire garde sa forme ; sa livrée s'assombrit et s'enrichit avec le niveau. À partir du niveau 10, un effet
+// visible s'ajoute (éclats, braises, aura) pour que les autres capitaines reconnaissent un vétéran au premier regard.
+export type EliteFx = 'eclats' | 'braises' | 'aura';
+export interface EliteLivery { level: number; name: string; hull: number; stripe: number; trim: number; sail: number; glow?: number; fx?: EliteFx }
+
+export const ELITE_LIVERIES: EliteLivery[] = [
+  { level: 1, name: 'Toile neuve', hull: 0x5a3a22, stripe: 0x2a1d14, trim: 0xb8892b, sail: 0xf2ead6 },
+  { level: 2, name: 'Vert de Bretagne', hull: 0x4a3a20, stripe: 0x3a5a2a, trim: 0xb8a04a, sail: 0xb8c890 },
+  { level: 3, name: 'Cuivre de Saint-Malo', hull: 0x5a3018, stripe: 0x8a4a20, trim: 0xd08a40, sail: 0xd8a070 },
+  { level: 4, name: 'Olive de campagne', hull: 0x3a3420, stripe: 0x5a5a30, trim: 0xa89a50, sail: 0xa8a478 },
+  { level: 5, name: 'Or pâle', hull: 0x4a3418, stripe: 0x8a6a20, trim: 0xe0b440, sail: 0xe8d088 },
+  { level: 6, name: 'Or royal', hull: 0x3a2810, stripe: 0xb8902a, trim: 0xffd060, sail: 0xf0c850, glow: 0x3a2a00 },
+  { level: 7, name: 'Argent de Versailles', hull: 0x3a3c44, stripe: 0x9aa4b0, trim: 0xe0e6f0, sail: 0xc8ccd8 },
+  { level: 8, name: 'Corbeau', hull: 0x1c1c22, stripe: 0x3a3a44, trim: 0x8a8a96, sail: 0x4a4a54 },
+  { level: 9, name: 'Nuit dorée', hull: 0x181410, stripe: 0x2a2418, trim: 0xd8aa40, sail: 0x3a3428 },
+  { level: 10, name: 'Braise', hull: 0x1a1210, stripe: 0x5a2010, trim: 0xff8a30, sail: 0x3a2a24, glow: 0x5a1a00, fx: 'eclats' },
+  { level: 11, name: 'Bronze du Ponant', hull: 0x2a1c10, stripe: 0x8a5a20, trim: 0xe8a040, sail: 0x7a5a34, glow: 0x3a2400, fx: 'eclats' },
+  { level: 12, name: 'Émeraude noire', hull: 0x101a14, stripe: 0x1f4a32, trim: 0x6fdc9c, sail: 0x2a3a30, glow: 0x0a3a1a, fx: 'eclats' },
+  { level: 13, name: 'Pourpre de l\'Amiral', hull: 0x2a0c0c, stripe: 0x7a1a1a, trim: 0xff6a5a, sail: 0x9a2a2a, glow: 0x4a0a00, fx: 'braises' },
+  { level: 14, name: 'Abysse', hull: 0x0c1020, stripe: 0x1a2a5a, trim: 0x7ab0ff, sail: 0x1f2a48, glow: 0x0a1a5a, fx: 'braises' },
+  { level: 15, name: 'Légende des mers', hull: 0x0a0908, stripe: 0xb88a2a, trim: 0xffe08a, sail: 0x15120e, glow: 0x9a6a00, fx: 'aura' },
+];
+
+/** Apparence d'un navire élite à son niveau (les navires non élites gardent la leur). */
+export function eliteLook<T extends { hull: number; stripe: number; trim: number; sail: number; glow?: number }>(look: T, level: number): T {
+  const l = ELITE_LIVERIES[Math.max(1, Math.min(15, Math.floor(level))) - 1];
+  return { ...look, hull: l.hull, stripe: l.stripe, trim: l.trim, sail: l.sail, glow: l.glow ?? look.glow };
+}

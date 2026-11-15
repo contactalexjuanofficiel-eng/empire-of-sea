@@ -300,6 +300,8 @@ export class Game {
         for (const meta of m.list) {
           this.metas.set(meta.id, meta);
           const e = this.ents.get(meta.id);
+          // Navire changé, nouveau pont décoré ou nouvelle livrée élite : on reconstruit le modèle 3D.
+          if (e && (e.meta.ship !== meta.ship || e.meta.skin !== meta.skin || (e.meta.elite ?? 0) !== (meta.elite ?? 0))) { this.removeEnt(e); this.ents.delete(meta.id); continue; }
           if (e) { e.meta = meta; this.refreshLabel(e, true); }
         }
         break;
@@ -419,11 +421,20 @@ export class Game {
     const e: ClientEnt = { id, meta, snaps: [], cur: { ...snap }, seen: snap.t, sinkT: snap.flags & F_SINKING ? 5 : -1, pose: { heave: 0, pitch: 0, roll: 0 }, fxT: 0 };
     if (meta.kind === 'player' || meta.kind === 'npc' || meta.kind === 'boss') {
       const def = SHIP_BY_ID[meta.ship ?? 'bayonnaise'];
-      e.model = makeShipModel(def, meta.kind === 'player' ? meta.flag : undefined, meta.skin);
+      e.model = makeShipModel(def, meta.kind === 'player' ? meta.flag : undefined, meta.skin, meta.elite ?? 0);
       e.model.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true; });
       this.scene.add(e.model.root);
       e.wake = new WakeTrail(def ? e.model.dims.B * 0.55 : 4);
       this.scene.add(e.wake.mesh);
+      // Élite 15 « Légende des mers » : aura dorée qui pulse sous la coque.
+      if ((meta.elite ?? 0) >= 15 && def?.elite) {
+        const L = e.model.dims.L;
+        const aura = new THREE.Mesh(new THREE.RingGeometry(L * 0.74, L * 0.79, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xe8b84a, transparent: true, opacity: 0.6, depthWrite: false, depthTest: false, fog: false }));
+        aura.position.y = 0.8;
+        aura.renderOrder = 3;
+        aura.userData.aura = true;
+        e.model.root.add(aura);
+      }
       if (meta.kind === 'boss') {
         const l = new THREE.PointLight(0x3dffb0, 4000, 300, 1.5);
         l.position.set(0, 30, 0);
@@ -1048,6 +1059,7 @@ export class Game {
         m.update(this.t, dt, c.flags & F_SINKING ? 0 : c.sail, windRel, this.wind.strength, 1 - c.hp, 1 - c.sailHp, this.sky.night);
         m.root.visible = cd < 6000;
         if (m instanceof ModernShipModel) m.setDetail(cd);
+        for (const ch of m.root.children) if (ch.userData.aura) { const k = 1 + 0.08 * Math.sin(this.t * 3); ch.scale.set(k, 1, k); }
 
         // Effets : incendie, fumée de dégâts, gerbes d'étrave
         e.fxT -= dt;
@@ -1072,6 +1084,10 @@ export class Game {
             this.fx.bowSpray(bow.x, waveHeight(bow.x, bow.z, this.t, cd) + 0.4, bow.z, px, pz, Math.min(1, (c.speed - 6) / 10));
           }
           if (e.meta.kind === 'boss') this.fx.sparkle(c.x + (Math.random() - 0.5) * L, 10 + Math.random() * 20, c.z + (Math.random() - 0.5) * L);
+          // Effets des livrées élites : éclats dorés (10+), braises (13+), plus fréquents avec le niveau.
+          const el = e.meta.elite ?? 0;
+          if (el >= 10 && Math.random() < 0.08 + (el - 10) * 0.04) this.fx.sparkle(c.x + (Math.random() - 0.5) * L * 0.8, 6 + Math.random() * L * 0.4, c.z + (Math.random() - 0.5) * L * 0.8);
+          if (el >= 13 && Math.random() < 0.12) this.fx.burn(c.x + (Math.random() - 0.5) * L * 0.5, 4 + Math.random() * 6, c.z + (Math.random() - 0.5) * L * 0.5, 0.25);
         }
         if (e.wake) {
           const stern = this.tmpV.set(c.x - Math.sin(c.h) * L * 0.42, 0, c.z - Math.cos(c.h) * L * 0.42);

@@ -1,4 +1,5 @@
 // Le Hub relie les connexions WebSocket aux zones, gère le chat, les groupes, les guildes et la sauvegarde.
+import { eliteLevel } from '../shared/elite.ts';
 import { seasonPoints } from '../shared/season.ts';
 import { ACTIVE_SKILL_BY_ID } from '../shared/combat.ts';
 import { RAID_DURATION, RAID_POINTS, RAID_REWARD, RAID_WARNING, raidStartAt, raidZone, TERRITORY_INTERVAL, territoryIncome } from '../shared/fleet.ts';
@@ -24,6 +25,8 @@ import type { PlayerLink } from './types.ts';
 interface Session extends PlayerLink {
   ws: WebSocket;
   dirty: boolean;
+  /** Niveau élite dont la livrée a été diffusée (0 = navire non élite). */
+  eliteShown?: number;
   sentProfileAt: number;
   savedAt: number;
   lastChat: number;
@@ -381,6 +384,9 @@ export class Hub {
       if (!s) return;
       const g = grades[i];
       if (s.grade !== g) { s.grade = g; this.forgetEverywhere(s.entityId); }
+      // Nouveau niveau élite : la nouvelle livrée doit être renvoyée à tous les capitaines proches.
+      const el = SHIP_BY_ID[activeShip(s.profile)?.def ?? '']?.elite ? eliteLevel(s.profile.elite ?? 0).level : 0;
+      if (s.eliteShown !== el) { s.eliteShown = el; this.forgetEverywhere(s.entityId); }
       const above = list.findLast((_, j) => grades[j] === g - 1);
       const below = list.find((_, j) => grades[j] === g + 1);
       s.send({ t: 'grade', grade: g, points: x.pts, next: g > 0 && above ? above.pts : null, prev: below ? below.pts : null, counts, position: i + 1 });

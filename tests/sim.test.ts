@@ -381,3 +381,23 @@ test('sans port : on démarre en mer immobile, et un navire coulé est renfloué
   assert.equal(link.docked, false, 'toujours en mer, pas au port');
   assert.equal(again.hp, again.stats.hp);
 });
+
+test('livrées élites : le niveau élite du navire est transmis aux autres capitaines', async () => {
+  const { giveShip } = await import('../server/profile.ts');
+  const { ELITE_LIVERIES, eliteLook } = await import('../shared/elite.ts');
+  assert.equal(ELITE_LIVERIES.length, 15);
+  assert.notEqual(eliteLook(SHIP_BY_ID.etoile_roi.look, 1).sail, eliteLook(SHIP_BY_ID.etoile_roi.look, 15).sail);
+  const zone = new Zone(ZONE_BY_ID['manche-1'], { relation: () => 'neutral' });
+  const veteran = fakeLink('Veteran', 81), voisin = fakeLink('Voisin', 82);
+  veteran.profile.active = giveShip(veteran.profile, 'etoile_roi').uid;
+  veteran.profile.elite = 60_000_000; // niveau élite 14
+  zone.addPlayer(veteran);
+  zone.addPlayer(voisin);
+  const A = zone.ships.get(veteran.entityId)!, B = zone.ships.get(voisin.entityId)!;
+  B.k.x = A.k.x + 50; B.k.z = A.k.z;
+  zone.broadcast(0.5);
+  const meta = voisin.inbox.filter((m) => m.t === 'meta').flatMap((m) => (m.t === 'meta' ? m.list : [])).find((x) => x.id === veteran.entityId);
+  assert.equal(meta?.elite, 14);
+  const metaVoisin = veteran.inbox.filter((m) => m.t === 'meta').flatMap((m) => (m.t === 'meta' ? m.list : [])).find((x) => x.id === voisin.entityId);
+  assert.equal(metaVoisin?.elite ?? 0, 0, 'navire non élite : pas de livrée');
+});
