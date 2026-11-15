@@ -377,7 +377,7 @@ export function Help() {
         <p><b>Clic gauche sur un ennemi</b> : il est ciblé (anneau) et, avec l'attaque automatique, votre navire manœuvre pour lui présenter le flanc et tire dès que les canons sont pointés. Touche « Attaquer » / « Annuler l'attaque » pour la cible sélectionnée. La barre rapide (1 à 8) change de munition ou utilise réparation, pompes et poudre fine.</p>
         <p>Toutes les touches se règlent dans <b>Paramètres</b>. Les flèches du clavier permettent aussi de barrer à la main.</p>
         <h4>Cartes</h4>
-        <p>Les cartes 1/1 à 5/2 vont par paires (/1 calme, /2 de guerre), puis viennent les cartes 11 à 20. Chaque carte a ses ports. Coulez des ennemis sur votre étage le plus haut et atteignez le niveau requis pour débloquer le suivant (fenêtre Cartes, touche M).</p>
+        <p>Les cartes 1/1 à 5/2 vont par paires (/1 calme, /2 de guerre), puis viennent les cartes 6 à 10. Chaque carte a ses ports. Coulez des ennemis sur votre étage le plus haut et atteignez le niveau requis pour débloquer le suivant (fenêtre Cartes, touche M).</p>
         <h4>Équipement</h4>
         <p>Au port, onglet Équipement : installez canons de 30, 50 et 60 livres et mâts dans la limite de capacité du navire. Ils s'achètent à l'Arsenal (or, perles, diamants) et se trouvent dans le butin des PNJ.</p>
         <h4>Ports</h4>

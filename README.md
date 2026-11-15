@@ -112,7 +112,7 @@ chiffres Roboto Condensed.
 
 ## Cartes
 
-20 cartes : **1/1 à 5/2** par paires (/1 calme, /2 de guerre avec PvP libre et meilleur butin), puis **11 à 20**.
+15 cartes : **1/1 à 5/2** par paires (/1 calme, /2 de guerre avec PvP libre et meilleur butin), puis **6, 7, 8, 9 et 10** (Océan Indien, Mer du Nord, Mer de Chine, Mer des Tempêtes, Mer des Brumes).
 Chaque carte a ses propres ports français. La **mission de passage** de chaque étage (couler des ennemis à son
 étage le plus haut et atteindre le niveau requis) débloque l'étage suivant. La guilde qui abat le boss d'une carte
 en prend le contrôle (son blason s'affiche dans la grille des cartes). Les PNJ coulés réapparaissent 5 minutes plus tard.
@@ -123,10 +123,10 @@ en prend le contrôle (son blason s'affiche dans la grille des cartes). Les PNJ 
 |---|---|---|---|---|
 | Côtes de France | Manche, Atlantique, Gascogne | pirates, Royal Navy | Le Spectre des Brumes | Toile de Bretagne |
 | Méditerranée et Levant | Méditerranée (4/1), **Mer Égée** (4/2 : Candie, Navarin, Smyrne) | galères barbaresques, felouques | Le Colosse de Bronze | Huile d'olive du Levant |
-| Amériques | Caraïbes, Nouvelle-France, Louisiane, Guyane | brigantins boucaniers | Le Roi des Flibustiers | Tabac des Amériques |
-| Mers du Nord | Mer du Nord, Mer des Tempêtes | corsaires de Dunkerque, baleiniers armés | Le Jarl des Glaces | Fourrures du Nord |
-| Mers d'Asie | Océan Indien, Mer de Chine, Mers du Sud | jonques de pirates | Le Dragon des Typhons | Thé et porcelaine de Chine |
-| Mers lointaines | Côte d'Afrique, Mer des Brumes | monstres, vaisseaux fantômes | Le Spectre des Brumes | Épices des Indes |
+| Amériques | Caraïbes | brigantins boucaniers | Le Roi des Flibustiers | Tabac des Amériques |
+| Mers du Nord | Mer du Nord (7), Mer des Tempêtes (9) | corsaires de Dunkerque, baleiniers armés | Le Jarl des Glaces | Fourrures du Nord |
+| Mers d'Asie | Océan Indien (6), Mer de Chine (8) | jonques de pirates | Le Dragon des Typhons | Thé et porcelaine de Chine |
+| Mers lointaines | Mer des Brumes (10) | monstres, vaisseaux fantômes | Le Spectre des Brumes | Épices des Indes |
 
 La région de chaque carte s'affiche dans l'écran Cartes (bande de couleur sous chaque case).
 

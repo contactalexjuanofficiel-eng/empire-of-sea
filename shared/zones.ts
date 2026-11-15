@@ -272,7 +272,22 @@ export const PAIRED_TIERS = 5;
 const WAR_NAMES: Record<string, { name: string; desc: string }> = {
   mediterranee: { name: 'Mer Égée', desc: 'Les îles grecques et les comptoirs français du Levant : galères barbaresques, felouques et chaleur écrasante.' },
 };
-export const ZONES: ZoneDef[] = SEAS.map((s, i) => {
+/**
+ * Mers jouées dans la grille : les 5 premières en paires (1/1 … 5/2), puis 5 cartes simples numérotées 6 à 10.
+ * (Les autres mers restent définies pour plus tard.)
+ */
+const SINGLE_SEAS: [string, [number, number]][] = [
+  ['indien', [16, 19]],
+  ['mer_du_nord', [19, 23]],
+  ['mer_de_chine', [22, 27]],
+  ['tempetes', [26, 32]],
+  ['brumes', [30, 40]],
+];
+export const MAP_SEAS: SeaDef[] = [
+  ...SEAS.slice(0, PAIRED_TIERS),
+  ...SINGLE_SEAS.map(([id, levels]) => ({ ...SEAS.find((x) => x.id === id)!, levels })),
+];
+export const ZONES: ZoneDef[] = MAP_SEAS.map((s, i) => {
   const reg = regionOfSea(s.id);
   return {
     ...s,
@@ -284,9 +299,8 @@ export const ZONES: ZoneDef[] = SEAS.map((s, i) => {
 }).flatMap((sea, i) => {
   const tier = i + 1;
   if (tier > PAIRED_TIERS) {
-    // Cartes 11 à 20 : une seule carte par étage, numérotées à la suite, combat libre.
-    const n = 10 + (tier - PAIRED_TIERS);
-    return [{ ...sea, id: `${sea.id}-1`, sea: sea.id, tier, variant: 1, code: String(n), rewardMul: 1 + n * 0.04, pvp: 'libre' } as ZoneDef];
+    // Cartes 6 à 10 : une seule carte par étage, numérotée comme l'étage, combat libre.
+    return [{ ...sea, id: `${sea.id}-1`, sea: sea.id, tier, variant: 1, code: String(tier), rewardMul: 1.2 + tier * 0.08, pvp: 'libre' } as ZoneDef];
   }
   const calm: ZoneDef = { ...sea, id: `${sea.id}-1`, sea: sea.id, tier, variant: 1, code: `${tier}/1`, rewardMul: 1 };
   const war: ZoneDef = {
@@ -389,7 +403,7 @@ export const MODERN_ZONES: ZoneDef[] = [
 
 export const ZONE_BY_ID: Record<string, ZoneDef> = Object.fromEntries([...ZONES, ...BONUS_ZONES, ...MODERN_ZONES].map((z) => [z.id, z]));
 export const START_ZONE = 'manche-1';
-export const MAX_TIER = SEAS.length;
+export const MAX_TIER = MAP_SEAS.length;
 
 /** Anciennes sauvegardes : « manche » -> « manche-1 ». */
 export function migrateZoneId(id: string) {
@@ -400,7 +414,7 @@ export function migrateZoneId(id: string) {
 
 /** Mission de passage : ce qu'il faut accomplir à l'étage `tier` pour débloquer l'étage suivant. */
 export function tierRequirement(tier: number) {
-  const next = SEAS[tier]; // mer de l'étage suivant (index = tier)
+  const next = MAP_SEAS[tier]; // mer de l'étage suivant (index = tier)
   return { kills: 6 + tier * 4, level: next ? Math.max(1, next.levels[0] - 1) : 99 };
 }
 

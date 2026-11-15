@@ -8,7 +8,7 @@ import { CAPTAIN_BY_ID, DAILY_BY_ID, shipBonus, SKINS } from '../shared/extras.t
 import { levelFromXp } from '../shared/progression.ts';
 import type { FlagChoice, OwnedShip, Profile } from '../shared/protocol.ts';
 import { computeStats, NO_SKILLS, NO_UPGRADES, SHIP_BY_ID, SHIP_CLASSES } from '../shared/ships.ts';
-import { migrateZoneId, START_ZONE, ZONE_BY_ID } from '../shared/zones.ts';
+import { MAX_TIER, migrateZoneId, START_ZONE, ZONE_BY_ID } from '../shared/zones.ts';
 
 export const newUid = () => crypto.randomBytes(6).toString('hex');
 
@@ -90,7 +90,7 @@ export function sanitizeProfile(raw: Profile, name: string): Profile {
   p.equip = cleanCounts(raw.equip);
   p.diamants = Math.max(0, Math.floor(raw.diamants || 0));
   p.zone = migrateZoneId(p.zone);
-  p.tier = Math.max(1, Math.floor(raw.tier || 1), ZONE_BY_ID[p.zone].tier);
+  p.tier = Math.min(MAX_TIER, Math.max(1, Math.floor(raw.tier || 1), ZONE_BY_ID[p.zone].tier || 1));
   p.tierKills = Math.max(0, Math.floor(raw.tierKills || 0));
   p.forge = Array.from({ length: 8 }, (_, i) => !!raw.forge?.[i]);
   p.skins = (raw.skins || []).filter((x) => x in SKINS);

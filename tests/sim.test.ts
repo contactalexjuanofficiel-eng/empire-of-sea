@@ -152,10 +152,11 @@ test('souris : navigation au clic et attaque automatique d\'un PNJ ciblé', () =
   assert.ok(npc.hp < hp0, 'le PNJ a été touché par l\'attaque automatique');
 });
 
-test('cartes et équipement : 20 cartes, ports propres, canons installés plus puissants', () => {
-  assert.equal(ZONES.length, 20);
-  assert.deepEqual(ZONES.map((z) => z.code).slice(0, 12), ['1/1', '1/2', '2/1', '2/2', '3/1', '3/2', '4/1', '4/2', '5/1', '5/2', '11', '12']);
-  assert.equal(ZONES.at(-1)!.code, '20');
+test('cartes et équipement : 15 cartes (1/1 à 5/2 puis 6 à 10), ports propres, canons installés plus puissants', () => {
+  assert.equal(ZONES.length, 15);
+  assert.deepEqual(ZONES.map((z) => z.code).slice(10), ['6', '7', '8', '9', '10']);
+  assert.deepEqual(ZONES.map((z) => z.code).slice(0, 12), ['1/1', '1/2', '2/1', '2/2', '3/1', '3/2', '4/1', '4/2', '5/1', '5/2', '6', '7']);
+  assert.equal(ZONES.at(-1)!.code, '10');
   assert.notDeepEqual(ZONE_BY_ID['manche-1'].ports.map((p) => p.name), ZONE_BY_ID['manche-2'].ports.map((p) => p.name));
   const def = SHIP_BY_ID.bayonnaise;
   const base = computeStats(def).broadside;
