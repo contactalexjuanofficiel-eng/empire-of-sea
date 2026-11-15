@@ -1,0 +1,18 @@
+{
+  "name": "ombre-des-mers",
+  "version": "0.6.0",
+  "description": "Jeu de combat naval 2D français (époque de la marine à voile) — prototype client + serveur autoritaire.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test --test-force-exit && node tests/client-smoke.cjs && node tests/client3d-online.mjs",
+    "client": "npx serve client3d"
+  },
+  "dependencies": {
+    
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

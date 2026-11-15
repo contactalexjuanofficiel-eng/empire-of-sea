@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Ombre des Mers – prototype de combat naval</title>
+<style>
+html,body{margin:0;height:100%;background:#06182b;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#f3e9c8;touch-action:none;-webkit-user-select:none;user-select:none}
+canvas{display:block;width:100%;height:100%}
+.btn{position:fixed;border:2px solid #d9b45a;background:rgba(40,25,10,.78);color:#f3e9c8;font-weight:700;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.15;cursor:pointer;touch-action:none}
+.btn:hover{background:rgba(90,60,20,.9)}
+#fireL{right:110px;bottom:40px;width:78px;height:78px}
+#fireR{right:18px;bottom:70px;width:78px;height:78px}
+#shopBtn{right:12px;top:168px;width:auto;height:auto;padding:8px 14px;border-radius:10px;font-size:14px}
+#shop{position:fixed;inset:0;background:rgba(3,10,20,.82);display:none;align-items:center;justify-content:center;z-index:5}
+#shop.open{display:flex}
+.card{width:min(480px,92vw);max-height:90vh;overflow:auto;background:#1b1209;border:2px solid #d9b45a;border-radius:14px;padding:18px 20px;box-shadow:0 10px 40px #000a;-webkit-user-select:text;user-select:text}
+.card h2{margin:0 0 4px;font-size:22px;color:#f0c75e}
+.card h3{margin:14px 0 2px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#bfae85}
+.gold{margin-bottom:6px;color:#ffd96b;font-weight:700}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #4a3a20}
+.row b{display:block;font-size:15px}
+.row small{color:#bfae85}
+.buy{background:#b8862e;color:#1b1209;border:0;border-radius:8px;padding:8px 12px;font-weight:700;font-size:14px;min-width:92px;cursor:pointer}
+.buy:disabled{background:#4a3a20;color:#8d7c58;cursor:not-allowed}
+#shipName{width:170px;background:#2a1c0d;border:1px solid #d9b45a;color:#f3e9c8;border-radius:7px;padding:7px 9px;font-size:14px}
+.foot{display:flex;gap:10px;margin-top:14px}
+.foot button{flex:1;padding:11px;border-radius:9px;border:2px solid #d9b45a;background:#2a1c0d;color:#f3e9c8;font-weight:700;font-size:15px;cursor:pointer}
+.foot .go{background:#b8862e;color:#1b1209}
+.reset{margin-top:10px;background:none;border:0;color:#8d7c58;font-size:12px;text-decoration:underline;cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="btn" id="fireL">BÂBORD<br>◀ canons</div>
+<div class="btn" id="fireR">TRIBORD<br>canons ▶</div>
+<div class="btn" id="shopBtn">⚓ Chantier &amp; profil (B)</div>
+<div id="shop"><div class="card">
+  <h2>⚓ Chantier naval</h2>
+  <div class="gold" id="gold"></div>
+  <h3>Ton navire</h3>
+  <div class="row"><div><b>Nom du navire</b><small>Affiché au-dessus de ton bateau</small></div><input id="shipName" maxlength="22" autocomplete="off"></div>
+  <div class="row" id="shipRow"></div>
+  <h3>Améliorations</h3>
+  <div id="items"></div>
+  <h3>Munitions</h3>
+  <div id="ammoRows"></div>
+  <h3>Objets</h3>
+  <div id="itemRows"></div>
+  <h3>Missions du jour</h3>
+  <div id="missionRows"></div>
+  <h3>Profil du capitaine</h3>
+  <div id="profile"></div>
+  <div class="row"><div><b>Réparer le navire</b><small id="repInfo"></small></div><button class="buy" id="repair">Réparer</button></div>
+  <div class="foot"><button class="go" id="closeShop">Reprendre la mer</button></div>
+  <button class="reset" id="reset">Effacer la sauvegarde et recommencer</button>
+</div></div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(2,window.devicePixelRatio||1);W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
+window.addEventListener('resize',resize);resize();
+
+const TAU=Math.PI*2, WORLD=4000;
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function angDiff(a,b){let d=(b-a)%TAU;if(d>Math.PI)d-=TAU;if(d<-Math.PI)d+=TAU;return d}
+
+/* ---------- sons (WebAudio, créé au premier geste du joueur ; M pour couper) ---------- */
+let actx=null,muted=false;
+function audioInit(){
+  if(muted)return;
+  if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){actx=null}}
+  if(actx&&actx.state==='suspended'){try{actx.resume()}catch(e){}}
+}
+function tone(f0,f1,dur,type,vol){
+  if(!actx||muted)return;
+  try{
+    const o=actx.createOscillator(),g=actx.createGain(),t=actx.currentTime;
+    o.type=type||'sine';o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);
+    g.gain.setValueAtTime(vol||0.08,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+dur);
+  }catch(e){}
+}
+const sfx={
+  fire(){tone(160,40,0.25,'sawtooth',0.07)},hit(){tone(300,90,0.12,'square',0.05)},
+  kill(){tone(300,700,0.3,'triangle',0.08)},chest(){tone(700,1200,0.18,'sine',0.07)},
+  hurt(){tone(120,50,0.2,'square',0.07)},monster(){tone(70,35,0.8,'sawtooth',0.09)}
+};
+
+/* ---------- navires, noms ---------- */
+const SHIPS=[
+ {n:'Lougre corsaire',price:0,req:0,hp:0,spd:0,guns:0,masts:1,r:18,desc:''},
+ {n:'Corvette',price:600,req:100,hp:60,spd:10,guns:1,masts:2,r:21,desc:'+60 PV, +10 vitesse, +1 canon'},
+ {n:'Frégate',price:1800,req:400,hp:140,spd:0,guns:2,masts:2,r:24,desc:'+140 PV, +2 canons'},
+ {n:'Vaisseau de ligne',price:5000,req:1200,hp:300,spd:-10,guns:4,masts:3,r:29,desc:'+300 PV, +4 canons (un peu plus lent)'},
+ {n:'Vaisseau amiral',price:12000,req:3000,hp:550,spd:-20,guns:7,masts:3,r:34,desc:'+550 PV, +7 canons (lent, mais redoutable)'}
+];
+const AMMO=[
+ {id:'ball',n:'Boulet',mul:1,col:'#222',desc:'Munition standard, illimitée'},
+ {id:'fire',n:'Boulet ardent',mul:1.6,col:'#ff7a2a',price:120,pack:20,desc:'+60 % de dégâts'},
+ {id:'chain',n:'Chaînes',mul:0.7,col:'#9aa7b8',price:90,pack:20,desc:'Ralentit la cible de moitié'},
+ {id:'grape',n:'Mitraille',mul:1,col:'#c9a56a',price:140,pack:20,desc:'Salve large : +2 boulets'}
+];
+const ITEMS=[
+ {id:'rocket',n:'Roquette',col:'#ff3b1a',price:60,pack:5,desc:'Gros dégâts sur la cible, double points d’élite'},
+ {id:'repair',n:'Réparation rapide',col:'#58b86a',price:80,pack:5,desc:'Soigne 40 % de la coque'},
+ {id:'speed',n:'Pierre de vitesse',col:'#a56bff',price:50,pack:5,desc:'+50 % de vitesse pendant 12 s'},
+ {id:'shield',n:'Bouclier',col:'#6fd3ff',price:70,pack:5,desc:'−25 % de dégâts reçus pendant 12 s'}
+];
+const MONSTER={n:'Monstre marin',hp:450,spd:85,dmg:15,rl:0,r:36,gold:220,xp:180,col:'#2f6b4f',masts:0,guns:0,monster:true};
+const MONSTER_NAMES=['Le Kraken','Le Léviathan','Le Grand Serpent des Brumes'];
+let ammoSel=0;
+/* noms de navires français de l'époque de la marine à voile, par catégorie d'ennemi */
+const NAMES=[
+ ['Le Revenant','La Confiance','Le Renard','L’Hirondelle','Le Cormoran','La Bellone','Le Hasard','La Mouette'],
+ ['La Belle Poule','L’Hermione','La Boudeuse','La Sémillante','La Résolue','La Vénus','La Surveillante','La Minerve','La Cléopâtre','La Pomone'],
+ ['Le Redoutable','Le Bucentaure','Le Foudroyant','Le Vengeur du Peuple','Le Formidable','Le Téméraire','L’Orient','Le Fougueux','L’Intrépide','Le Héros','Le Duguay-Trouin','Le Neptune','Le Pluton','Le Scipion'],
+ ['Le Soleil Royal','La Couronne','Le Royal-Louis','L’Océan']
+];
+const ISL=['Île de la Tortue','Rocher du Diamant','Anse des Corsaires','Île du Phare','Récif des Naufragés','Île Sainte-Anne','Baie des Flibustiers','Île aux Perroquets','Rocher du Corbeau','Île de Port-Royal','Archipel des Brumes','Île Dauphine','Île du Roi Soleil','Récif de la Hougue','Île de Trafalgar','Île Saint-Louis','Île Perdue','Île de l’Ancre'];
+const DEFAULT_NAME='La Fortune';
+
+/* ---------- sauvegarde (facultative : le jeu marche sans) ---------- */
+const FRESH=()=>({gold:0,xp:0,level:1,sunk:0,ship:0,elite:0,dmgTotal:0,name:DEFAULT_NAME,ammo:{fire:0,chain:0,grape:0},items:{rocket:0,repair:0,speed:0,shield:0},up:{hull:0,cannon:0,sail:0,reload:0}});
+let save=FRESH();
+try{const s=localStorage.getItem('ombre-des-mers-v1');if(s){const o=JSON.parse(s);save=Object.assign(save,o);save.up=Object.assign({hull:0,cannon:0,sail:0,reload:0},o.up||{})}}catch(e){}
+save.name=String(save.name||DEFAULT_NAME).slice(0,22);
+save.ship=clamp(save.ship|0,0,SHIPS.length-1);
+save.ammo=Object.assign({fire:0,chain:0,grape:0},save.ammo||{});
+save.items=Object.assign({rocket:0,repair:0,speed:0,shield:0},save.items||{});
+save.elite=+save.elite||0;save.dmgTotal=+save.dmgTotal||0;
+save.monsters=+save.monsters||0;save.boarded=+save.boarded||0;
+function ensureM(){
+  const d=new Date().toISOString().slice(0,10);
+  if(!save.m||save.m.day!==d||!Array.isArray(save.m.claimed))save.m={day:d,dmg:0,chests:0,sunk:0,claimed:[]};
+}
+ensureM();
+const MISSIONS=[
+ {id:'dmg',n:'Infliger des dégâts',goal:2000,gold:300,elite:20},
+ {id:'sunk',n:'Couler des navires',goal:8,gold:250,elite:15},
+ {id:'chests',n:'Trouver les trésors perdus',goal:5,gold:200,elite:10}
+];
+function persist(){try{localStorage.setItem('ombre-des-mers-v1',JSON.stringify(save))}catch(e){}}
+const stats=()=>{const sh=SHIPS[save.ship];return{
+  maxHp:100+40*save.up.hull+sh.hp,dmg:14+4*save.up.cannon,spd:140+16*save.up.sail+sh.spd,
+  reload:Math.max(0.8,2.2-0.15*save.up.reload),guns:3+Math.floor(save.up.cannon/4)+sh.guns}};
+
+/* ---------- monde ---------- */
+let seed=20261114;const sr=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
+const islands=[],chests=[];
+for(let i=0;i<18;i++){
+  let x,y,r,ok,t=0;
+  do{x=300+sr()*(WORLD-600);y=300+sr()*(WORLD-600);r=90+sr()*150;
+     ok=Math.hypot(x-2000,y-2000)>r+500&&islands.every(o=>Math.hypot(o.x-x,o.y-y)>o.r+r+260);t++}while(!ok&&t<300);
+  if(ok){
+    const isl={x,y,r,name:ISL[islands.length%ISL.length],blobs:Array.from({length:7},()=>({a:sr()*TAU,d:sr()*0.55,s:0.35+sr()*0.4}))};
+    islands.push(isl);
+    const a=sr()*TAU;
+    chests.push({x:x+Math.cos(a)*(r-4),y:y+Math.sin(a)*(r-4),ready:true,t:0});
+  }
+}
+
+const P={x:2000,y:2000,a:-Math.PI/2,v:0,hp:100,cdL:0,cdR:0,r:18,hurt:0,lastHit:0,wake:0};
+P.r=SHIPS[save.ship].r;P.hp=stats().maxHp;
+const enemies=[],balls=[],parts=[],texts=[];
+let shake=0,msg={t:'',life:0},spawnT=1,shopOpen=false,T=0,hintT=16;
+let target=null,dest=null;
+const seaChests=[];let seaT=2;
+let monT=40;                                   // délai avant l'apparition d'un monstre marin
+const wind={a:rnd(0,TAU)};                     // direction VERS laquelle souffle le vent
+const windF=a=>1+0.22*Math.cos(a-wind.a);      // +22 % vent dans le dos, −22 % vent de face
+
+const TYPES=[
+ {n:'Lougre',hp:60,spd:105,dmg:7,rl:3.0,r:17,gold:14,xp:20,col:'#8c4a2f',masts:1,guns:2},
+ {n:'Frégate',hp:150,spd:90,dmg:11,rl:2.8,r:23,gold:38,xp:50,col:'#6a2f6a',masts:2,guns:3},
+ {n:'Vaisseau de ligne',hp:320,spd:72,dmg:16,rl:2.6,r:30,gold:100,xp:130,col:'#25465f',masts:3,guns:4},
+ {n:'Vaisseau amiral',hp:700,spd:62,dmg:24,rl:2.4,r:36,gold:260,xp:300,col:'#1d2a4a',masts:3,guns:5}
+];
+function say(t){msg.t=t;msg.life=3.2}
+function float(x,y,t,col){texts.push({x,y,t,col,life:1.3})}
+function puff(x,y,n,col,spd,life,r){for(let i=0;i<n;i++){const a=rnd(0,TAU),s=rnd(0.2,1)*spd;parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rnd(.5,1)*life,max:life,r:rnd(.6,1)*r,col})}}
+
+function spawnEnemy(){
+  const L=save.level,p=Math.random();
+  let ti=0;
+  if(L>=3)ti=p<0.7?0:1;
+  if(L>=6)ti=p<0.5?0:(p<0.85?1:2);
+  if(L>=9)ti=p<0.35?0:(p<0.65?1:(p<0.92?2:3));
+  const t=TYPES[ti];
+  for(let k=0;k<30;k++){
+    const a=rnd(0,TAU),d=rnd(750,1100);
+    const x=clamp(P.x+Math.cos(a)*d,80,WORLD-80),y=clamp(P.y+Math.sin(a)*d,80,WORLD-80);
+    if(islands.some(i=>Math.hypot(i.x-x,i.y-y)<i.r+90))continue;
+    if(Math.hypot(P.x-x,P.y-y)<650)continue;
+    const sc=1+0.06*(L-1);
+    enemies.push({t,name:pick(NAMES[ti]),lv:L+ti,x,y,a:rnd(0,TAU),v:t.spd*0.6,hp:t.hp*sc,max:t.hp*sc,dmg:t.dmg*(1+0.04*(L-1)),cd:rnd(1,t.rl),wake:0,hurt:0});
+    return;
+  }
+}
+
+function shoot(o,ang,dmg,team,n,r,type){
+  const fx=Math.cos(o.a),fy=Math.sin(o.a),sx=Math.cos(ang),sy=Math.sin(ang);
+  for(let k=0;k<n;k++){
+    const off=(k-(n-1)/2)*Math.min(r*0.7,40/Math.max(1,n-1)*1.2);
+    const x=o.x+fx*off+sx*r*0.7,y=o.y+fy*off+sy*r*0.7;
+    const sp0=type==='grape'?0.16:0.05;
+    const a=ang+rnd(-sp0,sp0),sp=rnd(500,540);
+    balls.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.95,dmg,team,type:type||'ball'});
+    puff(x+sx*8,y+sy*8,3,'#cfcfcf',60,0.7,5);
+  }
+}
+function fireSide(side){
+  const S=stats();
+  let am=AMMO[ammoSel];
+  if(ammoSel>0&&save.ammo[am.id]<=0){ammoSel=0;am=AMMO[0];say('Plus de munitions spéciales !')}
+  if(!(side<0?P.cdL<=0:P.cdR<=0))return;
+  shoot(P,P.a+(side<0?-1:1)*Math.PI/2,S.dmg*am.mul,'p',S.guns+(am.id==='grape'?2:0),P.r,am.id);
+  if(ammoSel>0)save.ammo[am.id]--;
+  if(side<0)P.cdL=S.reload;else P.cdR=S.reload;
+  sfx.fire();
+  shake=Math.max(shake,2);
+}
+function selectAmmo(i){
+  const a=AMMO[i];
+  if(i>0&&save.ammo[a.id]<=0){say('Plus de '+a.n.toLowerCase()+' : achètes-en au chantier (B)');return}
+  ammoSel=i;
+}
+function hbRect(i){const n=AMMO.length+ITEMS.length,gap=4,sw=Math.min(52,(W-20-(n-1)*gap)/n),tw=n*sw+(n-1)*gap,x0=W/2-tw/2;return{x:x0+i*(sw+gap),y:H-70,w:sw,h:52}}
+function hbHit(sx,sy){const n=AMMO.length+ITEMS.length;for(let i=0;i<n;i++){const r=hbRect(i);if(sx>=r.x&&sx<=r.x+r.w&&sy>=r.y&&sy<=r.y+r.h)return i}return -1}
+function slot(i){if(i<AMMO.length)selectAmmo(i);else useItem(ITEMS[i-AMMO.length])}
+function useItem(it){
+  if(save.items[it.id]<=0){say('Plus de '+it.n.toLowerCase()+' : achètes-en au chantier (B)');return}
+  const S=stats();
+  if(it.id==='rocket'){
+    let tg=target&&enemies.includes(target)?target:null,bd=700;
+    if(!tg)for(const e of enemies){const d=Math.hypot(e.x-P.x,e.y-P.y);if(d<bd){bd=d;tg=e}}
+    if(!tg){say('Aucune cible à portée');return}
+    const a=Math.atan2(tg.y-P.y,tg.x-P.x);
+    balls.push({x:P.x,y:P.y,vx:Math.cos(a)*650,vy:Math.sin(a)*650,life:1.4,dmg:200+30*save.level,team:'p',type:'rocket'});
+    puff(P.x,P.y,8,'#ff9d3a',120,0.6,5);shake=Math.max(shake,3);
+  }else if(it.id==='repair'){
+    if(P.hp>=S.maxHp-1){say('Coque déjà en parfait état');return}
+    P.hp=Math.min(S.maxHp,P.hp+0.4*S.maxHp);float(P.x,P.y-40,'Réparé !','#7be08b');
+  }else if(it.id==='speed'){P.speedT=12;float(P.x,P.y-40,'Vitesse +50 %','#c9a0ff')}
+  else if(it.id==='shield'){P.shieldT=12;float(P.x,P.y-40,'Bouclier !','#9be4ff')}
+  save.items[it.id]--;persist();
+}
+function fireAuto(){
+  let best=target&&enemies.includes(target)?target:null,bd=650;
+  if(!best)for(const e of enemies){const d=Math.hypot(e.x-P.x,e.y-P.y);if(d<bd){bd=d;best=e}}
+  if(!best){fireSide(-1);fireSide(1);return}
+  const sd=angDiff(P.a,Math.atan2(best.y-P.y,best.x-P.x));
+  fireSide(sd>0?1:-1);
+}
+
+function collideIslands(o,r){
+  for(const i of islands){
+    const dx=o.x-i.x,dy=o.y-i.y,d=Math.hypot(dx,dy),lim=i.r+r;
+    if(d<lim&&d>0){o.x=i.x+dx/d*lim;o.y=i.y+dy/d*lim;o.v*=0.96}
+  }
+  o.x=clamp(o.x,50,WORLD-50);o.y=clamp(o.y,50,WORLD-50);
+}
+function avoid(o,want,pad){
+  let vx=Math.cos(want),vy=Math.sin(want);
+  for(const i of islands){
+    const ix=o.x-i.x,iy=o.y-i.y,id=Math.hypot(ix,iy),lim=i.r+pad;
+    if(id<lim&&id>0){const k=(lim-id)/lim*3;vx+=ix/id*k;vy+=iy/id*k}
+  }
+  return Math.atan2(vy,vx);
+}
+
+function hurtPlayer(d){
+  if(P.shieldT>0)d*=0.75;
+  sfx.hurt();
+  P.hp-=d;P.hurt=0.25;P.lastHit=T;shake=Math.max(shake,7);
+  float(P.x,P.y-34,'-'+Math.round(d),'#ff7b6b');
+  puff(P.x,P.y,6,'#7a5a3a',120,0.7,5);
+  if(P.hp<=0){
+    const lost=Math.floor(save.gold*0.3);
+    save.gold-=lost;persist();
+    say('Navire coulé ! Tu perds '+lost+' or.');
+    P.x=2000;P.y=2000;P.v=0;P.hp=stats().maxHp;enemies.length=0;balls.length=0;spawnT=2;target=null;dest=null;
+  }
+}
+function killEnemy(e){
+  const g=Math.round(e.t.gold*rnd(0.8,1.3));
+  save.gold+=g;save.xp+=e.t.xp;save.sunk++;ensureM();save.m.sunk++;
+  float(e.x,e.y-20,'+'+g+' or','#ffd96b');
+  puff(e.x,e.y,22,'#ff9d3a',170,0.9,7);puff(e.x,e.y,14,'#555',90,1.2,9);
+  shake=Math.max(shake,5);
+  say(e.name+' a sombré !');sfx.kill();
+  if(e.t.monster){save.monsters++;save.elite+=40}
+  while(save.xp>=save.level*100){save.xp-=save.level*100;save.level++;P.hp=stats().maxHp;say('Niveau '+save.level+' ! Navire réparé.')}
+  if(target===e)target=null;
+  persist();
+}
+
+/* ---------- entrées ---------- */
+const keys=new Set();
+window.addEventListener('keydown',e=>{
+  if(e.target&&e.target.tagName==='INPUT'){if(e.code==='Enter'||e.code==='Escape')e.target.blur();return}
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+  if(e.repeat)return;
+  audioInit();
+  keys.add(e.code);
+  if(e.code==='KeyM'){muted=!muted;say(muted?'Son coupé':'Son activé');if(!muted)audioInit()}
+  if(e.code==='KeyB'||e.code==='Escape')toggleShop();
+  if(!shopOpen){
+    if(e.code==='Space')fireAuto();
+    if(e.code==='KeyJ')fireSide(-1);
+    if(e.code==='KeyL')fireSide(1);
+    const di=['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8'].indexOf(e.code);
+    if(di>=0)slot(di);
+    if(e.code==='KeyQ'){
+      let best=null,bd=700;
+      for(const en of enemies){const d=Math.hypot(en.x-P.x,en.y-P.y);if(d<bd){bd=d;best=en}}
+      if(best){target=best;dest=null;say('Cible : '+best.name)}
+    }
+    if(e.code==='KeyE'){target=null;dest=null}
+    if(e.code==='KeyR')boardNearest();
+  }
+});
+window.addEventListener('keyup',e=>keys.delete(e.code));
+window.addEventListener('blur',()=>keys.clear());
+
+const mouse={x:0,y:0,in:false};
+const toWorld=(sx,sy)=>({x:sx-W/2+P.x,y:sy-H/2+P.y});
+function enemyAt(wx,wy){
+  let best=null,bd=1e9;
+  for(const e of enemies){const d=Math.hypot(e.x-wx,e.y-wy);if(d<e.t.r+16&&d<bd){bd=d;best=e}}
+  return best;
+}
+function clickAt(sx,sy){
+  const w=toWorld(sx,sy),en=enemyAt(w.x,w.y);
+  if(en){if(canBoard(en)){board(en);return}target=en;dest=null;say('Cible : '+en.name)}
+  else{dest={x:clamp(w.x,60,WORLD-60),y:clamp(w.y,60,WORLD-60),t:0};target=null}
+}
+cv.addEventListener('pointermove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;mouse.in=true});
+cv.addEventListener('pointerleave',()=>{mouse.in=false});
+cv.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='touch'||shopOpen)return;
+  e.preventDefault();
+  mouse.x=e.clientX;mouse.y=e.clientY;mouse.in=true;
+  audioInit();
+  const hb=hbHit(e.clientX,e.clientY);
+  if(hb>=0){if(e.button===0)slot(hb);return}
+  if(e.button===2){fireAuto();return}
+  if(e.button===0)clickAt(e.clientX,e.clientY);
+});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+
+const joy={on:false,id:null,sx:0,sy:0,x:0,y:0};
+cv.addEventListener('touchstart',e=>{
+  for(const t of e.changedTouches){
+    audioInit();
+    const hb=hbHit(t.clientX,t.clientY);
+    if(hb>=0){slot(hb);continue}
+    if(!joy.on&&t.clientX<W*0.45){joy.on=true;joy.id=t.identifier;joy.sx=joy.x=t.clientX;joy.sy=joy.y=t.clientY;dest=null;target=null}
+    else if(t.clientX>=W*0.45&&!shopOpen)clickAt(t.clientX,t.clientY);
+  }
+  e.preventDefault();
+},{passive:false});
+cv.addEventListener('touchmove',e=>{
+  for(const t of e.changedTouches)if(t.identifier===joy.id){joy.x=t.clientX;joy.y=t.clientY}
+  e.preventDefault();
+},{passive:false});
+function endTouch(e){for(const t of e.changedTouches)if(t.identifier===joy.id)joy.on=false}
+cv.addEventListener('touchend',endTouch);cv.addEventListener('touchcancel',endTouch);
+
+const fL=document.getElementById('fireL'),fR=document.getElementById('fireR'),sB=document.getElementById('shopBtn');
+const touchy=('ontouchstart' in window)||(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches);
+fL.addEventListener('pointerdown',e=>{e.preventDefault();if(!shopOpen)fireSide(-1)});
+fR.addEventListener('pointerdown',e=>{e.preventDefault();if(!shopOpen)fireSide(1)});
+sB.addEventListener('click',toggleShop);
+
+/* ---------- chantier naval ---------- */
+const UPS=[
+ ['hull','Coque renforcée','+40 points de vie max'],
+ ['cannon','Canons lourds','+4 dégâts (+1 canon tous les 4 niveaux)'],
+ ['sail','Grandes voiles','+16 de vitesse max'],
+ ['reload','Rechargement rapide','−0,15 s entre deux salves']
+];
+const MAXLV=10, cost=lv=>Math.round(40*Math.pow(1.55,lv));
+const shopEl=document.getElementById('shop'),itemsEl=document.getElementById('items'),goldEl=document.getElementById('gold'),repBtn=document.getElementById('repair'),repInfo=document.getElementById('repInfo');
+const nameEl=document.getElementById('shipName'),shipRow=document.getElementById('shipRow');
+const ammoEl=document.getElementById('ammoRows'),profEl=document.getElementById('profile');
+nameEl.addEventListener('input',()=>{save.name=(nameEl.value.replace(/[<>]/g,'').slice(0,22))||DEFAULT_NAME;persist()});
+function renderShop(){
+  goldEl.textContent='💰 '+save.gold+' or — Niveau '+save.level;
+  if(document.activeElement!==nameEl)nameEl.value=save.name;
+  // navire
+  shipRow.innerHTML='';
+  const cur=SHIPS[save.ship],nxt=SHIPS[save.ship+1];
+  const l=document.createElement('div'),b=document.createElement('b'),s=document.createElement('small');
+  b.textContent='Navire actuel : '+cur.n;
+  s.textContent=nxt?('Prochain : '+nxt.n+' ('+nxt.desc+') — points d’élite requis : '+nxt.req+' (tu en as '+Math.floor(save.elite)+')'):'Tu possèdes le plus grand navire.';
+  l.appendChild(b);l.appendChild(s);shipRow.appendChild(l);
+  const sb=document.createElement('button');sb.className='buy';
+  if(nxt){
+    sb.textContent=nxt.price+' or';sb.disabled=save.gold<nxt.price||save.elite<nxt.req;
+    sb.addEventListener('click',()=>{
+      const n=SHIPS[save.ship+1];
+      if(!n||save.gold<n.price||save.elite<n.req)return;
+      save.gold-=n.price;save.ship++;P.r=n.r;P.hp=stats().maxHp;persist();renderShop();
+    });
+  }else{sb.textContent='Max';sb.disabled=true}
+  shipRow.appendChild(sb);
+  // améliorations
+  itemsEl.innerHTML='';
+  for(const [k,name,desc] of UPS){
+    const lv=save.up[k],c=cost(lv),max=lv>=MAXLV;
+    const row=document.createElement('div');row.className='row';
+    const ll=document.createElement('div');
+    const bb=document.createElement('b');bb.textContent=name+' — niv. '+lv+'/'+MAXLV;
+    const ss=document.createElement('small');ss.textContent=desc;
+    ll.appendChild(bb);ll.appendChild(ss);
+    const btn=document.createElement('button');btn.className='buy';
+    btn.textContent=max?'Max':c+' or';btn.disabled=max||save.gold<c;
+    btn.addEventListener('click',()=>{
+      if(save.up[k]>=MAXLV||save.gold<cost(save.up[k]))return;
+      save.gold-=cost(save.up[k]);save.up[k]++;
+      if(k==='hull')P.hp+=40;
+      persist();renderShop();
+    });
+    row.appendChild(ll);row.appendChild(btn);itemsEl.appendChild(row);
+  }
+  ammoEl.innerHTML='';
+  for(const a of AMMO){
+    if(!a.price)continue;
+    const row=document.createElement('div');row.className='row';
+    const ll=document.createElement('div'),bb=document.createElement('b'),ss=document.createElement('small');
+    bb.textContent=a.n+' — stock : '+save.ammo[a.id];
+    ss.textContent=a.desc+' · lot de '+a.pack;
+    ll.appendChild(bb);ll.appendChild(ss);
+    const btn=document.createElement('button');btn.className='buy';
+    btn.textContent=a.price+' or';btn.disabled=save.gold<a.price;
+    btn.addEventListener('click',()=>{
+      if(save.gold<a.price)return;
+      save.gold-=a.price;save.ammo[a.id]+=a.pack;persist();renderShop();
+    });
+    row.appendChild(ll);row.appendChild(btn);ammoEl.appendChild(row);
+  }
+  const itemEl=document.getElementById('itemRows');itemEl.innerHTML='';
+  for(const it of ITEMS){
+    const row=document.createElement('div');row.className='row';
+    const ll=document.createElement('div'),bb=document.createElement('b'),ss=document.createElement('small');
+    bb.textContent=it.n+' — stock : '+save.items[it.id];
+    ss.textContent=it.desc+' · lot de '+it.pack;
+    ll.appendChild(bb);ll.appendChild(ss);
+    const btn=document.createElement('button');btn.className='buy';
+    btn.textContent=it.price+' or';btn.disabled=save.gold<it.price;
+    btn.addEventListener('click',()=>{
+      if(save.gold<it.price)return;
+      save.gold-=it.price;save.items[it.id]+=it.pack;persist();renderShop();
+    });
+    row.appendChild(ll);row.appendChild(btn);itemEl.appendChild(row);
+  }
+  ensureM();
+  const missEl=document.getElementById('missionRows');missEl.innerHTML='';
+  for(const m of MISSIONS){
+    const prog=Math.floor(save.m[m.id]),done=prog>=m.goal,got=save.m.claimed.includes(m.id);
+    const row=document.createElement('div');row.className='row';
+    const ll=document.createElement('div'),bb=document.createElement('b'),ss=document.createElement('small');
+    bb.textContent=m.n+' ('+Math.min(prog,m.goal)+' / '+m.goal+')';
+    ss.textContent='Récompense : '+m.gold+' or, '+m.elite+' points d’élite';
+    ll.appendChild(bb);ll.appendChild(ss);
+    const btn=document.createElement('button');btn.className='buy';
+    btn.textContent=got?'Récupérée':'Récupérer';btn.disabled=!done||got;
+    btn.addEventListener('click',()=>{
+      ensureM();
+      if(save.m.claimed.includes(m.id)||Math.floor(save.m[m.id])<m.goal)return;
+      save.m.claimed.push(m.id);save.gold+=m.gold;save.elite+=m.elite;persist();renderShop();
+    });
+    row.appendChild(ll);row.appendChild(btn);missEl.appendChild(row);
+  }
+  profEl.innerHTML='';
+  const prof=[
+    ['Navire',save.name+' · '+SHIPS[save.ship].n],['Niveau',save.level],
+    ['Points d’élite',Math.floor(save.elite)],['Dégâts totaux',Math.round(save.dmgTotal)],
+    ['Navires coulés',save.sunk],['Abordages',save.boarded],['Monstres marins tués',save.monsters],['Or',save.gold]
+  ];
+  for(const [k,v] of prof){
+    const row=document.createElement('div');row.className='row';
+    const l2=document.createElement('span'),r2=document.createElement('b');
+    l2.textContent=k;r2.textContent=String(v);
+    row.appendChild(l2);row.appendChild(r2);profEl.appendChild(row);
+  }
+  const S=stats(),miss=Math.ceil(S.maxHp-P.hp),rc=Math.ceil(miss*0.5);
+  repInfo.textContent=miss>0?(miss+' PV à réparer'):'Navire en parfait état';
+  repBtn.textContent=miss>0?rc+' or':'—';repBtn.disabled=miss<=0||save.gold<rc;
+}
+repBtn.addEventListener('click',()=>{
+  const S=stats(),miss=Math.ceil(S.maxHp-P.hp),rc=Math.ceil(miss*0.5);
+  if(miss>0&&save.gold>=rc){save.gold-=rc;P.hp=S.maxHp;persist();renderShop()}
+});
+document.getElementById('closeShop').addEventListener('click',toggleShop);
+document.getElementById('reset').addEventListener('click',()=>{
+  save=FRESH();persist();
+  P.x=2000;P.y=2000;P.v=0;P.r=SHIPS[0].r;P.hp=stats().maxHp;enemies.length=0;balls.length=0;target=null;dest=null;renderShop();
+});
+function toggleShop(){
+  shopOpen=!shopOpen;
+  shopEl.classList.toggle('open',shopOpen);
+  if(shopOpen){joy.on=false;renderShop()}
+}
+
+/* ---------- mise à jour ---------- */
+/* ---------- monstres marins et abordage ---------- */
+function spawnMonster(){
+  for(let k=0;k<30;k++){
+    const a=rnd(0,TAU),d=rnd(800,1200);
+    const x=clamp(P.x+Math.cos(a)*d,80,WORLD-80),y=clamp(P.y+Math.sin(a)*d,80,WORLD-80);
+    if(islands.some(i=>Math.hypot(i.x-x,i.y-y)<i.r+90))continue;
+    const sc=1+0.06*(save.level-1);
+    enemies.push({t:MONSTER,name:pick(MONSTER_NAMES),lv:save.level+3,x,y,a:rnd(0,TAU),v:0,hp:MONSTER.hp*sc,max:MONSTER.hp*sc,dmg:MONSTER.dmg*(1+0.04*(save.level-1)),cd:2,wake:0,hurt:0,slow:0});
+    say('Un monstre marin approche !');sfx.monster();
+    return;
+  }
+}
+function updMonster(e,dt){
+  const dx=P.x-e.x,dy=P.y-e.y,d=Math.hypot(dx,dy),to=Math.atan2(dy,dx);
+  const want=avoid(e,to,100);
+  e.a+=clamp(angDiff(e.a,want),-1.6*dt,1.6*dt);
+  const sp=e.t.spd*((e.slow||0)>0?0.5:1);e.slow=Math.max(0,(e.slow||0)-dt);
+  e.v+=(sp-e.v)*Math.min(1,dt*1.5);
+  e.x+=Math.cos(e.a)*e.v*dt;e.y+=Math.sin(e.a)*e.v*dt;
+  collideIslands(e,e.t.r);
+  e.hurt=Math.max(0,e.hurt-dt);e.cd-=dt;
+  // attaque de tentacules au corps à corps
+  if(d<e.t.r+P.r+70&&e.cd<=0){hurtPlayer(e.dmg);e.cd=1.0;puff(P.x,P.y,10,'#2f6b4f',140,0.6,6)}
+}
+function canBoard(e){return !e.t.monster&&e.hp<=e.max*0.25&&Math.hypot(e.x-P.x,e.y-P.y)<P.r+e.t.r+110}
+function board(e){
+  const j=enemies.indexOf(e);if(j<0)return;
+  const g=Math.round(e.t.gold*rnd(2,3));
+  save.gold+=g;save.xp+=Math.round(e.t.xp*1.5);save.sunk++;save.boarded=(save.boarded||0)+1;save.elite+=e.t.xp*0.5;
+  ensureM();save.m.sunk++;
+  enemies.splice(j,1);if(target===e)target=null;
+  float(e.x,e.y-20,'Abordage ! +'+g+' or','#ffd96b');puff(e.x,e.y,16,'#ffd96b',120,0.8,5);shake=Math.max(shake,4);
+  say(e.name+' est capturé !');sfx.kill();
+  while(save.xp>=save.level*100){save.xp-=save.level*100;save.level++;P.hp=stats().maxHp;say('Niveau '+save.level+' ! Navire réparé.')}
+  persist();
+}
+function boardNearest(){
+  let b=null,bd=1e9;
+  for(const e of enemies)if(canBoard(e)){const d=Math.hypot(e.x-P.x,e.y-P.y);if(d<bd){bd=d;b=e}}
+  if(b)board(b);else say('Aucun navire à aborder : il doit être très endommagé et proche');
+}
+
+function updEnemy(e,dt){
+  if(e.t.monster){updMonster(e,dt);return}
+  const dx=P.x-e.x,dy=P.y-e.y,d=Math.hypot(dx,dy),to=Math.atan2(dy,dx);
+  let want;
+  if(d>400)want=to;
+  else{const s=angDiff(e.a,to)>0?1:-1;want=to-s*Math.PI/2}
+  want=avoid(e,want,140);
+  const df=angDiff(e.a,want),tr=1.3*dt;
+  e.a+=clamp(df,-tr,tr);
+  const target=(d<300?e.t.spd*0.6:e.t.spd)*((e.slow||0)>0?0.5:1)*windF(e.a);
+  e.slow=Math.max(0,(e.slow||0)-dt);
+  e.v+=(target-e.v)*Math.min(1,dt*1.5);
+  e.x+=Math.cos(e.a)*e.v*dt;e.y+=Math.sin(e.a)*e.v*dt;
+  collideIslands(e,e.t.r);
+  e.cd-=dt;e.hurt=Math.max(0,e.hurt-dt);
+  if(d<470&&e.cd<=0){
+    const sd=angDiff(e.a,to);
+    if(Math.abs(Math.abs(sd)-Math.PI/2)<0.35){
+      shoot(e,e.a+Math.sign(sd)*Math.PI/2,e.dmg,'e',e.t.guns,e.t.r);
+      e.cd=e.t.rl+rnd(0,0.8);
+    }
+  }
+  e.wake-=dt;
+  if(e.wake<=0&&e.v>25){e.wake=0.07;parts.push({x:e.x-Math.cos(e.a)*e.t.r,y:e.y-Math.sin(e.a)*e.t.r,vx:0,vy:0,life:0.9,max:0.9,r:e.t.r*0.35,col:'wake'})}
+}
+
+function update(dt){
+  const S=stats();
+  P.r=SHIPS[save.ship].r;
+  if(P.speedT>0){S.spd*=1.5;P.speedT-=dt}
+  if(P.shieldT>0)P.shieldT-=dt;
+  S.spd*=windF(P.a);
+  wind.a+=Math.sin(T*0.07)*0.12*dt;
+  const k=0.3+0.7*Math.min(1,P.v/S.spd);
+  let steer=0,thr=0.3,manual=false;
+  if(keys.has('KeyA')||keys.has('ArrowLeft')){steer-=1;manual=true}
+  if(keys.has('KeyD')||keys.has('ArrowRight')){steer+=1;manual=true}
+  if(keys.has('KeyW')||keys.has('ArrowUp')){thr=1;manual=true}
+  if(keys.has('KeyS')||keys.has('ArrowDown')){thr=0.1;manual=true}
+  if(manual){dest=null;target=null}
+  P.a+=steer*1.7*dt*k;
+
+  if(joy.on){
+    const jx=joy.x-joy.sx,jy=joy.y-joy.sy,m=Math.min(1,Math.hypot(jx,jy)/60);
+    if(m>0.12){
+      const ja=Math.atan2(jy,jx),df=angDiff(P.a,ja);
+      P.a+=clamp(df,-2.2*dt*k,2.2*dt*k);
+      thr=0.3+0.7*m;
+    }
+  }else if(!manual){
+    if(target&&!enemies.includes(target))target=null;
+    if(target){
+      const dx=target.x-P.x,dy=target.y-P.y,d=Math.hypot(dx,dy),to=Math.atan2(dy,dx);
+      if(d>1000){target=null}
+      else{
+        let want;
+        if(d>400)want=to;else{const s=angDiff(P.a,to)>0?1:-1;want=to-s*Math.PI/2}
+        want=avoid(P,want,140);
+        P.a+=clamp(angDiff(P.a,want),-1.7*dt*k,1.7*dt*k);
+        thr=d>400?1:0.55;
+        if(d<480){const sd=angDiff(P.a,to);if(Math.abs(Math.abs(sd)-Math.PI/2)<0.3)fireSide(sd>0?1:-1)}
+      }
+    }else if(dest){
+      dest.t+=dt;
+      const dx=dest.x-P.x,dy=dest.y-P.y,d=Math.hypot(dx,dy);
+      if(d<45)dest=null;
+      else{
+        const want=avoid(P,Math.atan2(dy,dx),130);
+        P.a+=clamp(angDiff(P.a,want),-1.7*dt*k,1.7*dt*k);
+        thr=d>200?1:0.35;
+      }
+    }
+  }
+  P.v+=(thr*S.spd-P.v)*Math.min(1,dt*1.3);
+  P.x+=Math.cos(P.a)*P.v*dt;P.y+=Math.sin(P.a)*P.v*dt;
+  collideIslands(P,P.r);
+  P.cdL=Math.max(0,P.cdL-dt);P.cdR=Math.max(0,P.cdR-dt);P.hurt=Math.max(0,P.hurt-dt);
+  if(T-P.lastHit>6)P.hp=Math.min(S.maxHp,P.hp+0.6*dt);
+  P.wake-=dt;
+  if(P.wake<=0&&P.v>25){P.wake=0.05;parts.push({x:P.x-Math.cos(P.a)*P.r,y:P.y-Math.sin(P.a)*P.r,vx:0,vy:0,life:1,max:1,r:P.r*0.4,col:'wake'})}
+
+  for(const c of chests){
+    if(!c.ready){c.t-=dt;if(c.t<=0)c.ready=true;continue}
+    if(Math.hypot(c.x-P.x,c.y-P.y)<P.r+45){
+      const g=Math.round(rnd(25,60)*(1+0.3*save.level));
+      save.gold+=g;c.ready=false;c.t=70;ensureM();save.m.chests++;persist();sfx.chest();
+      float(c.x,c.y-14,'Coffre ! +'+g+' or','#ffd96b');puff(c.x,c.y,12,'#ffd96b',90,0.8,4);
+    }
+  }
+  seaT-=dt;
+  if(seaT<=0&&seaChests.length<4){
+    seaT=rnd(6,12);
+    for(let q=0;q<20;q++){
+      const a=rnd(0,TAU),d=rnd(350,900),x=clamp(P.x+Math.cos(a)*d,80,WORLD-80),y=clamp(P.y+Math.sin(a)*d,80,WORLD-80);
+      if(islands.some(i=>Math.hypot(i.x-x,i.y-y)<i.r+40))continue;
+      seaChests.push({x,y});break;
+    }
+  }
+  for(let i=seaChests.length-1;i>=0;i--){
+    const c=seaChests[i];
+    if(Math.hypot(c.x-P.x,c.y-P.y)<P.r+30){
+      const g=Math.round(rnd(20,45)*(1+0.3*save.level));
+      save.gold+=g;ensureM();save.m.chests++;persist();sfx.chest();
+      float(c.x,c.y-14,'Coffre ! +'+g+' or','#ffd96b');puff(c.x,c.y,12,'#ffd96b',90,0.8,4);
+      seaChests.splice(i,1);
+    }
+  }
+
+  spawnT-=dt;
+  const maxE=Math.min(10,3+Math.floor(save.level/1.5));
+  if(spawnT<=0&&enemies.length<maxE){spawnEnemy();spawnT=rnd(2,4)}
+  monT-=dt;
+  if(monT<=0){
+    if(save.level>=3&&!enemies.some(e=>e.t.monster)){spawnMonster();monT=rnd(50,90)}else monT=20;
+  }
+  for(const e of enemies)updEnemy(e,dt);
+
+  for(let i=balls.length-1;i>=0;i--){
+    const b=balls[i];
+    if(!b)continue; // la mort du joueur vide la liste des boulets en cours de boucle
+    b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
+    let dead=b.life<=0;
+    if(!dead)for(const is of islands){if(Math.hypot(b.x-is.x,b.y-is.y)<is.r*0.9){dead=true;puff(b.x,b.y,4,'#c9b27a',70,0.5,4);break}}
+    if(!dead&&b.team==='p'){
+      for(let j=enemies.length-1;j>=0;j--){
+        const e=enemies[j];
+        if(Math.hypot(b.x-e.x,b.y-e.y)<e.t.r+5){
+          e.hp-=b.dmg;e.hurt=0.15;dead=true;
+          save.dmgTotal+=b.dmg;save.elite+=b.dmg*(b.type==='rocket'?0.5:0.25);ensureM();save.m.dmg+=b.dmg;sfx.hit();if(b.type==='chain')e.slow=2.5;
+          float(e.x,e.y-e.t.r-8,Math.round(b.dmg),'#fff');puff(b.x,b.y,5,'#ffcf6b',100,0.4,3);
+          if(e.hp<=0){killEnemy(e);enemies.splice(j,1)}
+          break;
+        }
+      }
+    }else if(!dead&&b.team==='e'){
+      if(Math.hypot(b.x-P.x,b.y-P.y)<P.r+5){dead=true;hurtPlayer(b.dmg)}
+    }
+    if(dead){if(b.life<=0)puff(b.x,b.y,4,'#bfe6f5',60,0.5,4);balls.splice(i,1)}
+  }
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.94;p.vy*=0.94;
+    if(p.life<=0)parts.splice(i,1);
+  }
+  for(let i=texts.length-1;i>=0;i--){const t=texts[i];t.life-=dt;t.y-=28*dt;if(t.life<=0)texts.splice(i,1)}
+  shake=Math.max(0,shake-22*dt);
+  msg.life=Math.max(0,msg.life-dt);
+  hintT=Math.max(0,hintT-dt);
+}
+
+/* ---------- dessin ---------- */
+function hash(x,y){let h=(x*374761393+y*668265263)|0;h=(h^(h>>>13))*1274126177|0;return((h^(h>>>16))>>>0)/4294967295}
+function drawSea(cx,cy){
+  ctx.fillStyle='#0b3558';ctx.fillRect(0,0,W,H);
+  const step=110,x0=Math.floor((cx-W/2)/step)-1,x1=Math.ceil((cx+W/2)/step)+1,y0=Math.floor((cy-H/2)/step)-1,y1=Math.ceil((cy+H/2)/step)+1;
+  ctx.lineWidth=2;ctx.lineCap='round';
+  for(let gx=x0;gx<=x1;gx++)for(let gy=y0;gy<=y1;gy++){
+    const h=hash(gx,gy),px=gx*step+h*step,py=gy*step+hash(gy,gx)*step;
+    const al=0.05+0.07*Math.sin(T*1.3+h*20);
+    ctx.strokeStyle='rgba(180,225,245,'+al.toFixed(3)+')';
+    ctx.beginPath();ctx.arc(px,py,14+h*10,Math.PI*1.1,Math.PI*1.9);ctx.stroke();
+  }
+}
+function drawIsland(i){
+  ctx.fillStyle='rgba(110,200,205,0.22)';ctx.beginPath();ctx.arc(i.x,i.y,i.r+42,0,TAU);ctx.fill();
+  ctx.fillStyle='rgba(150,225,225,0.25)';ctx.beginPath();ctx.arc(i.x,i.y,i.r+20,0,TAU);ctx.fill();
+  ctx.fillStyle='#dcc88f';ctx.beginPath();ctx.arc(i.x,i.y,i.r,0,TAU);ctx.fill();
+  ctx.fillStyle='#4a8a3e';ctx.beginPath();ctx.arc(i.x,i.y,i.r*0.78,0,TAU);ctx.fill();
+  for(const b of i.blobs){
+    ctx.fillStyle='#2f6a30';ctx.beginPath();ctx.arc(i.x+Math.cos(b.a)*i.r*b.d,i.y+Math.sin(b.a)*i.r*b.d,i.r*b.s*0.4,0,TAU);ctx.fill();
+  }
+}
+function drawShip(x,y,a,r,col,masts,flash,isP){
+  ctx.save();ctx.translate(x,y);ctx.rotate(a);
+  ctx.fillStyle='rgba(0,0,0,0.25)';ctx.beginPath();ctx.ellipse(3,4,r*1.6,r*0.8,0,0,TAU);ctx.fill();
+  ctx.beginPath();ctx.moveTo(r*1.7,0);ctx.quadraticCurveTo(r*0.8,r*0.8,-r*1.2,r*0.62);ctx.lineTo(-r*1.3,0);ctx.lineTo(-r*1.2,-r*0.62);ctx.quadraticCurveTo(r*0.8,-r*0.8,r*1.7,0);ctx.closePath();
+  ctx.fillStyle=flash?'#fff':col;ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#1a1008';ctx.stroke();
+  ctx.fillStyle='rgba(255,230,170,0.35)';ctx.beginPath();ctx.ellipse(-r*0.1,0,r*1.1,r*0.38,0,0,TAU);ctx.fill();
+  for(let m=0;m<masts;m++){
+    const mx=r*(0.7-m*(1.5/Math.max(1,masts)));
+    ctx.fillStyle='#f4ecd2';ctx.fillRect(mx-2.5,-r*0.95,5,r*1.9);
+    ctx.fillStyle='#3a2810';ctx.beginPath();ctx.arc(mx,0,3,0,TAU);ctx.fill();
+  }
+  if(isP){ctx.fillStyle='#d9b45a';ctx.beginPath();ctx.moveTo(r*1.7,0);ctx.lineTo(r*1.2,4);ctx.lineTo(r*1.2,-4);ctx.fill()}
+  ctx.restore();
+}
+function drawMonster(e){
+  const r=e.t.r;
+  ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.a);
+  ctx.strokeStyle=e.hurt>0?'#fff':'#2a5a44';ctx.lineWidth=7;ctx.lineCap='round';
+  for(let k=0;k<7;k++){
+    const base=(k/7)*TAU+Math.sin(T*1.5+k)*0.2,w1=base+Math.sin(T*2+k)*0.5,w2=base+Math.sin(T*2.4+k)*0.9;
+    ctx.beginPath();ctx.moveTo(Math.cos(base)*r*0.6,Math.sin(base)*r*0.6);
+    ctx.quadraticCurveTo(Math.cos(w1)*r*1.3,Math.sin(w1)*r*1.3,Math.cos(w2)*r*1.7,Math.sin(w2)*r*1.7);ctx.stroke();
+  }
+  ctx.fillStyle=e.hurt>0?'#fff':e.t.col;ctx.beginPath();ctx.ellipse(0,0,r,r*0.8,0,0,TAU);ctx.fill();
+  ctx.strokeStyle='#10261c';ctx.lineWidth=2.5;ctx.stroke();
+  ctx.fillStyle='#ffe36b';ctx.beginPath();ctx.arc(r*0.45,-r*0.28,5,0,TAU);ctx.fill();ctx.beginPath();ctx.arc(r*0.45,r*0.28,5,0,TAU);ctx.fill();
+  ctx.fillStyle='#000';ctx.beginPath();ctx.arc(r*0.5,-r*0.28,2,0,TAU);ctx.fill();ctx.beginPath();ctx.arc(r*0.5,r*0.28,2,0,TAU);ctx.fill();
+  ctx.restore();
+}
+function label(t,x,y,col,size){
+  ctx.font='bold '+(size||12)+'px system-ui,sans-serif';ctx.textAlign='center';
+  ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.7)';ctx.strokeText(t,x,y);ctx.fillStyle=col;ctx.fillText(t,x,y);
+}
+function bar(x,y,w,h,f,col,bg){ctx.fillStyle=bg||'rgba(0,0,0,0.55)';ctx.fillRect(x,y,w,h);ctx.fillStyle=col;ctx.fillRect(x,y,w*clamp(f,0,1),h)}
+
+function draw(){
+  const sh=shake,ox=rnd(-sh,sh),oy=rnd(-sh,sh);
+  const cx=P.x,cy=P.y;
+  drawSea(cx,cy);
+  ctx.save();ctx.translate(W/2-cx+ox,H/2-cy+oy);
+  ctx.strokeStyle='#d9b45a';ctx.lineWidth=6;ctx.setLineDash([24,18]);ctx.strokeRect(0,0,WORLD,WORLD);ctx.setLineDash([]);
+  ctx.fillStyle='rgba(2,8,16,0.75)';
+  ctx.fillRect(-3000,-3000,3000+WORLD+3000,3000);ctx.fillRect(-3000,WORLD,3000+WORLD+3000,3000);
+  ctx.fillRect(-3000,0,3000,WORLD);ctx.fillRect(WORLD,0,3000,WORLD);
+  for(const i of islands)if(Math.abs(i.x-cx)<W/2+i.r+60&&Math.abs(i.y-cy)<H/2+i.r+60)drawIsland(i);
+  for(const c of chests)if(c.ready){
+    ctx.fillStyle='#7a4a1c';ctx.fillRect(c.x-10,c.y-7,20,14);ctx.strokeStyle='#1a1008';ctx.lineWidth=1.5;ctx.strokeRect(c.x-10,c.y-7,20,14);
+    ctx.fillStyle='#ffd96b';ctx.fillRect(c.x-10,c.y-2,20,3);ctx.fillRect(c.x-2,c.y-3,4,6);
+  }
+  for(const c of seaChests){
+    const by=c.y+Math.sin(T*2+c.x)*2;
+    ctx.fillStyle='#7a4a1c';ctx.fillRect(c.x-10,by-7,20,14);ctx.strokeStyle='#1a1008';ctx.lineWidth=1.5;ctx.strokeRect(c.x-10,by-7,20,14);
+    ctx.fillStyle='#ffd96b';ctx.fillRect(c.x-10,by-2,20,3);ctx.fillRect(c.x-2,by-3,4,6);
+  }
+  for(const i of islands){
+    const d=Math.hypot(i.x-cx,i.y-cy);
+    if(d<i.r+700){ctx.globalAlpha=clamp(1-(d-i.r)/700,0.25,1);label(i.name,i.x,i.y-i.r*0.35,'#fff3c8',14);ctx.globalAlpha=1}
+  }
+  for(const p of parts)if(p.col==='wake'){ctx.fillStyle='rgba(235,250,255,'+(0.35*p.life/p.max).toFixed(3)+')';ctx.beginPath();ctx.arc(p.x,p.y,p.r*(1.2-0.4*p.life/p.max),0,TAU);ctx.fill()}
+  // destination
+  if(dest){
+    const pu=1+0.15*Math.sin(T*6);
+    ctx.strokeStyle='#ffd96b';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(dest.x,dest.y,16*pu,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(dest.x-8,dest.y-8);ctx.lineTo(dest.x+8,dest.y+8);ctx.moveTo(dest.x+8,dest.y-8);ctx.lineTo(dest.x-8,dest.y+8);ctx.stroke();
+  }
+  // survol
+  let hov=null;
+  if(mouse.in&&!shopOpen){const w=toWorld(mouse.x,mouse.y);hov=enemyAt(w.x,w.y)}
+  cv.style.cursor=hov?'pointer':'crosshair';
+  for(const e of enemies){
+    if(e.t.monster)drawMonster(e);else drawShip(e.x,e.y,e.a,e.t.r,e.t.col,e.t.masts,e.hurt>0,false);
+    if(canBoard(e))label('ABORDAGE (R)',e.x,e.y+e.t.r+24,'#ffd96b',13);
+    bar(e.x-24,e.y-e.t.r-16,48,5,e.hp/e.max,'#d9503f');
+    label(e.name,e.x,e.y-e.t.r-22,'#ffb4a6',12);
+    if(e===hov||e===target){
+      const pu=1+0.1*Math.sin(T*7);
+      ctx.strokeStyle=e===target?'#ff5b4a':'rgba(255,255,255,.7)';ctx.lineWidth=2.5;
+      ctx.beginPath();ctx.arc(e.x,e.y,(e.t.r+16)*pu,0,TAU);ctx.stroke();
+    }
+  }
+  drawShip(P.x,P.y,P.a,P.r,'#7a5230',SHIPS[save.ship].masts,P.hurt>0,true);
+  label(save.name,P.x,P.y-P.r-18,'#ffe9a8',13);
+  if(P.shieldT>0){ctx.strokeStyle='rgba(120,220,255,.85)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(P.x,P.y,P.r+12,0,TAU);ctx.stroke()}
+  if(P.speedT>0){ctx.strokeStyle='rgba(190,140,255,.8)';ctx.lineWidth=2;ctx.setLineDash([6,6]);ctx.beginPath();ctx.arc(P.x,P.y,P.r+18,0,TAU);ctx.stroke();ctx.setLineDash([])}
+  for(const b of balls){ctx.fillStyle=b.team==='p'?(b.type==='fire'?'#ff7a2a':b.type==='chain'?'#9aa7b8':b.type==='grape'?'#c9a56a':b.type==='rocket'?'#ff3b1a':'#222'):'#401010';ctx.beginPath();ctx.arc(b.x,b.y,b.type==='rocket'?6:4,0,TAU);ctx.fill()}
+  for(const p of parts)if(p.col!=='wake'){ctx.globalAlpha=clamp(p.life/p.max,0,1);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,TAU);ctx.fill()}
+  ctx.globalAlpha=1;
+  ctx.font='bold 15px system-ui,sans-serif';ctx.textAlign='center';
+  for(const t of texts){ctx.globalAlpha=clamp(t.life,0,1);ctx.fillStyle='#000';ctx.fillText(t.t,t.x+1,t.y+1);ctx.fillStyle=t.col;ctx.fillText(t.t,t.x,t.y)}
+  ctx.globalAlpha=1;
+  ctx.restore();
+  drawHUD();drawBottom();
+}
+
+function drawBottom(){
+  const S=stats(),bw=Math.min(240,W/2-20),cx=W/2;
+  // coordonnées de grille sur les bords
+  const cell=200,n=WORLD/cell;
+  ctx.font='11px system-ui,sans-serif';ctx.fillStyle='rgba(255,255,255,.45)';ctx.textAlign='center';
+  for(let g=Math.floor((P.x-W/2)/cell);g<=Math.ceil((P.x+W/2)/cell);g++){
+    if(g<0||g>=n)continue;ctx.fillText(String(g+1),g*cell+cell/2-P.x+W/2,H-5);
+  }
+  for(let g=Math.floor((P.y-H/2)/cell);g<=Math.ceil((P.y+H/2)/cell);g++){
+    if(g<0||g>=n)continue;ctx.fillText(String.fromCharCode(65+g),8,g*cell+cell/2-P.y+H/2+4);
+  }
+  // PV et EXP
+  const y=H-92;
+  bar(cx-bw-4,y,bw,14,P.hp/S.maxHp,'#2e9d3f');bar(cx+4,y,bw,14,save.xp/(save.level*100),'#2f6fd6');
+  ctx.font='bold 11px system-ui,sans-serif';ctx.fillStyle='#fff';
+  ctx.fillText('PV '+Math.ceil(P.hp)+' / '+S.maxHp,cx-bw/2-4,y+11);
+  ctx.fillText('EXP '+Math.floor(save.xp)+' / '+(save.level*100),cx+bw/2+4,y+11);
+  // barre de munitions
+  for(let i=0;i<AMMO.length+ITEMS.length;i++){
+    const r=hbRect(i),a=i<AMMO.length?AMMO[i]:ITEMS[i-AMMO.length],sel=i===ammoSel;
+    ctx.fillStyle=sel?'rgba(90,60,20,.95)':'rgba(20,12,4,.78)';ctx.fillRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle=sel?'#ffd96b':'#8d7c58';ctx.lineWidth=2;ctx.strokeRect(r.x,r.y,r.w,r.h);
+    ctx.fillStyle=a.col;ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+22,10,0,TAU);ctx.fill();
+    ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.stroke();
+    ctx.fillStyle='#f3e9c8';ctx.font='10px system-ui,sans-serif';ctx.textAlign='left';ctx.fillText(String(i+1),r.x+4,r.y+11);
+    ctx.textAlign='center';ctx.font='bold 11px system-ui,sans-serif';
+    ctx.fillText(i===0?'∞':String(i<AMMO.length?save.ammo[a.id]:save.items[a.id]),r.x+r.w/2,r.y+r.h-5);
+  }
+}
+
+function drawHUD(){
+  const S=stats(),pad=12;
+  ctx.textAlign='left';
+  ctx.fillStyle='rgba(20,12,4,0.62)';ctx.fillRect(pad,pad,236,126);
+  ctx.strokeStyle='#d9b45a';ctx.lineWidth=2;ctx.strokeRect(pad,pad,236,126);
+  ctx.fillStyle='#ffe9a8';ctx.font='bold 13px system-ui,sans-serif';
+  ctx.fillText(save.name+' · '+SHIPS[save.ship].n,pad+10,pad+20);
+  ctx.fillStyle='#f3e9c8';
+  ctx.fillText('Coque  '+Math.ceil(P.hp)+' / '+S.maxHp,pad+10,pad+40);
+  bar(pad+10,pad+46,216,10,P.hp/S.maxHp,P.hp/S.maxHp>0.35?'#58b86a':'#d9503f');
+  ctx.fillText('Niveau '+save.level+'  ·  Coulés : '+save.sunk,pad+10,pad+72);
+  bar(pad+10,pad+78,216,6,save.xp/(save.level*100),'#6aa7ff');
+  ctx.fillStyle='#ffd96b';ctx.font='bold 17px system-ui,sans-serif';ctx.fillText('💰 '+save.gold+' or',pad+10,pad+108);
+  ctx.font='11px system-ui,sans-serif';ctx.fillStyle='#f3e9c8';
+  ctx.fillText('Bâbord',pad+122,pad+102);ctx.fillText('Tribord',pad+122+54,pad+102);
+  bar(pad+122,pad+108,48,6,1-P.cdL/S.reload,'#e8b04a');bar(pad+176,pad+108,48,6,1-P.cdR/S.reload,'#e8b04a');
+  // fiche de la cible
+  if(target&&enemies.includes(target)){
+    const wide=W>=720,px=wide?W/2-130:pad,py=wide?12:148;
+    ctx.fillStyle='rgba(20,12,4,0.7)';ctx.fillRect(px,py,260,64);ctx.strokeStyle='#ff5b4a';ctx.strokeRect(px,py,260,64);
+    ctx.textAlign='left';ctx.fillStyle='#ffb4a6';ctx.font='bold 14px system-ui,sans-serif';ctx.fillText(target.name,px+10,py+20);
+    ctx.fillStyle='#f3e9c8';ctx.font='12px system-ui,sans-serif';
+    ctx.fillText(target.t.n+' · niv. '+target.lv+' · '+Math.round(Math.hypot(target.x-P.x,target.y-P.y))+' m',px+10,py+38);
+    bar(px+10,py+46,240,8,target.hp/target.max,'#d9503f');
+  }
+  // minicarte
+  const mw=140,mx=W-mw-pad,my=pad,sc=mw/WORLD;
+  ctx.fillStyle='rgba(5,20,40,0.78)';ctx.fillRect(mx,my,mw,mw);
+  ctx.fillStyle='#8aa86a';for(const i of islands){ctx.beginPath();ctx.arc(mx+i.x*sc,my+i.y*sc,Math.max(2,i.r*sc),0,TAU);ctx.fill()}
+  ctx.fillStyle='#ffd96b';for(const c of chests)if(c.ready)ctx.fillRect(mx+c.x*sc-1.5,my+c.y*sc-1.5,3,3);
+  ctx.fillStyle='#ffd96b';for(const c of seaChests)ctx.fillRect(mx+c.x*sc-1.5,my+c.y*sc-1.5,3,3);
+  ctx.fillStyle='#ff5b4a';for(const e of enemies){ctx.fillRect(mx+e.x*sc-2,my+e.y*sc-2,4,4)}
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(mx+P.x*sc,my+P.y*sc,3.5,0,TAU);ctx.fill();
+  // flèche du vent (direction vers laquelle il souffle)
+  ctx.save();ctx.translate(mx+20,my+mw-20);ctx.rotate(wind.a);
+  ctx.strokeStyle='#bfe6f5';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(-10,0);ctx.lineTo(10,0);ctx.lineTo(4,-5);ctx.moveTo(10,0);ctx.lineTo(4,5);ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle='#bfe6f5';ctx.font='10px system-ui,sans-serif';ctx.textAlign='left';ctx.fillText('Vent',mx+34,my+mw-16);
+  ctx.strokeStyle='#d9b45a';ctx.strokeRect(mx,my,mw,mw);
+  // message
+  if(msg.life>0){
+    ctx.globalAlpha=clamp(msg.life,0,1);ctx.textAlign='center';ctx.font='bold 22px system-ui,sans-serif';
+    ctx.fillStyle='#000';ctx.fillText(msg.t,W/2+1,111);ctx.fillStyle='#ffd96b';ctx.fillText(msg.t,W/2,110);ctx.globalAlpha=1;
+  }
+  // aide
+  if(hintT>0){
+    ctx.globalAlpha=clamp(hintT/3,0,1);ctx.textAlign='center';ctx.font='14px system-ui,sans-serif';
+    const tx=touchy?'Glisse à gauche pour naviguer · touche un ennemi pour le viser · boutons à droite pour tirer'
+      :'Clic : naviguer / viser · Clic droit ou Espace : tirer · Q : viser le plus proche · E : annuler · 1-8 : munitions et objets · R : aborder · M : son · B : chantier';
+    const bw=Math.min(W-20,touchy?500:880);
+    ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(W/2-bw/2,H-136,bw,34);
+    ctx.fillStyle='#f3e9c8';ctx.fillText(tx,W/2,H-114,bw-16);
+    ctx.globalAlpha=1;
+  }
+  if(joy.on){
+    ctx.strokeStyle='rgba(243,233,200,.5)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(joy.sx,joy.sy,60,0,TAU);ctx.stroke();
+    const jx=joy.x-joy.sx,jy=joy.y-joy.sy,m=Math.min(60,Math.hypot(jx,jy)),a=Math.atan2(jy,jx);
+    ctx.fillStyle='rgba(217,180,90,.7)';ctx.beginPath();ctx.arc(joy.sx+Math.cos(a)*m,joy.sy+Math.sin(a)*m,24,0,TAU);ctx.fill();
+  }
+}
+
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(!shopOpen){T+=dt;update(dt)}
+  draw();
+  requestAnimationFrame(loop);
+}
+say('Bienvenue, capitaine ! Clique sur la mer pour naviguer, sur un ennemi pour l’attaquer.');
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

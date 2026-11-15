@@ -1,0 +1,41 @@
+{
+  "name": "empire-des-mers",
+  "version": "0.1.0",
+  "description": "EMPIRE DES MERS — prototype de MMORPG naval 3D (Three.js + React + Node.js, serveur autoritaire).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n serveur,client -c yellow,cyan \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:client": "vite",
+    "build": "vite build",
+    "start": "vite build && tsx server/index.ts",
+    "serve": "tsx server/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "e2e": "node tests/e2e.mjs"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "@fontsource/cinzel": "^5.1.0",
+    "@fontsource/cormorant-garamond": "^5.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.170.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.170.0",
+    "@types/ws": "^8.5.13",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

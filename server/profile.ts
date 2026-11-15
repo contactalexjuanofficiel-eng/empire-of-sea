@@ -1,0 +1,88 @@
+// Profil joueur côté serveur : création, validation au chargement, statistiques du navire actif.
+import crypto from 'node:crypto';
+import { AMMO_ORDER, CONSUMABLE_ORDER } from '../shared/items.ts';
+import { levelFromXp } from '../shared/progression.ts';
+import type { FlagChoice, OwnedShip, Profile } from '../shared/protocol.ts';
+import { computeStats, NO_SKILLS, NO_UPGRADES, SHIP_BY_ID, SHIP_CLASSES } from '../shared/ships.ts';
+import { START_ZONE, ZONE_BY_ID } from '../shared/zones.ts';
+
+export const newUid = () => crypto.randomBytes(6).toString('hex');
+
+export function newProfile(name: string): Profile {
+  return {
+    name,
+    created: false,
+    portrait: 0,
+    flag: 'royal',
+    xp: 0,
+    reputation: 0,
+    or: 2500,
+    doublons: 10,
+    perles: 2,
+    mat: { bois: 10, toile: 10, fer: 10 },
+    ships: [],
+    active: '',
+    ammo: { rond: 0, chaine: 25, mitraille: 25, rouge: 25, explosif: 5 },
+    items: { kit: 3, seau: 3, poudre: 1 },
+    cargo: {},
+    skills: { ...NO_SKILLS },
+    zone: START_ZONE,
+    port: ZONE_BY_ID[START_ZONE].ports[0].id,
+    missions: [],
+    discovered: [],
+    stats: { kills: 0, pvp: 0, deaths: 0, damage: 0, treasures: 0, trades: 0, boss: 0, profit: 0 },
+    guild: null,
+  };
+}
+
+export function giveShip(p: Profile, defId: string): OwnedShip {
+  const s: OwnedShip = { uid: newUid(), def: defId, up: { ...NO_UPGRADES } };
+  p.ships.push(s);
+  return s;
+}
+
+/** Répare un profil chargé depuis la base (champs manquants après une mise à jour, valeurs aberrantes). */
+export function sanitizeProfile(raw: Profile, name: string): Profile {
+  const base = newProfile(name);
+  const p: Profile = { ...base, ...raw, name };
+  p.mat = { ...base.mat, ...(raw.mat || {}) };
+  p.ammo = { ...base.ammo, ...(raw.ammo || {}) };
+  p.items = { ...base.items, ...(raw.items || {}) };
+  p.skills = { ...NO_SKILLS, ...(raw.skills || {}) };
+  p.stats = { ...base.stats, ...(raw.stats || {}) };
+  p.ships = (raw.ships || []).filter((s) => SHIP_BY_ID[s.def] && !SHIP_BY_ID[s.def].npcOnly).map((s) => ({ ...s, up: { ...NO_UPGRADES, ...s.up } }));
+  if (!ZONE_BY_ID[p.zone]) p.zone = START_ZONE;
+  if (!ZONE_BY_ID[p.zone].ports.some((x) => x.id === p.port)) p.port = ZONE_BY_ID[p.zone].ports[0].id;
+  if (p.created && !p.ships.length) giveShip(p, 'bayonnaise');
+  if (!p.ships.some((s) => s.uid === p.active)) p.active = p.ships[0]?.uid ?? '';
+  for (const k of AMMO_ORDER) p.ammo[k] = Math.max(0, Math.floor(p.ammo[k] || 0));
+  for (const k of CONSUMABLE_ORDER) p.items[k] = Math.max(0, Math.floor(p.items[k] || 0));
+  p.missions = Array.isArray(raw.missions) ? raw.missions.slice(0, 3) : [];
+  p.discovered = Array.isArray(raw.discovered) ? raw.discovered.slice(0, 2000) : [];
+  return p;
+}
+
+export function createCharacter(p: Profile, portrait: number, flag: FlagChoice, ship: string) {
+  p.created = true;
+  p.portrait = Math.max(0, Math.min(7, Math.floor(portrait) || 0));
+  p.flag = (['royal', 'tricolore', 'imperial'] as const).includes(flag) ? flag : 'royal';
+  const s = giveShip(p, ['bayonnaise', 'mutine', 'saint_michel'].includes(ship) ? ship : 'bayonnaise');
+  p.active = s.uid;
+}
+
+export const activeShip = (p: Profile) => p.ships.find((s) => s.uid === p.active) ?? p.ships[0];
+export const playerLevel = (p: Profile) => levelFromXp(p.xp).level;
+export const skillPointsLeft = (p: Profile) => {
+  const used = p.skills.artillerie + p.skills.navigation + p.skills.charpenterie + p.skills.commerce;
+  return Math.max(0, playerLevel(p) - 1 - used);
+};
+
+export function activeStats(p: Profile) {
+  const s = activeShip(p);
+  const def = SHIP_BY_ID[s.def];
+  return { def, stats: computeStats(def, s.up, p.skills), tier: SHIP_CLASSES[def.cls].tier };
+}
+
+export function cargoUsed(p: Profile) {
+  return Object.values(p.cargo).reduce((a, b) => a + (b || 0), 0);
+}

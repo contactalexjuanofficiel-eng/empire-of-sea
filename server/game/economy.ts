@@ -1,0 +1,164 @@
+// Économie : chantier naval, arsenal, améliorations, marché, compétences. Toutes les vérifications sont ici.
+import { AMMO, CONSUMABLES, GOODS, MAX_SKILL, MAX_UPGRADE, UPGRADE_INFO, upgradeCost, type GoodId } from '../../shared/items.ts';
+import { fmt } from '../../shared/math.ts';
+import type { MissionOffer, ShopAction } from '../../shared/protocol.ts';
+import { SHIP_BY_ID, SHIP_CLASSES } from '../../shared/ships.ts';
+import { goodPrice, type ZoneDef } from '../../shared/zones.ts';
+import { activeShip, activeStats, cargoUsed, giveShip, playerLevel, skillPointsLeft } from '../profile.ts';
+import type { PlayerLink } from '../types.ts';
+
+export function portPrices(zone: ZoneDef, portId: string, t: number, commerce: number) {
+  const port = zone.ports.find((p) => p.id === portId) ?? zone.ports[0];
+  const out: Partial<Record<GoodId, { buy: number; sell: number }>> = {};
+  for (const g of Object.values(GOODS)) {
+    const p = goodPrice(port, g.id, g.base, t, zone.seed);
+    out[g.id] = { buy: Math.ceil(p * 1.06 * (1 - 0.03 * commerce)), sell: Math.floor(p * 0.94 * (1 + 0.03 * commerce)) };
+  }
+  return out;
+}
+
+/** Applique un achat. Retourne un message d'erreur, ou null si tout s'est bien passé. */
+export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: number): string | null {
+  if (!link.docked || !link.port) return 'Vous devez être amarré au port.';
+  const p = link.profile;
+  const lvl = playerLevel(p);
+
+  switch (act.a) {
+    case 'buyShip': {
+      const def = SHIP_BY_ID[act.ship];
+      if (!def || def.npcOnly) return 'Navire inconnu.';
+      if (p.ships.some((s) => s.def === def.id)) return 'Ce navire est déjà dans votre flotte.';
+      if (lvl < def.level) return `Il faut être de niveau ${def.level} pour commander ${def.name}.`;
+      const c = def.price;
+      if ((c.or ?? 0) > p.or || (c.doublons ?? 0) > p.doublons || (c.perles ?? 0) > p.perles) return 'Fonds insuffisants.';
+      if (p.ships.length >= 8) return 'Votre flotte est complète (8 navires).';
+      p.or -= c.or ?? 0;
+      p.doublons -= c.doublons ?? 0;
+      p.perles -= c.perles ?? 0;
+      const s = giveShip(p, def.id);
+      p.active = s.uid;
+      link.hpRatio = 1;
+      link.sailRatio = 1;
+      link.notify(`${def.name} rejoint votre flotte et devient votre navire amiral !`, 'level');
+      break;
+    }
+    case 'selectShip': {
+      const s = p.ships.find((x) => x.uid === act.uid);
+      if (!s) return 'Navire introuvable.';
+      if (p.active !== s.uid) {
+        p.active = s.uid;
+        link.hpRatio = 1;
+        link.sailRatio = 1;
+        const cap = activeStats(p).stats.cargo;
+        if (cargoUsed(p) > cap) return null; // la cargaison reste, mais on ne pourra plus rien charger
+      }
+      break;
+    }
+    case 'upgrade': {
+      const s = activeShip(p);
+      const slot = act.slot;
+      if (!UPGRADE_INFO[slot]) return 'Amélioration inconnue.';
+      const cur = s.up[slot];
+      if (cur >= MAX_UPGRADE) return 'Niveau maximal atteint.';
+      const tier = SHIP_CLASSES[SHIP_BY_ID[s.def].cls].tier;
+      const cost = upgradeCost(tier, cur);
+      const mat = UPGRADE_INFO[slot].mat;
+      if (p.or < cost.or || p.mat[mat] < cost.mat) return 'Ressources insuffisantes.';
+      p.or -= cost.or;
+      p.mat[mat] -= cost.mat;
+      s.up[slot] = cur + 1;
+      link.notify(`${UPGRADE_INFO[slot].name} amélioré(e) au niveau ${cur + 1}.`, 'gain');
+      break;
+    }
+    case 'buyAmmo': {
+      const a = AMMO[act.ammo];
+      if (!a || !a.price) return 'Munition indisponible.';
+      if ((a.price.or ?? 0) > p.or || (a.price.perles ?? 0) > p.perles) return 'Fonds insuffisants.';
+      p.or -= a.price.or ?? 0;
+      p.perles -= a.price.perles ?? 0;
+      p.ammo[a.id] = (p.ammo[a.id] ?? 0) + a.pack;
+      break;
+    }
+    case 'buyItem': {
+      const it = CONSUMABLES[act.item];
+      const qty = Math.max(1, Math.min(20, Math.floor(act.qty) || 1));
+      if (!it) return 'Objet inconnu.';
+      if (it.price.or * qty > p.or) return 'Fonds insuffisants.';
+      p.or -= it.price.or * qty;
+      p.items[it.id] = (p.items[it.id] ?? 0) + qty;
+      break;
+    }
+    case 'repair': {
+      const cost = repairCost(link);
+      if (cost <= 0) return 'Votre navire est en parfait état.';
+      if (p.or < cost) return `La réparation coûte ${fmt(cost)} or.`;
+      p.or -= cost;
+      link.hpRatio = 1;
+      link.sailRatio = 1;
+      link.notify(`Les charpentiers de l'arsenal ont remis votre navire à neuf (${fmt(cost)} or).`, 'info');
+      break;
+    }
+    case 'trade': {
+      const g = GOODS[act.good];
+      const qty = Math.max(1, Math.min(500, Math.floor(act.qty) || 1));
+      if (!g) return 'Marchandise inconnue.';
+      const price = portPrices(zone, link.port, nowSec, p.skills.commerce)[g.id]!;
+      if (act.buy) {
+        const cap = activeStats(p).stats.cargo;
+        if (cargoUsed(p) + qty > cap) return `Cale pleine (${cap} tonneaux).`;
+        if (p.or < price.buy * qty) return 'Fonds insuffisants.';
+        p.or -= price.buy * qty;
+        p.cargo[g.id] = (p.cargo[g.id] ?? 0) + qty;
+        p.stats.profit -= price.buy * qty;
+      } else {
+        const have = p.cargo[g.id] ?? 0;
+        if (have < qty) return 'Vous n\'avez pas cette quantité à bord.';
+        p.cargo[g.id] = have - qty;
+        p.or += price.sell * qty;
+        p.stats.profit += price.sell * qty;
+        p.stats.trades++;
+      }
+      break;
+    }
+    case 'skill': {
+      if (!(act.skill in p.skills)) return 'Compétence inconnue.';
+      if (skillPointsLeft(p) <= 0) return 'Aucun point de compétence disponible.';
+      if (p.skills[act.skill] >= MAX_SKILL) return 'Compétence au maximum.';
+      p.skills[act.skill]++;
+      break;
+    }
+    case 'exchange': {
+      // Change : 10 doublons -> 1 perle (aucun achat en argent réel dans le prototype).
+      if (p.doublons < 10) return 'Il faut 10 doublons.';
+      p.doublons -= 10;
+      p.perles += 1;
+      break;
+    }
+    default:
+      return 'Action inconnue.';
+  }
+  link.touch();
+  return null;
+}
+
+export function repairCost(link: PlayerLink) {
+  const { stats, tier } = activeStats(link.profile);
+  const missing = (1 - link.hpRatio) * stats.hp + (1 - link.sailRatio) * stats.sailHp * 0.5;
+  return Math.ceil(missing * (0.25 + tier * 0.05));
+}
+
+export function acceptMission(link: PlayerLink, offers: MissionOffer[], id: string): string | null {
+  const p = link.profile;
+  const o = offers.find((x) => x.id === id);
+  if (!o) return 'Mission indisponible.';
+  if (p.missions.some((m) => m.id === id)) return 'Mission déjà acceptée.';
+  if (p.missions.length >= 3) return 'Vous avez déjà 3 missions en cours.';
+  if (o.cargo) {
+    const cap = activeStats(p).stats.cargo;
+    if (cargoUsed(p) + o.cargo.qty > cap) return 'Pas assez de place dans la cale pour cette livraison.';
+    p.cargo[o.cargo.good] = (p.cargo[o.cargo.good] ?? 0) + o.cargo.qty;
+  }
+  p.missions.push({ ...o, progress: 0 });
+  link.touch();
+  return null;
+}

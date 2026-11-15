@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Empire des Mers – prototype 3D</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#0a1a2a;font-family:Georgia,serif;color:#f4ecd8}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+.panel{position:fixed;background:rgba(10,25,45,.72);border:1px solid #c9a24a;border-radius:8px;padding:8px 12px;font-size:13px}
+#hud{top:10px;left:10px;width:250px}
+#hud b{color:#e8c76a}
+.bar{height:10px;background:#1b2b3d;border-radius:5px;overflow:hidden;margin:3px 0 6px}
+.bar>i{display:block;height:100%;width:50%}
+#hp>i{background:linear-gradient(#e24b4b,#a02020)}
+#xp>i{background:linear-gradient(#5ab0ff,#2a6ab0)}
+#mini{top:10px;right:10px;padding:4px}
+#mini canvas{display:block;border-radius:6px}
+#guns{bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center}
+.gun{width:120px;text-align:center;padding:6px;border:1px solid #c9a24a;border-radius:6px;background:#10253c;cursor:pointer;user-select:none;position:relative;overflow:hidden}
+.gun i{position:absolute;left:0;bottom:0;height:4px;background:#e8c76a;width:100%}
+#log{bottom:14px;left:10px;width:300px;max-height:150px;overflow:hidden;font-size:12px;background:rgba(10,25,45,.4);border:0}
+#log div{margin:2px 0}
+#hint{bottom:70px;left:50%;transform:translateX(-50%);font-size:12px;opacity:.85;text-align:center;pointer-events:none}
+#portBtn{top:90px;left:50%;transform:translateX(-50%);display:none;cursor:pointer;background:#c9a24a;color:#1a1204;font-weight:bold}
+.tag{position:fixed;transform:translate(-50%,-100%);font-size:11px;text-align:center;pointer-events:none;text-shadow:0 0 3px #000;white-space:nowrap}
+.tag .b{width:70px;height:5px;background:#300;margin:2px auto 0}
+.tag .b i{display:block;height:100%;background:#e24b4b}
+#shop{inset:6% 8%;display:none;overflow:auto;background:rgba(8,20,36,.95);padding:16px}
+#shop h2{margin:0 0 8px;color:#e8c76a}
+#shop h3{margin:14px 0 6px;color:#e8c76a;border-bottom:1px solid #3a4a5c}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;border-bottom:1px dotted #2c3c4e}
+button{font-family:inherit;background:#c9a24a;border:0;border-radius:5px;padding:5px 10px;cursor:pointer;color:#1a1204;font-weight:bold}
+button:disabled{opacity:.4;cursor:default}
+#msg{top:40%;left:50%;transform:translate(-50%,-50%);font-size:22px;display:none;text-align:center}
+</style></head><body>
+<canvas id="gl"></canvas>
+<div class="panel" id="hud">
+ <div><b id="shipName">…</b> <span id="shipCls"></span></div>
+ <div>Coque <span id="hpTxt"></span></div><div class="bar" id="hp"><i></i></div>
+ <div>Niveau <b id="lvl">1</b> · XP</div><div class="bar" id="xp"><i></i></div>
+ <div>🌊 <span id="reg">—</span> · <span id="pvpf"></span></div>
+ <div>💰 <b id="gold">0</b> or · ⚔ <span id="kills">0</span> victoires</div>
+</div>
+<div class="panel" id="net" style="top:10px;left:50%;transform:translateX(-50%);font-size:12px"><span id="netst">Solo</span> · <input id="wsu" size="22" placeholder="ws://localhost:8080"> <button id="wsb">Jouer en ligne</button></div>
+<div class="panel" id="login" style="display:none;top:30%;left:50%;transform:translate(-50%,-50%);text-align:center;min-width:290px">
+ <h2 style="margin:0 0 8px;color:#e8c76a">⚓ Empire des Mers</h2>
+ <div id="lmsg" style="min-height:18px;color:#ffb0a0;font-size:12px"></div>
+ <input id="lname" placeholder="Pseudo (3-16)" maxlength="16" style="width:90%;margin:3px"><br>
+ <input id="lpass" type="password" placeholder="Mot de passe (6+)" maxlength="100" style="width:90%;margin:3px"><br>
+ <button id="lin">Connexion</button> <button id="lreg">Créer un compte</button> <button id="lguest">Invité</button>
+</div>
+<div class="panel" id="chatp" style="right:10px;bottom:14px;width:300px;font-size:12px">
+ <div id="chatLog" style="max-height:130px;overflow:hidden"></div>
+ <div style="display:flex;gap:4px;margin-top:4px"><select id="chatSc"><option value="global">Monde</option><option value="guild">Guilde</option></select><input id="chatIn" maxlength="120" placeholder="Entrée = écrire · /guilde aide" style="flex:1;min-width:0"></div>
+</div>
+<div class="panel" id="mini"><canvas id="mc" width="150" height="150"></canvas></div>
+<div class="panel" id="log"></div>
+<div class="panel" id="hint">Z avancer · S ralentir · Q/D tourner · <b>J</b> feu bâbord · <b>L</b> feu tribord · Espace = double bordée (ou clic sur les boutons) · Souris : glisser = caméra, molette = zoom · P = port</div>
+<div class="panel" id="guns"><div class="gun" id="gP">⬅ Bâbord (J)<i id="cdP"></i></div><div class="gun" id="gS">Tribord (L) ➡<i id="cdS"></i></div></div>
+<div class="panel" id="portBtn">⚓ Entrer au port (P)</div>
+<div class="panel" id="shop"></div>
+<div class="panel" id="msg"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+if(typeof THREE==='undefined'){document.body.insertAdjacentHTML('beforeend','<div class="panel" style="top:40%;left:20%">Three.js n\'a pas pu être chargé (réseau).</div>');return;}
+// ===== DONNEES (miroir de shared/data.js, échelle 3D) =====
+const CLASSES=[
+{n:'Corvette',hp:300,spd:14,dmg:14,guns:3,len:11,w:3.4,masts:2,mh:9,cost:0,lvl:1},
+{n:'Brick',hp:550,spd:13,dmg:20,guns:4,len:14,w:4,masts:2,mh:11,cost:1500,lvl:3},
+{n:'Frégate',hp:900,spd:12.5,dmg:28,guns:5,len:18,w:5,masts:3,mh:13,cost:5000,lvl:6},
+{n:'Frégate lourde',hp:1400,spd:12,dmg:38,guns:6,len:22,w:6,masts:3,mh:15,cost:12000,lvl:9},
+{n:'Vaisseau de ligne',hp:2200,spd:11,dmg:52,guns:8,len:28,w:7.5,masts:3,mh:18,cost:30000,lvl:13},
+{n:'Trois-ponts',hp:3200,spd:10,dmg:70,guns:10,len:34,w:9,masts:3,mh:21,cost:80000,lvl:18},
+{n:'Navire amiral',hp:4500,spd:9.5,dmg:95,guns:12,len:40,w:10.5,masts:3,mh:24,cost:200000,lvl:25}];
+const PLAYER_NAMES=['La Marianne','La Belle Poule','L\'Hermione','Le Redoutable','Le Redoutable','Le Bucentaure','Le Soleil Royal'];
+const PIRATES=['Le Revenant','La Veuve Noire','Le Loup de Mer','Barbe-Rouge','La Dame Blanche','Le Corbeau','L\'Écumeur','Le Requin','La Tempête','Le Fléau des Mers'];
+const R=(a,b)=>a+Math.random()*(b-a), RI=(a,b)=>Math.floor(R(a,b+1)), PI2=Math.PI*2;
+// ===== SAUVEGARDE =====
+let S={gold:300,xp:0,lvl:1,cls:0,upg:{can:0,coq:0,voi:0},kills:0};
+try{const j=localStorage.getItem('edm3d');if(j)S=Object.assign(S,JSON.parse(j));}catch(e){}
+const WSURL=(new URLSearchParams(location.search)).get('ws'),ONLINE=!!WSURL;
+function persist(){if(ONLINE)return;try{localStorage.setItem('edm3d',JSON.stringify(S));}catch(e){}}
+const xpNeed=l=>Math.round(100*Math.pow(l,1.4));
+const upCost=l=>Math.round(120*Math.pow(1.6,l));
+// ===== RENDU =====
+const cv=document.getElementById('gl');
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(60,1,0.5,3000);
+function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+scene.add(new THREE.HemisphereLight(0xcfe6ff,0x335544,0.85));
+const sun=new THREE.DirectionalLight(0xfff0cc,0.9);sun.position.set(-300,400,200);scene.add(sun);
+// ciel
+const sky=new THREE.Mesh(new THREE.SphereGeometry(2500,24,12),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,
+ vertexShader:'varying vec3 p;void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+ fragmentShader:'varying vec3 p;void main(){float h=clamp(normalize(p).y,0.,1.);vec3 c=mix(vec3(.80,.88,.95),vec3(.18,.42,.78),pow(h,.6));gl_FragColor=vec4(c,1.);}'}));
+scene.add(sky);
+// ===== OCEAN =====
+function waveH(x,z,t){return 0.9*Math.sin(x*0.045+z*0.02+t*1.1)+0.5*Math.sin(-x*0.03+z*0.06+t*1.4)+0.2*Math.sin(x*0.12+z*0.09+t*2.3);}
+const WG='float wv(vec2 q,float t){return .9*sin(q.x*.045+q.y*.02+t*1.1)+.5*sin(-q.x*.03+q.y*.06+t*1.4)+.2*sin(q.x*.12+q.y*.09+t*2.3);}';
+const oceanMat=new THREE.ShaderMaterial({uniforms:{uT:{value:0}},extensions:{derivatives:true},
+ vertexShader:'uniform float uT;varying vec3 wp;'+WG+'void main(){vec4 w=modelMatrix*vec4(position,1.);w.y+=wv(w.xz,uT);wp=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}',
+ fragmentShader:'uniform float uT;varying vec3 wp;void main(){vec3 n=normalize(cross(dFdx(wp),dFdy(wp)));if(n.y<0.)n=-n;vec3 v=normalize(cameraPosition-wp);'
+ +'float f=pow(1.-max(dot(n,v),0.),3.);vec3 deep=vec3(.02,.20,.34),shal=vec3(.05,.42,.52);vec3 c=mix(deep,shal,clamp(wp.y*.5+.4,0.,1.));'
+ +'vec3 sk=vec3(.6,.78,.92);c=mix(c,sk,f*.7);vec3 l=normalize(vec3(-.5,.7,.35));float sp=pow(max(dot(reflect(-l,n),v),0.),90.);c+=vec3(1.,.95,.8)*sp*.8;'
+ +'float d=length(cameraPosition-wp);c=mix(c,vec3(.74,.84,.93),clamp((d-250.)/900.,0.,1.));gl_FragColor=vec4(c,1.);}'});
+const ocean=new THREE.Mesh(new THREE.PlaneGeometry(1800,1800,220,220).rotateX(-Math.PI/2),oceanMat);
+ocean.frustumCulled=false;scene.add(ocean);
+// ===== ILES =====
+const islands=[{x:0,z:0,r:26,port:true}];
+(function(){let s=1234;const rnd=()=>(s=(s*16807)%2147483647)/2147483647;
+ for(let i=0;i<9;i++){const a=rnd()*PI2,d=140+rnd()*480;islands.push({x:Math.cos(a)*d,z:Math.sin(a)*d,r:10+rnd()*16});}})();
+const islG=[];
+function buildIsland(is){
+ const g=new THREE.Group();
+ const sand=new THREE.Mesh(new THREE.CylinderGeometry(is.r,is.r*1.15,3,20),new THREE.MeshLambertMaterial({color:0xd9c58a}));sand.position.y=-0.3;g.add(sand);
+ const hill=new THREE.Mesh(new THREE.ConeGeometry(is.r*0.8,is.r*0.7,14),new THREE.MeshLambertMaterial({color:0x3f7a3a}));hill.position.y=is.r*0.35;g.add(hill);
+ for(let k=0;k<5;k++){const a=k*1.3,rr=is.r*0.55;const t=new THREE.Mesh(new THREE.ConeGeometry(1.4,4,6),new THREE.MeshLambertMaterial({color:0x2a5a2a}));t.position.set(Math.cos(a)*rr,2.5+is.r*0.15,Math.sin(a)*rr);g.add(t);}
+ if(is.port){for(let k=0;k<6;k++){const h=new THREE.Mesh(new THREE.BoxGeometry(4,3,4),new THREE.MeshLambertMaterial({color:k%2?0xe8dcc0:0xb8573a}));h.position.set(-8+k*3.2,3.5,k%2?5:-5);g.add(h);}
+  const fort=new THREE.Mesh(new THREE.CylinderGeometry(3,3.5,8,10),new THREE.MeshLambertMaterial({color:0x9a9a9a}));fort.position.set(0,5,0);g.add(fort);
+  g.add(flagMesh(0,10,0,2.4));}
+ g.position.set(is.x,0,is.z);scene.add(g);islG.push(g);}
+islands.forEach(buildIsland);
+function flagMesh(x,y,z,s,black){const f=new THREE.Group();
+ const cols=black?[0x111111]:[0x1b3f9e,0xf5f5f5,0xd02020];
+ cols.forEach((c,i)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(s/cols.length,s*0.65),new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));m.position.set(0,0,(i-(cols.length-1)/2)*s/cols.length);m.rotation.y=Math.PI/2;f.add(m);});
+ const pole=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,s*1.2,5),new THREE.MeshLambertMaterial({color:0x553311}));pole.position.y=-s*0.3;f.add(pole);
+ f.position.set(x,y,z);return f;}
+// ===== NAVIRES PROCEDURAUX =====
+function makeShip(ci,black){
+ const c=CLASSES[ci],L=c.len,W=c.w,H=Math.max(2.2,L*0.17);
+ const g=new THREE.Group(),inner=new THREE.Group();g.add(inner);
+ const sh=new THREE.Shape();
+ sh.moveTo(0,-L/2);sh.lineTo(W*0.45,-L*0.2);sh.lineTo(W*0.5,L*0.1);sh.lineTo(W*0.4,L/2);sh.lineTo(-W*0.4,L/2);sh.lineTo(-W*0.5,L*0.1);sh.lineTo(-W*0.45,-L*0.2);sh.closePath();
+ const hg=new THREE.ExtrudeGeometry(sh,{depth:H,bevelEnabled:false});hg.rotateX(-Math.PI/2);hg.translate(0,-H*0.45,0);
+ const hullCol=black?0x1c1c22:0x6b4423;
+ inner.add(new THREE.Mesh(hg,new THREE.MeshLambertMaterial({color:hullCol})));
+ const band=new THREE.Mesh(new THREE.BoxGeometry(W*1.02,H*0.12,L*0.62),new THREE.MeshLambertMaterial({color:black?0x777777:0xe0b848}));band.position.set(0,H*0.2,L*0.12);inner.add(band);
+ const deck=new THREE.Mesh(new THREE.BoxGeometry(W*0.8,0.2,L*0.85),new THREE.MeshLambertMaterial({color:0xb08a58}));deck.position.set(0,H*0.55,0);inner.add(deck);
+ const portM=new THREE.MeshBasicMaterial({color:0x111111});
+ for(let i=0;i<c.guns;i++){const z=-L*0.28+i*(L*0.56/Math.max(1,c.guns-1));
+  [-1,1].forEach(sd=>{const p=new THREE.Mesh(new THREE.BoxGeometry(0.15,H*0.14,L*0.045),portM);p.position.set(sd*W*0.51,H*0.2,z+L*0.1);inner.add(p);});}
+ const mz=c.masts===2?[-L*0.12,L*0.22]:[-L*0.25,L*0.02,L*0.28];
+ const sailM=new THREE.MeshLambertMaterial({color:black?0x2a2a2a:0xf2ead4,side:THREE.DoubleSide});
+ mz.forEach((z,k)=>{const mh=c.mh*(k===1&&c.masts===3?1.12:1);
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.26,mh,6),new THREE.MeshLambertMaterial({color:0x3a2a18}));m.position.set(0,H*0.5+mh/2,z);inner.add(m);
+  [[0.1,0.46,1],[0.55,0.34,0.8]].forEach(a=>{const sw=W*1.5*a[2],shh=mh*a[1];
+   const s=new THREE.Mesh(new THREE.PlaneGeometry(sw,shh,4,2),sailM);s.position.set(0,H*0.5+mh*(a[0]+a[1]/2+0.05),z+0.2);s.userData.bil=1;inner.add(s);
+   const y=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,sw*1.05,5),new THREE.MeshLambertMaterial({color:0x3a2a18}));y.rotation.z=Math.PI/2;y.position.set(0,s.position.y+shh/2,z+0.2);inner.add(y);});
+  if(k===mz.length-1)inner.add(flagMesh(0,H*0.5+mh+1.4,z,2.2,black));});
+ const bs=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.16,L*0.3,5),new THREE.MeshLambertMaterial({color:0x3a2a18}));bs.rotation.x=Math.PI/2-0.35;bs.position.set(0,H*0.6,-L*0.55);inner.add(bs);
+ g.userData={inner,H};return g;}
+// ===== ETAT =====
+const P={x:30,z:30,h:0,v:0,thr:0.5,hp:1,max:1,cdP:0,cdS:0,dead:0,mesh:null,ci:-1};
+const enemies=[],balls=[],parts=[];
+function pStats(){const c=CLASSES[S.cls];return{hp:c.hp*(1+0.1*S.upg.coq),spd:c.spd*(1+0.06*S.upg.voi),dmg:c.dmg*(1+0.1*S.upg.can),c};}
+function setPlayerShip(){if(P.mesh)scene.remove(P.mesh);P.mesh=makeShip(S.cls,false);scene.add(P.mesh);P.ci=S.cls;const st=pStats();P.max=st.hp;P.hp=Math.min(P.hp||st.hp,st.hp);}
+// ===== LOG / HUD =====
+const $=id=>document.getElementById(id);
+function log(t){const d=document.createElement('div');d.textContent=t;const l=$('log');l.appendChild(d);while(l.children.length>6)l.removeChild(l.firstChild);setTimeout(()=>{if(d.parentNode)d.parentNode.removeChild(d);},9000);}
+function gainXp(n){S.xp+=n;while(S.xp>=xpNeed(S.lvl)){S.xp-=xpNeed(S.lvl);S.lvl++;log('★ Niveau '+S.lvl+' atteint !');}}
+// ===== PARTICULES =====
+const ptex=(function(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,2,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);})();
+function puff(x,y,z,col,size,life,vy,n){for(let i=0;i<n;i++){if(parts.length>260)return;
+ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:ptex,color:col,transparent:true,depthWrite:false}));
+ sp.position.set(x+R(-.5,.5),y,z+R(-.5,.5));sp.scale.setScalar(size);
+ sp.userData={vx:R(-1.5,1.5),vy:vy*R(.6,1.2),vz:R(-1.5,1.5),life:life*R(.7,1.2),age:0,s0:size};scene.add(sp);parts.push(sp);}}
+function updParts(dt){for(let i=parts.length-1;i>=0;i--){const p=parts[i],u=p.userData;u.age+=dt;const k=u.age/u.life;
+ if(k>=1){scene.remove(p);p.material.dispose();parts.splice(i,1);continue;}
+ p.position.x+=u.vx*dt;p.position.y+=u.vy*dt;p.position.z+=u.vz*dt;p.scale.setScalar(u.s0*(1+k*1.8));p.material.opacity=0.8*(1-k);}}
+// ===== SONS =====
+let AC=null;function snd(f,d,type,vol){try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type=type||'sawtooth';o.frequency.setValueAtTime(f,AC.currentTime);o.frequency.exponentialRampToValueAtTime(30,AC.currentTime+d);g.gain.setValueAtTime(vol||0.15,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+d);o.connect(g).connect(AC.destination);o.start();o.stop(AC.currentTime+d);}catch(e){}}
+// ===== COMBAT =====
+const sideVec=(h,s)=>[s*Math.cos(h),-s*Math.sin(h)]; // s=+1 bâbord, -1 tribord
+function fire(o,side,dmg,team,cls){const c=CLASSES[cls],sv=sideVec(o.h,side),fw=[Math.sin(o.h),Math.cos(o.h)],H=Math.max(2.2,c.len*0.17);
+ for(let i=0;i<c.guns;i++){const off=-c.len*0.2+i*(c.len*0.5/Math.max(1,c.guns-1));
+  const ax=sv[0]+R(-.08,.08),az=sv[1]+R(-.08,.08);
+  const m=new THREE.Mesh(new THREE.SphereGeometry(0.35,6,5),new THREE.MeshBasicMaterial({color:0x111111}));
+  const px=o.x+sv[0]*c.w*0.5+fw[0]*off,pz=o.z+sv[1]*c.w*0.5+fw[1]*off;m.position.set(px,H*0.5,pz);scene.add(m);
+  balls.push({m,vx:ax*60+fw[0]*o.v*0.5,vy:R(4,8),vz:az*60+fw[1]*o.v*0.5,dmg:dmg,team:team,life:4});
+  setTimeout(()=>puff(px+sv[0]*1.5,H*0.5,pz+sv[1]*1.5,0xdddddd,3,1.8,1.2,2),i*70);}
+ snd(120,0.4,'sawtooth',0.18);}
+function playerFire(side){if(P.dead>0)return;if(ONLINE){const c0=side>0?'cdP':'cdS';if(P[c0]>0.3)return;P[c0]=2.2;wsSend({t:'fire',side:-side});snd(120,0.4,'sawtooth',0.18);return;}const cd=side>0?'cdP':'cdS';if(P[cd]>0)return;P[cd]=2.2;fire(P,side,pStats().dmg,0,S.cls);}
+function enemyDie(e){S.kills++;const c=CLASSES[e.ci],g=Math.round(c.hp*0.12+c.dmg*3),x=Math.round(c.hp*0.08*(1+e.ci*0.1));S.gold+=g;gainXp(x);log('☠ '+e.name+' coulé : +'+g+' or, +'+x+' XP');
+ e.dead=true;e.sink=1;snd(70,1.2,'sawtooth',0.25);puff(e.x,3,e.z,0x888888,8,3,2,8);persist();}
+function spawnEnemy(){const ci=Math.min(CLASSES.length-1,Math.max(0,S.cls+RI(-1,1)));const a=R(0,PI2),d=R(140,230);
+ const e={x:P.x+Math.cos(a)*d,z:P.z+Math.sin(a)*d,h:R(0,PI2),v:0,ci:ci,hp:CLASSES[ci].hp*(0.8+0.05*S.lvl),cd:R(2,5),sink:0,name:PIRATES[RI(0,PIRATES.length-1)],mesh:makeShip(ci,true)};
+ e.max=e.hp;e.tag=document.createElement('div');e.tag.className='tag';e.tag.innerHTML='<span></span><div class="b"><i></i></div>';e.tag.firstChild.textContent=e.name+' ('+CLASSES[ci].n+')';document.body.appendChild(e.tag);
+ scene.add(e.mesh);enemies.push(e);}
+function removeEnemy(i){const e=enemies[i];scene.remove(e.mesh);e.tag.remove();enemies.splice(i,1);}
+function angD(a,b){let d=b-a;while(d>Math.PI)d-=PI2;while(d<-Math.PI)d+=PI2;return d;}
+function updEnemy(e,dt){if(e.dead){e.sink-=dt*0.25;e.mesh.userData.inner.rotation.z+=dt*0.5;e.mesh.position.y-=dt*2.5;return;}
+ const c=CLASSES[e.ci],dx=P.x-e.x,dz=P.z-e.z,d=Math.hypot(dx,dz),to=Math.atan2(dx,dz);
+ const rl=angD(e.h,to);const want=(d>90)?to:to-(rl>0?1:-1)*Math.PI/2;
+ const turn=angD(e.h,want);e.h+=Math.max(-1,Math.min(1,turn))*0.5*dt*(0.4+e.v/c.spd);
+ const tv=(d>70?c.spd*0.8:c.spd*0.45);e.v+=(tv-e.v)*Math.min(1,dt);
+ e.x+=Math.sin(e.h)*e.v*dt;e.z+=Math.cos(e.h)*e.v*dt;
+ islands.forEach(is=>{const ax=e.x-is.x,az=e.z-is.z,r=is.r+c.len*0.4,dd=Math.hypot(ax,az);if(dd<r){e.x=is.x+ax/dd*r;e.z=is.z+az/dd*r;}});
+ e.cd-=dt;if(e.cd<=0&&d<120&&P.dead<=0){const rel=angD(e.h,to);const side=Math.abs(rel)>0.9&&Math.abs(rel)<2.3;
+  if(side&&!inPort(P)){fire(e,rel>0?1:-1,c.dmg*(0.6+0.03*S.lvl),1,e.ci);e.cd=R(3.2,4.5);}else e.cd=0.4;}}
+const inPort=o=>ONLINE?(o===P&&NET.inPort):Math.hypot(o.x-islands[0].x,o.z-islands[0].z)<islands[0].r+30;
+function updBalls(dt){for(let i=balls.length-1;i>=0;i--){const b=balls[i];b.vy-=14*dt;const p=b.m.position;p.x+=b.vx*dt;p.y+=b.vy*dt;p.z+=b.vz*dt;b.life-=dt;let del=b.life<=0;
+ if(!del&&p.y<waveH(p.x,p.z,T)){puff(p.x,0.5,p.z,0xcfe8ff,2.2,1,3,4);del=true;}
+ if(!del&&b.team===0){for(const e of enemies){if(e.dead)continue;const c=CLASSES[e.ci];if(Math.hypot(p.x-e.x,p.z-e.z)<c.len*0.45&&p.y<c.mh){e.hp-=b.dmg;puff(p.x,p.y,p.z,0xff9a3a,2.5,0.8,2,4);snd(200,0.2,'square',0.1);del=true;if(e.hp<=0)enemyDie(e);break;}}}
+ else if(!del&&b.team===1&&P.dead<=0){const c=CLASSES[S.cls];if(Math.hypot(p.x-P.x,p.z-P.z)<c.len*0.45&&p.y<c.mh){P.hp-=b.dmg;puff(p.x,p.y,p.z,0xff9a3a,2.5,0.8,2,4);snd(180,0.25,'square',0.12);shake=0.6;del=true;if(P.hp<=0)playerDie();}}
+ if(del){scene.remove(b.m);b.m.geometry.dispose();balls.splice(i,1);}}}
+function playerDie(){P.dead=4;const lost=Math.round(S.gold*0.3);S.gold-=lost;log('💀 Votre navire a sombré ! −'+lost+' or');persist();$('msg').style.display='block';$('msg').textContent='⚓ Naufrage… retour au port';snd(60,1.5,'sawtooth',0.3);}
+function respawn(){P.dead=0;P.x=islands[0].x+34;P.z=islands[0].z+34;P.v=0;P.hp=P.max;P.mesh.userData.inner.rotation.z=0;P.mesh.position.y=0;$('msg').style.display='none';while(enemies.length)removeEnemy(0);}
+// ===== PORT / BOUTIQUE =====
+const shop=$('shop');let shopOpen=false;
+function renderShop(){if(ONLINE)return renderShopOnline();shop.textContent='';const st=pStats();
+ const h=document.createElement('h2');h.textContent='⚓ Port — Chantier naval';shop.appendChild(h);
+ const info=document.createElement('div');info.textContent='Or : '+S.gold+' · Niveau '+S.lvl+' · Navire : '+CLASSES[S.cls].n;shop.appendChild(info);
+ function sec(t){const e=document.createElement('h3');e.textContent=t;shop.appendChild(e);}
+ function row(txt,btn,cost,fn,dis){const r=document.createElement('div');r.className='row';const s=document.createElement('span');s.textContent=txt;r.appendChild(s);
+  const b=document.createElement('button');b.textContent=btn+(cost?' ('+cost+' or)':'');b.disabled=!!dis||(cost&&S.gold<cost);b.onclick=()=>{fn();persist();renderShop();};r.appendChild(b);shop.appendChild(r);}
+ sec('Réparations');
+ const miss=Math.ceil(P.max-P.hp);row('Coque : '+Math.ceil(P.hp)+' / '+Math.ceil(P.max),'Réparer',Math.ceil(miss*0.5),()=>{S.gold-=Math.ceil(miss*0.5);P.hp=P.max;},miss<=0);
+ sec('Améliorations');
+ [['can','Canons','+10 % dégâts / niveau'],['coq','Coque renforcée','+10 % points de coque / niveau'],['voi','Voilure','+6 % vitesse / niveau']].forEach(u=>{
+  const lv=S.upg[u[0]];row(u[1]+' (niv. '+lv+'/10) — '+u[2],'Améliorer',upCost(lv),()=>{S.gold-=upCost(lv);S.upg[u[0]]++;const ratio=P.hp/P.max;P.max=pStats().hp;P.hp=P.max*ratio;},lv>=10);});
+ sec('Chantier naval');
+ CLASSES.forEach((c,i)=>{const owned=i===S.cls;const lock=S.lvl<c.lvl;
+  row(c.n+' — coque '+c.hp+' · dégâts '+c.dmg+' · '+c.guns+' canons/bord · niv. '+c.lvl+' requis','Acheter',c.cost,()=>{S.gold-=c.cost;S.cls=i;setPlayerShip();P.hp=P.max;},owned||lock||c.cost===0&&false);});
+ const cl=document.createElement('button');cl.textContent='Reprendre la mer (P)';cl.style.marginTop='14px';cl.onclick=toggleShop;shop.appendChild(cl);}
+function toggleShop(){if(!shopOpen&&(!inPort(P)||P.dead>0))return;shopOpen=!shopOpen;shop.style.display=shopOpen?'block':'none';if(shopOpen){P.thr=0;renderShop();}}
+$('portBtn').onclick=toggleShop;
+// ===== COMMANDES =====
+const keys={};
+addEventListener('keydown',e=>{if(e.target&&e.target.tagName==='INPUT')return;keys[e.code]=1;if(e.code==='KeyP')toggleShop();if(shopOpen)return;
+ if(e.code==='KeyJ')playerFire(1);if(e.code==='KeyL')playerFire(-1);if(e.code==='Space'){e.preventDefault();playerFire(1);playerFire(-1);}
+ if(e.code==='KeyW'||e.code==='ArrowUp')P.thr=Math.min(1,P.thr+0.25);if(e.code==='KeyS'||e.code==='ArrowDown')P.thr=Math.max(0,P.thr-0.25);});
+addEventListener('keyup',e=>{keys[e.code]=0;});
+$('gP').onclick=()=>playerFire(1);$('gS').onclick=()=>playerFire(-1);
+let camOff=0,camPitch=0.4,camZoom=1,dragT=0,drag=false,lx=0,ly=0;
+cv.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;});
+addEventListener('pointerup',()=>{drag=false;});
+addEventListener('pointermove',e=>{if(!drag)return;camOff-=(e.clientX-lx)*0.005;camPitch=Math.max(0.08,Math.min(1.25,camPitch+(e.clientY-ly)*0.003));lx=e.clientX;ly=e.clientY;dragT=3;});
+cv.addEventListener('wheel',e=>{e.preventDefault();camZoom=Math.max(0.5,Math.min(2.6,camZoom*(1+Math.sign(e.deltaY)*0.1)));},{passive:false});
+// ===== BOUCLE =====
+let T=0,shake=0,last=performance.now(),spawnT=3;
+const mc=$('mc').getContext('2d');
+function updPlayer(dt){const st=pStats(),c=st.c;
+ if(P.dead>0){P.dead-=dt;P.mesh.userData.inner.rotation.z+=dt*0.4;P.mesh.position.y-=dt*2;if(P.dead<=0)respawn();return;}
+ if(!shopOpen){if(keys.KeyA||keys.ArrowLeft)P.h+=dt*(0.25+0.45*P.v/st.spd);if(keys.KeyD||keys.ArrowRight)P.h-=dt*(0.25+0.45*P.v/st.spd);}
+ const tv=P.thr*st.spd;P.v+=(tv-P.v)*Math.min(1,dt*0.6);
+ P.x+=Math.sin(P.h)*P.v*dt;P.z+=Math.cos(P.h)*P.v*dt;
+ islands.forEach(is=>{const ax=P.x-is.x,az=P.z-is.z,r=is.r+c.len*0.3,d=Math.hypot(ax,az);if(d<r){P.x=is.x+ax/d*r;P.z=is.z+az/d*r;P.v*=0.9;}});
+ P.x=Math.max(-800,Math.min(800,P.x));P.z=Math.max(-800,Math.min(800,P.z));
+ P.cdP=Math.max(0,P.cdP-dt);P.cdS=Math.max(0,P.cdS-dt);
+ if(inPort(P)&&P.hp<P.max)P.hp=Math.min(P.max,P.hp+P.max*0.02*dt);}
+function poseShip(o,m,dt){const y=waveH(o.x,o.z,T);const f=3,hx=Math.sin(o.h),hz=Math.cos(o.h);
+ const pit=Math.atan2(waveH(o.x-hx*f,o.z-hz*f,T)-waveH(o.x+hx*f,o.z+hz*f,T),2*f);
+ const rol=Math.atan2(waveH(o.x-hz*f*0.6,o.z+hx*f*0.6,T)-waveH(o.x+hz*f*0.6,o.z-hx*f*0.6,T),2*f*0.6);
+ m.position.x=o.x;m.position.z=o.z;if(!(o.dead))m.position.y=y*0.7;m.rotation.order='YXZ';m.rotation.y=o.h;m.rotation.x=pit*0.6;m.rotation.z=rol*0.6;}
+function frame(now){requestAnimationFrame(frame);let dt=Math.min(0.05,(now-last)/1000);last=now;T+=dt;oceanMat.uniforms.uT.value=T;
+ if(ONLINE)onlineStep(dt);else{
+ updPlayer(dt);
+ spawnT-=dt;if(spawnT<=0&&!inPort(P)&&enemies.filter(e=>!e.dead).length<3+Math.floor(S.cls/2)){spawnEnemy();spawnT=R(8,16);}
+ for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];updEnemy(e,dt);
+  if(e.dead&&e.sink<=0){removeEnemy(i);continue;}
+  if(Math.hypot(e.x-P.x,e.z-P.z)>520){removeEnemy(i);continue;}poseShip(e,e.mesh,dt);}
+ }
+ poseShip(P,P.mesh,dt);if(!ONLINE)updBalls(dt);updParts(dt);
+ // voiles qui gonflent
+ [P.mesh].concat(enemies.map(e=>e.mesh)).forEach(m=>m.userData.inner.children.forEach(ch=>{if(ch.userData.bil)ch.rotation.x=Math.sin(T*1.5+ch.position.z)*0.04;}));
+ // caméra
+ dragT=Math.max(0,dragT-dt);if(!drag&&dragT<=0)camOff*=(1-Math.min(1,dt*0.8));
+ const c=CLASSES[S.cls],dist=c.len*2.3*camZoom,a=P.h+camOff;shake=Math.max(0,shake-dt*2);
+ const cx=P.x-Math.sin(a)*Math.cos(camPitch)*dist,cz=P.z-Math.cos(a)*Math.cos(camPitch)*dist,cy=Math.max(waveH(cx,cz,T)+2,Math.sin(camPitch)*dist+3);
+ camera.position.set(cx+R(-1,1)*shake,cy+R(-1,1)*shake,cz);camera.lookAt(P.x,P.mesh.position.y+c.mh*0.35,P.z);
+ ocean.position.set(Math.round(camera.position.x/10)*10,0,Math.round(camera.position.z/10)*10);sky.position.copy(camera.position);
+ renderer.render(scene,camera);
+ // étiquettes
+ enemies.forEach(e=>{const v=new THREE.Vector3(e.x,e.mesh.position.y+CLASSES[e.ci].mh+2,e.z).project(camera);
+  const vis=v.z<1&&Math.abs(v.x)<1.1&&!e.dead;e.tag.style.display=vis?'block':'none';
+  if(vis){e.tag.style.left=((v.x+1)/2*innerWidth)+'px';e.tag.style.top=((1-v.y)/2*innerHeight)+'px';e.tag.lastChild.firstChild.style.width=Math.max(0,e.hp/e.max*100)+'%';}});
+ hud();minimap();}
+function hud(){const st=pStats();$('shipName').textContent=ONLINE?NET.name:PLAYER_NAMES[S.cls];$('shipCls').textContent='('+(ONLINE?['Lougre corsaire','Corvette','Frégate','Vaisseau de ligne','Vaisseau amiral'][S.cls]:CLASSES[S.cls].n)+')';
+ $('hpTxt').textContent=Math.max(0,Math.ceil(P.hp))+' / '+Math.ceil(P.max);$('hp').firstChild.style.width=Math.max(0,P.hp/P.max*100)+'%';
+ if(ONLINE&&NET.me){$('reg').textContent=REGN[NET.me.reg]||'—';$('pvpf').textContent=NET.me.pvp?'⚔ zone de combat':'🛡 zone sûre';}
+ $('lvl').textContent=S.lvl;$('xp').firstChild.style.width=(S.xp/(ONLINE?S.lvl*100:xpNeed(S.lvl))*100)+'%';$('gold').textContent=S.gold;$('kills').textContent=S.kills;
+ $('cdP').style.width=(1-P.cdP/2.2)*100+'%';$('cdS').style.width=(1-P.cdS/2.2)*100+'%';
+ $('portBtn').style.display=(inPort(P)&&!shopOpen&&P.dead<=0)?'block':'none';}
+function minimap(){const w=150,sc=w/1700;mc.fillStyle='#10304a';mc.fillRect(0,0,w,w);
+ const X=x=>w/2+x*sc,Z=z=>w/2+z*sc;
+ islands.forEach(i=>{mc.fillStyle=i.port?'#e8c76a':'#4f8a46';mc.beginPath();mc.arc(X(i.x),Z(i.z),Math.max(2,i.r*sc),0,PI2);mc.fill();});
+ enemies.forEach(e=>{if(e.dead)return;mc.fillStyle=e.boss?'#ff9a3a':(e.pl?'#ffe27a':'#e24b4b');const q=e.boss?7:4;mc.fillRect(X(e.x)-q/2,Z(e.z)-q/2,q,q);});
+ mc.fillStyle='#fff';mc.beginPath();mc.arc(X(P.x),Z(P.z),3,0,PI2);mc.fill();
+ mc.strokeStyle='#fff';mc.beginPath();mc.moveTo(X(P.x),Z(P.z));mc.lineTo(X(P.x)+Math.sin(P.h)*10,Z(P.z)+Math.cos(P.h)*10);mc.stroke();}
+// ===== MODE EN LIGNE (serveur autoritaire) =====
+const NET={ws:null,id:null,K:0.25,me:null,name:'',snap:null,snapAt:0,ents:new Map(),bd:[],bm:[],ok:false,inPort:false,t:0};
+const ENM=[0,2,3,4];
+const SUP=[['hull','Coque renforcée','+40 PV / niveau'],['cannon','Canons','+4 dégâts / niveau'],['sail','Voilure','+16 vitesse / niveau'],['reload','Rechargement','−0,15 s / niveau']];
+const SSH=[[0,0,'Lougre corsaire'],[600,100,'Corvette'],[1800,400,'Frégate'],[5000,1200,'Vaisseau de ligne'],[12000,3000,'Vaisseau amiral']];
+const sUp=l=>Math.round(40*Math.pow(1.55,l));
+const toX=v=>(v-2000)*NET.K,toH=a=>Math.PI/2-a;
+function wsSend(o){try{if(NET.ws&&NET.ws.readyState===1)NET.ws.send(JSON.stringify(o));}catch(e){}}
+function showMsg(t){const e=$('msg');e.textContent=t;e.style.display='block';}
+function netConnect(){
+ NET.name=((new URLSearchParams(location.search)).get('name')||('Capitaine'+RI(100,999))).slice(0,22);
+ let ws;try{ws=new WebSocket(WSURL);}catch(e){showMsg('Adresse de serveur invalide');return;}
+ NET.ws=ws;showMsg('Connexion à '+WSURL+'…');
+ ws.onopen=()=>{if((new URLSearchParams(location.search)).get('name'))wsSend({t:'join',name:NET.name});else{$('msg').style.display='none';$('login').style.display='block';}};
+ ws.onclose=()=>{NET.ok=false;showMsg('Connexion perdue — rechargez la page');};
+ ws.onerror=()=>showMsg('Serveur injoignable : '+WSURL);
+ ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data);}catch(e){return;}
+  if(m.t==='welcome'){NET.id=m.id;NET.ok=true;NET.name=m.name||NET.name;$('login').style.display='none';$('msg').style.display='none';setWorld(m);log('Connecté en tant que '+NET.name);}
+  else if(m.t==='authres'){$('lmsg').textContent=m.msg;}
+  else if(m.t==='sys'){chatLine('⚓ '+m.text,'#ffe27a');}
+  else if(m.t==='chat'){chatLine((m.scope==='guild'?'[Guilde] ':'')+m.from+' : '+m.text,m.scope==='guild'?'#9fe39f':'#f4ecd8');}
+  else if(m.t==='snap'){NET.snap=m;NET.snapAt=performance.now();onSnap(m);}
+  else if(m.t==='buyres'){log((m.ok?'✔ ':'✖ ')+m.msg);setTimeout(()=>{if(shopOpen)renderShop();},150);}};}
+function setWorld(m){islG.forEach(g=>scene.remove(g));islG.length=0;islands.length=0;
+ islands.push({x:toX(m.port.x),z:toX(m.port.y),r:m.port.r*NET.K,port:true});
+ m.islands.forEach(i=>islands.push({x:toX(i.x),z:toX(i.y),r:i.r*NET.K}));islands.forEach(buildIsland);}
+function dropEnt(e){scene.remove(e.mesh);e.tag.remove();const i=enemies.indexOf(e);if(i>=0)enemies.splice(i,1);}
+function upsert(seen,key,o,ci,black,label,pl,boss){seen.add(key);let e=NET.ents.get(key);
+ if(e&&e.ci!==ci){dropEnt(e);NET.ents.delete(key);e=null;}
+ if(!e){e={key,x:toX(o.x),z:toX(o.y),h:toH(o.a),v:0,ci,hp:o.hp,max:1,black,dead:false,sink:0,pl,mesh:makeShip(ci,black)};
+  e.tag=document.createElement('div');e.tag.className='tag';e.tag.innerHTML='<span></span><div class="b"><i></i></div>';
+  e.tag.style.color=pl?'#ffe27a':(boss?'#ff9a3a':'#fff');e.boss=!!boss;if(boss)e.mesh.scale.setScalar(1.6);document.body.appendChild(e.tag);scene.add(e.mesh);NET.ents.set(key,e);enemies.push(e);}
+ e.tx=toX(o.x);e.tz=toX(o.y);e.th=toH(o.a);e.tv=(o.v||0)*NET.K;e.hp=o.hp;e.max=o.max||o.maxHp||1;
+ e.tag.firstChild.textContent=label;return e;}
+function onSnap(m){const seen=new Set();
+ m.players.forEach(p=>{const ci=Math.min(4,Math.max(0,p.ship|0));
+  if(p.id===NET.id){const first=!NET.me;NET.me=p;S.cls=ci;if(P.ci!==ci)setPlayerShip();
+   P.hp=p.hp;P.max=p.maxHp;S.gold=p.gold;S.lvl=p.level;S.xp=p.xp;NET.inPort=p.pvp===false;
+   P.tx=toX(p.x);P.tz=toX(p.y);P.th=toH(p.a);P.tv=p.v*NET.K;
+   if(first){P.x=P.tx;P.z=P.tz;P.h=P.th;}return;}
+  upsert(seen,'p'+p.id,p,ci,false,(p.guild?'['+p.guild+'] ':'')+p.name+' · niv. '+p.level,true);});
+ m.enemies.forEach(e=>upsert(seen,'e'+e.id,e,ENM[Math.min(3,e.ti|0)],true,(e.boss?'👑 ':'')+e.name+' (niv. '+e.lv+')',false,e.boss));
+ for(const [k,e] of Array.from(NET.ents)){if(!seen.has(k)){dropEnt(e);NET.ents.delete(k);}}
+ NET.bd=m.balls;
+ (m.events||[]).forEach(ev=>{if(ev.k==='announce'){chatLine(ev.text,'#ff9a3a');log(ev.text);return;}if(ev.id!==NET.id)return;
+  if(ev.k==='kill'){S.kills++;log('☠ '+ev.enemy+' coulé : +'+ev.gold+' or');}
+  else if(ev.k==='pvp'){S.kills++;log('⚔ '+ev.victim+' coulé : +'+ev.gold+' or');}
+  else if(ev.k==='level')log('★ Niveau '+ev.level+' atteint !');
+  else if(ev.k==='sunk'){log('💀 Naufrage ! −'+ev.lost+' or — retour au port');shake=1;}});
+ $('netst').textContent='En ligne · '+m.players.length+' joueur(s)';}
+function onlineStep(dt){if(!NET.ok||!NET.snap)return;
+ const age=Math.min(0.15,(performance.now()-NET.snapAt)/1000),k=Math.min(1,dt*10);
+ NET.t+=dt;if(NET.t>0.066){NET.t=0;const st=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);wsSend({t:'input',steer:shopOpen?0:st,throttle:P.thr});}
+ [P].concat(enemies).forEach(o=>{if(o.tx===undefined)return;
+  const px=o.tx+Math.sin(o.th)*o.tv*age,pz=o.tz+Math.cos(o.th)*o.tv*age;
+  o.x+=(px-o.x)*k;o.z+=(pz-o.z)*k;o.h+=angD(o.h,o.th)*k;o.v=o.tv;});
+ enemies.forEach(e=>poseShip(e,e.mesh,dt));
+ while(NET.bm.length<NET.bd.length){const b=new THREE.Mesh(new THREE.SphereGeometry(0.45,6,5),new THREE.MeshBasicMaterial({color:0x111111}));scene.add(b);NET.bm.push(b);}
+ NET.bm.forEach((b,i)=>{const d=NET.bd[i];b.visible=!!d;if(!d)return;
+  b.position.set(toX(d.x+d.vx*age),3+Math.sin(Math.min(1,age*6)*3)*0.3,toX(d.y+d.vy*age));});}
+const REGN=['Rade de Port-Royal','Côtes de Bretagne','Mer des Antilles','Océan des Tempêtes','Mers du Bout du Monde'];
+function chatLine(t,c){const d=document.createElement('div');d.textContent=t;d.style.color=c||'#f4ecd8';const l=$('chatLog');l.appendChild(d);while(l.children.length>8)l.removeChild(l.firstChild);}
+function authSend(mode){$('lmsg').textContent='…';wsSend({t:'auth',mode:mode,name:$('lname').value.trim(),pass:$('lpass').value});}
+$('lin').onclick=()=>authSend('login');$('lreg').onclick=()=>authSend('register');
+$('lguest').onclick=()=>wsSend({t:'join',name:$('lname').value.trim()||('Capitaine'+RI(100,999))});
+$('chatIn').onkeydown=e=>{if(e.key==='Enter'){const v=$('chatIn').value.trim();if(v&&ONLINE)wsSend({t:'chat',scope:$('chatSc').value,text:v});$('chatIn').value='';$('chatIn').blur();}e.stopPropagation();};
+addEventListener('keydown',e=>{if(e.code==='Enter'&&(!e.target||e.target.tagName!=='INPUT')&&ONLINE){e.preventDefault();$('chatIn').focus();}});
+if(!ONLINE)$('chatp').style.display='none';
+function renderShopOnline(){shop.textContent='';const me=NET.me;if(!me)return;
+ function el(tag,txt){const e=document.createElement(tag);e.textContent=txt;shop.appendChild(e);return e;}
+ function row(txt,btn,cost,fn,dis){const r=document.createElement('div');r.className='row';const s=document.createElement('span');s.textContent=txt;r.appendChild(s);
+  const b=document.createElement('button');b.textContent=btn+(cost?' ('+cost+' or)':'');b.disabled=!!dis||me.gold<cost;b.onclick=fn;r.appendChild(b);shop.appendChild(r);}
+ el('h2','⚓ Port-Royal-de-France — Chantier naval');
+ el('div','Or : '+me.gold+' · Points d\'élite : '+me.elite+' · Niveau '+me.level+' · Réparations gratuites et automatiques au port');
+ el('h3','Améliorations');
+ SUP.forEach(u=>{const lv=me.up[u[0]];row(u[1]+' (niv. '+lv+'/10) — '+u[2],'Améliorer',sUp(lv),()=>wsSend({t:'buy',kind:'upgrade',arg:u[0]}),lv>=10);});
+ el('h3','Chantier naval');
+ SSH.forEach((s,i)=>row(s[2]+' — élite requise : '+s[1],'Acheter',s[0],()=>wsSend({t:'buy',kind:'ship',arg:i}),i<=me.ship||me.elite<s[1]));
+ const cl=el('button','Reprendre la mer (P)');cl.style.marginTop='14px';cl.onclick=toggleShop;}
+setPlayerShip();
+if(ONLINE)netConnect();else log('Bienvenue, capitaine ! Quittez le port et chassez les pirates.');
+$('wsb').onclick=()=>{const v=$('wsu').value.trim();location.search=v?('?ws='+encodeURIComponent(v)):'';};
+if(!ONLINE)$('netst').textContent='Solo';
+requestAnimationFrame(frame);
+window.__edm={P,S,enemies,spawnEnemy,playerFire,NET};
+})();
+</script></body></html>
