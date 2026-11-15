@@ -1,0 +1,128 @@
+// Tests de la simulation autoritaire : physique, collisions, combat, récompenses, économie.
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { stepShip, collideShip, windFactor } from '../shared/physics.ts';
+import type { S2C } from '../shared/protocol.ts';
+import { computeStats, SHIP_BY_ID, SHIPS } from '../shared/ships.ts';
+import { buildWorld, islandHeight } from '../shared/world.ts';
+import { ZONE_BY_ID, ZONES } from '../shared/zones.ts';
+import { shop } from '../server/game/economy.ts';
+import { Zone } from '../server/game/Zone.ts';
+import { createCharacter, newProfile } from '../server/profile.ts';
+import type { PlayerLink } from '../server/types.ts';
+
+function fakeLink(name: string, id: number): PlayerLink & { inbox: S2C[] } {
+  const profile = newProfile(name);
+  createCharacter(profile, 0, 'royal', 'bayonnaise');
+  const inbox: S2C[] = [];
+  return {
+    inbox, accountId: id, name, profile,
+    send: (m) => inbox.push(m), notify: (text) => inbox.push({ t: 'notice', text }), touch: () => {},
+    zoneId: 'manche', entityId: 100000 + id, docked: true, port: 'brest', input: { sail: 0, rudder: 0 }, seq: 0,
+    pvp: false, hpRatio: 1, sailRatio: 1, known: new Set(), deadTimer: 0, groupId: null, guildTag: null,
+  };
+}
+
+test('catalogue : 14 navires historiques demandés, 7 classes, progression croissante', () => {
+  const wanted = ['Le Soleil Royal', 'Le Bucentaure', 'L\'Hermione', 'Le Redoutable', 'Le Vengeur du Peuple', 'Le Couronne', 'Le Royal Louis', 'Le Tonnant', 'Le Suffren', 'Le Formidable', 'Le Duquesne', 'Le Duguay-Trouin', 'Le Napoléon', 'Le Saint-Michel'];
+  for (const n of wanted) assert.ok(SHIPS.some((s) => s.name === n), n);
+  assert.equal(new Set(SHIPS.filter((s) => !s.npcOnly).map((s) => s.cls)).size, 7);
+  const hp = (id: string) => computeStats(SHIP_BY_ID[id]).hp;
+  assert.ok(hp('soleil_royal') > hp('royal_louis') && hp('royal_louis') > hp('redoutable') && hp('redoutable') > hp('hermione') && hp('hermione') > hp('bayonnaise'));
+});
+
+test('physique : le navire avance, tourne, et le vent de travers est plus rapide que le vent debout', () => {
+  const st = computeStats(SHIP_BY_ID.bayonnaise);
+  const k = { x: 0, z: 0, h: 0, speed: 0 };
+  for (let i = 0; i < 200; i++) stepShip(k, st, { sail: 3, rudder: 0 }, { dir: Math.PI / 2, strength: 1 }, 0.05);
+  assert.ok(k.z > 50 && Math.abs(k.x) < 1, 'avance vers +z');
+  const h0 = k.h;
+  stepShip(k, st, { sail: 3, rudder: 1 }, { dir: 0, strength: 1 }, 0.5);
+  assert.ok(k.h < h0, 'barre à tribord : le cap diminue');
+  assert.ok(windFactor(0, { dir: Math.PI / 2, strength: 1 }) > windFactor(0, { dir: Math.PI, strength: 1 }));
+});
+
+test('monde : génération déterministe, ports sur la terre, collisions avec les îles', () => {
+  for (const z of ZONES) {
+    const a = buildWorld(z), b = buildWorld(z);
+    assert.equal(a, b);
+    assert.ok(a.islands.length >= z.ports.length + 10, `${z.id} : assez d'îles`);
+    for (const p of z.ports) assert.ok(islandHeight(a.islands.find((i) => i.port?.id === p.id)!, p.x, p.z) > 2);
+  }
+  const w = buildWorld(ZONE_BY_ID.manche);
+  const isl = w.islands[0];
+  const st = computeStats(SHIP_BY_ID.bayonnaise);
+  const k = { x: isl.x + isl.r * 0.3, z: isl.z, h: 0, speed: 10 };
+  const shock = collideShip(k, st, w, ZONE_BY_ID.manche.half);
+  assert.ok(shock > 0, 'un navire sur la terre est repoussé');
+});
+
+test('combat : une bordée touche, coule un PNJ et rapporte or, XP et butin', () => {
+  const zone = new Zone(ZONE_BY_ID.manche, { relation: () => 'neutral' });
+  const link = fakeLink('Testeur', 1);
+  zone.addPlayer(link, true);
+  assert.equal(zone.undock(link), null);
+  const me = zone.ships.get(link.entityId)!;
+  // On place le joueur au large, cap au sud, et un sloop pirate à 150 m par bâbord.
+  me.k.x = 0; me.k.z = 0; me.k.h = 0;
+  for (const s of [...zone.ships.values()]) if (s.kind !== 'player') zone.ships.delete(s.id);
+  zone.spawnNPC(true);
+  const npc = [...zone.ships.values()].find((s) => s.kind === 'npc')!;
+  npc.k.x = 150; npc.k.z = 0; npc.k.h = 0; npc.k.speed = 0;
+  npc.ai!.mode = 'patrouille';
+  npc.hp = 50;
+  npc.stats = { ...npc.stats, speed: 0, turn: 0 };
+  me.stats = { ...me.stats, dispersion: 0 };
+  const orBefore = link.profile.or, xpBefore = link.profile.xp;
+  zone.fireSide(me, 'babord', 150, 0);
+  assert.ok(me.reload[0] > 0);
+  for (let i = 0; i < 80 && npc.sinking < 0; i++) {
+    me.k.speed = 0; link.input = { sail: 0, rudder: 0 };
+    zone.tick(0.05);
+  }
+  assert.ok(npc.sinking >= 0, 'le PNJ coule');
+  assert.ok(link.profile.or > orBefore && link.profile.xp > xpBefore, 'récompenses versées');
+  assert.equal(link.profile.stats.kills, 1);
+  assert.ok([...zone.loot.values()].some((l) => l.kind === 'caisse'), 'une épave flottante est à repêcher');
+});
+
+test('PvP : interdit par défaut en Manche, autorisé quand les deux hissent le pavillon rouge, jamais au port', () => {
+  const zone = new Zone(ZONE_BY_ID.manche, { relation: () => 'neutral' });
+  const a = fakeLink('Alpha', 2), b = fakeLink('Bravo', 3);
+  zone.addPlayer(a, false);
+  zone.addPlayer(b, false);
+  const sa = zone.ships.get(a.entityId)!, sb = zone.ships.get(b.entityId)!;
+  sa.k.x = 0; sa.k.z = 0; sb.k.x = 100; sb.k.z = 0;
+  assert.equal(zone.canHarm(sa, sb), false);
+  a.pvp = b.pvp = true;
+  assert.equal(zone.canHarm(sa, sb), true);
+  const brest = ZONE_BY_ID.manche.ports[0];
+  sb.k.x = brest.x; sb.k.z = brest.z + 400;
+  assert.equal(zone.canHarm(sa, sb), false, 'zone portuaire protégée');
+});
+
+test('économie : achats vérifiés côté serveur (niveau, fonds, port)', () => {
+  const link = fakeLink('Marchand', 4);
+  const z = ZONE_BY_ID.manche;
+  link.docked = false;
+  assert.match(shop(link, z, { a: 'buyShip', ship: 'cygne' }, 0)!, /amarré/);
+  link.docked = true;
+  assert.match(shop(link, z, { a: 'buyShip', ship: 'cygne' }, 0)!, /niveau/);
+  link.profile.xp = 5000;
+  link.profile.or = 10;
+  assert.match(shop(link, z, { a: 'buyShip', ship: 'cygne' }, 0)!, /Fonds/);
+  link.profile.or = 10000;
+  assert.equal(shop(link, z, { a: 'buyShip', ship: 'cygne' }, 0), null);
+  assert.equal(link.profile.or, 10000 - 4500);
+  assert.equal(link.profile.ships.length, 2);
+  assert.equal(shop(link, z, { a: 'buyShip', ship: 'spectre' }, 0), 'Navire inconnu.');
+  // Commerce : acheter puis revendre ; la cale est limitée.
+  assert.equal(shop(link, z, { a: 'trade', good: 'toile', qty: 10, buy: true }, 0), null);
+  assert.equal(link.profile.cargo.toile, 10);
+  assert.match(shop(link, z, { a: 'trade', good: 'toile', qty: 500, buy: true }, 0)!, /Cale pleine|Fonds/);
+  assert.equal(shop(link, z, { a: 'trade', good: 'toile', qty: 10, buy: false }, 0), null);
+  // Amélioration : consomme or et matériaux.
+  const before = link.profile.mat.bois;
+  assert.equal(shop(link, z, { a: 'upgrade', slot: 'coque' }, 0), null);
+  assert.ok(link.profile.mat.bois < before);
+});

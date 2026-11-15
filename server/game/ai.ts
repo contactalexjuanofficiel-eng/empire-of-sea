@@ -127,7 +127,7 @@ function tryFire(z: Zone, s: ShipEnt, tgt: ShipEnt, d: number, bearing: number) 
   const sides: [0 | 1, number][] = [[0, Math.PI / 2], [1, -Math.PI / 2]];
   for (const [i, center] of sides) {
     if (s.reload[i] > 0) continue;
-    if (Math.abs(wrapAngle(rel - center)) > 0.42) continue;
+    if (Math.abs(wrapAngle(rel - center)) > 0.5) continue;
     // Anticipation : on vise là où sera la cible à l'arrivée du boulet, avec une erreur selon le niveau.
     const flight = d / 110;
     const err = (1 - s.ai!.accuracy) * 60;

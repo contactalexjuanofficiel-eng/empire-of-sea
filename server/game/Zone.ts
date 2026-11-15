@@ -295,7 +295,7 @@ export class Zone {
     const st = s.stats;
     const center = s.k.h + (i === 0 ? Math.PI / 2 : -Math.PI / 2);
     const bearing = Math.atan2(ax - s.k.x, az - s.k.z);
-    const yaw = center + clamp(wrapAngle(bearing - center), -0.5, 0.5);
+    const yaw = center + clamp(wrapAngle(bearing - center), -0.6, 0.6);
     const range = st.range * ammo.range;
     const d = clamp(Math.hypot(ax - s.k.x, az - s.k.z), 40, range);
     const v = Math.sqrt((range * GRAVITY) / 0.866);
