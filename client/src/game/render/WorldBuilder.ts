@@ -95,8 +95,10 @@ function buildIsland(isl: Island, pal: (typeof PALETTES)[Vegetation], veg: Veget
   const maxR = isl.r * 1.35;
   const pos: number[] = [], col: number[] = [], idx: number[] = [];
   const c = new THREE.Color();
-  const cs = { sand: new THREE.Color(pal.sand), low: new THREE.Color(pal.low), high: new THREE.Color(pal.high), rock: new THREE.Color(pal.rock), cliff: new THREE.Color(pal.cliff), wet: new THREE.Color(pal.sand).multiplyScalar(0.7) };
+  const cs = { sand: new THREE.Color(pal.sand).offsetHSL(0, 0.12, 0.04), low: new THREE.Color(pal.low).offsetHSL(0, 0.12, 0.02), high: new THREE.Color(pal.high).offsetHSL(0, 0.1, 0), rock: new THREE.Color(pal.rock), cliff: new THREE.Color(pal.cliff), wet: new THREE.Color(pal.sand).multiplyScalar(0.7) };
   const R0 = rng(isl.seed);
+  // Taches de végétation (clairières plus claires, sous-bois plus sombres), stables d'une partie à l'autre.
+  const patch = (x: number, z: number) => 0.5 + 0.5 * Math.sin(x * 0.045 + Math.sin(z * 0.03) * 2.1) * Math.cos(z * 0.05 + Math.sin(x * 0.02) * 1.7);
   pos.push(isl.x, islandHeight(isl, isl.x, isl.z), isl.z);
   c.copy(cs.rock); col.push(c.r, c.g, c.b);
   for (let i = 1; i <= R; i++) {
@@ -114,7 +116,7 @@ function buildIsland(isl: Island, pal: (typeof PALETTES)[Vegetation], veg: Veget
       if (h < 0.6) c.copy(cs.wet).lerp(cs.sand, Math.max(0, h + 1.5) / 2.1);
       else if (h < 3.2) c.copy(cs.sand).lerp(cs.low, Math.max(0, (h - 2) / 1.2));
       else {
-        c.copy(cs.low).lerp(cs.high, Math.min(1, h / Math.max(20, isl.height * 0.8)) * 0.8 + n * 0.2);
+        c.copy(cs.low).lerp(cs.high, Math.min(1, h / Math.max(20, isl.height * 0.8)) * 0.6 + patch(x, z) * 0.4);
         if (h > isl.height * 0.7 && veg !== 'tropical') c.lerp(cs.rock, 0.5);
       }
       if (slope > 0.75 && h > 1.5) c.lerp(cs.cliff, Math.min(1, (slope - 0.75) * 1.6));
@@ -167,10 +169,12 @@ export function buildZoneVisual(zone: ZoneDef): ZoneVisual {
   const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
   disposables.push(treeMat);
   const treeLists: THREE.Matrix4[][] = treeKinds.map(() => []);
+  const treeTints: THREE.Color[][] = treeKinds.map(() => []);
   const rockList: THREE.Matrix4[] = [];
   const q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
   for (const isl of world.islands) {
-    const count = Math.round((isl.r * isl.r) / 450) * (zone.vegetation === 'brumeux' ? 0.4 : 1);
+    // Forêt dense : de haut, la canopée doit couvrir l'île (style MMORPG naval).
+    const count = Math.round((isl.r * isl.r) / 70) * (zone.vegetation === 'brumeux' ? 0.4 : 1);
     for (let i = 0; i < count; i++) {
       const a = R() * Math.PI * 2, rr = Math.sqrt(R()) * isl.r * 1.05;
       const x = isl.x + Math.cos(a) * rr, z = isl.z + Math.sin(a) * rr;
@@ -182,17 +186,24 @@ export function buildZoneVisual(zone: ZoneDef): ZoneVisual {
         let dA = Math.abs(Math.atan2(Math.sin(a - toDock), Math.cos(a - toDock)));
         if (dA < 1.0 && rr > isl.r * 0.25) continue; // pas d'arbres dans la ville
       }
+      // Clairière autour du hameau de pêcheurs (îles sans port).
+      if (!isl.port && isl.r >= 70) {
+        const ha = rng(isl.seed + 7)() * Math.PI * 2;
+        const ta = Math.atan2(x - isl.x, z - isl.z);
+        if (Math.abs(Math.atan2(Math.sin(ta - ha), Math.cos(ta - ha))) < 0.5 && rr > isl.r * 0.45) continue;
+      }
       const k = Math.floor(R() * treeKinds.length);
-      const sc = 0.8 + R() * 0.9;
+      const sc = 2.6 + R() * 2.2;
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), R() * 6.28);
       treeLists[k].push(new THREE.Matrix4().compose(p.set(x, h - 0.3, z), q, s.set(sc, sc * (0.85 + R() * 0.4), sc)));
+      treeTints[k].push(new THREE.Color().setHSL(0, 0, 0.78 + R() * 0.4));
     }
-    const rocks = Math.round(isl.r / 9);
+    const rocks = Math.round(isl.r / 4);
     for (let i = 0; i < rocks; i++) {
       const a = R() * Math.PI * 2;
       const rr = coastRadius(isl, a) * (0.92 + R() * 0.16);
       const x = isl.x + Math.cos(a) * rr, z = isl.z + Math.sin(a) * rr;
-      const sc = 1.5 + R() * 5;
+      const sc = 1.5 + R() * 7;
       q.setFromEuler(new THREE.Euler(R() * 3, R() * 3, R() * 3));
       rockList.push(new THREE.Matrix4().compose(p.set(x, islandHeight(isl, x, z) - sc * 0.3, z), q, s.set(sc, sc * 0.7, sc)));
     }
@@ -200,7 +211,7 @@ export function buildZoneVisual(zone: ZoneDef): ZoneVisual {
   treeKinds.forEach((g, k) => {
     if (!treeLists[k].length) return;
     const im = new THREE.InstancedMesh(g, treeMat, treeLists[k].length);
-    treeLists[k].forEach((m, i) => im.setMatrixAt(i, m));
+    treeLists[k].forEach((m, i) => { im.setMatrixAt(i, m); im.setColorAt(i, treeTints[k][i]); });
     im.castShadow = false;
     im.receiveShadow = true;
     group.add(im);
@@ -288,6 +299,29 @@ export function buildZoneVisual(zone: ZoneDef): ZoneVisual {
     group.add(tower, lampMesh, cap, beam);
     lighthouses.push({ beam, lamp });
   }
+  // --- Hameaux de pêcheurs sur les îles sans port : huttes au toit de chaume et ponton de bois.
+  for (const isl of world.islands) {
+    if (isl.port || isl.r < 70) continue;
+    const RR = rng(isl.seed + 7);
+    const a0 = RR() * Math.PI * 2;
+    const coast = coastRadius(isl, Math.atan2(Math.cos(a0), Math.sin(a0)));
+    const n = 4 + Math.floor(RR() * 5);
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (RR() - 0.5) * 0.6;
+      const rr = coast * (0.62 + RR() * 0.25);
+      const x = isl.x + Math.sin(a) * rr, z = isl.z + Math.cos(a) * rr;
+      const h = islandHeight(isl, x, z);
+      if (h < 1.5 || h > 25) continue;
+      const w = 4 + RR() * 3, hh = 3 + RR() * 1.6;
+      walls.push(new THREE.Matrix4().compose(p.set(x, h + hh / 2 - 0.5, z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), a), s.set(w, hh, w * 0.9)));
+      wallCols.push(new THREE.Color(0x8a6a48).multiplyScalar(0.85 + RR() * 0.3));
+      roofs.push(new THREE.Matrix4().compose(p.set(x, h + hh - 0.5, z), q, s.set(w * 1.25, 2.6 + RR(), w * 1.15)));
+      roofCols.push(new THREE.Color(0xb08a4a).multiplyScalar(0.8 + RR() * 0.3));
+    }
+    const px = isl.x + Math.sin(a0) * coast * 0.95, pz = isl.z + Math.cos(a0) * coast * 0.95;
+    woods.push(box(3.5, 0.8, 36, px + Math.sin(a0) * 18, 1.8, pz + Math.cos(a0) * 18, a0));
+  }
+
   const unitBox = new THREE.BoxGeometry(1, 1, 1);
   const roofGeo = new THREE.CylinderGeometry(0.0001, 0.72, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0);
   roofGeo.scale(1, 1, 1);
