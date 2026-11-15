@@ -19,15 +19,20 @@ export class CameraRig {
   /** « dessus » : vue plongeante nord en haut (par défaut) ; « 3d » : derrière le navire. */
   mode: 'dessus' | '3d' = 'dessus';
   readonly pan = new THREE.Vector3();
-  private topDist = 380;
+  private topDist = 300;
   /** Vue aérienne : orientation (0 = nord en haut) et inclinaison (≈ 55°, façon isométrique). */
   isoYaw = 0;
   private isoYawTarget = 0;
-  readonly isoPitch = 1.18;
+  readonly isoPitch = 0.87; // ≈ 50° : vue de trois-quarts façon MMORPG naval classique
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
-  setMode(m: 'dessus' | '3d') { this.mode = m; this.pan.set(0, 0, 0); }
+  setMode(m: 'dessus' | '3d') {
+    this.mode = m;
+    this.pan.set(0, 0, 0);
+    this.camera.fov = m === 'dessus' ? 38 : 55;
+    this.camera.updateProjectionMatrix();
+  }
 
   /** Déplace la vue (vue du dessus) : touches caméra ou clic droit glissé. */
   panBy(sx: number, sz: number) {
@@ -49,7 +54,7 @@ export class CameraRig {
   }
 
   zoom(delta: number) {
-    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 140, 1300); return; }
+    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 130, 900); return; }
     this.targetDist = THREE.MathUtils.clamp(this.targetDist * Math.exp(delta * 0.0012), this.minDist, this.maxDist);
   }
 
@@ -74,6 +79,8 @@ export class CameraRig {
       this.focus.x += (target.x + this.pan.x - this.focus.x) * k;
       this.focus.z += (target.z + this.pan.z - this.focus.z) * k;
       this.focus.y = 0;
+      // Focale serrée : moins de déformation, rendu proche d'une vue isométrique.
+      if (this.camera.fov !== 38) { this.camera.fov = 38; this.camera.updateProjectionMatrix(); }
       const pitch = this.isoPitch, cp = Math.cos(pitch);
       const pos = this.camera.position;
       pos.set(this.focus.x + Math.sin(this.isoYaw) * cp * this.topDist, Math.sin(pitch) * this.topDist, this.focus.z + Math.cos(this.isoYaw) * cp * this.topDist);
