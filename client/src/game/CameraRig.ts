@@ -19,18 +19,18 @@ export class CameraRig {
   /** « dessus » : vue plongeante nord en haut (par défaut) ; « 3d » : derrière le navire. */
   mode: 'dessus' | '3d' = 'dessus';
   readonly pan = new THREE.Vector3();
-  private topDist = 480;
+  private topDist = 760;
   /** Vue aérienne : orientation (0 = nord en haut) et inclinaison (≈ 55°, façon isométrique). */
   isoYaw = 0;
   private isoYawTarget = 0;
-  readonly isoPitch = 1.12; // ≈ 75° : vue plongeante façon MMORPG naval classique, navires petits au centre
+  readonly isoPitch = 0.92; // ≈ 53° : vue oblique façon L7S — mer, îles et navires vus de trois-quarts
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
   setMode(m: 'dessus' | '3d') {
     this.mode = m;
     this.pan.set(0, 0, 0);
-    this.camera.fov = m === 'dessus' ? 38 : 55;
+    this.camera.fov = m === 'dessus' ? 30 : 55;
     this.camera.updateProjectionMatrix();
   }
 
@@ -54,7 +54,7 @@ export class CameraRig {
   }
 
   zoom(delta: number) {
-    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 200, 1300); return; }
+    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 300, 1600); return; }
     this.targetDist = THREE.MathUtils.clamp(this.targetDist * Math.exp(delta * 0.0012), this.minDist, this.maxDist);
   }
 
@@ -80,7 +80,7 @@ export class CameraRig {
       this.focus.z += (target.z + this.pan.z - this.focus.z) * k;
       this.focus.y = 0;
       // Focale serrée : moins de déformation, rendu proche d'une vue isométrique.
-      if (this.camera.fov !== 38) { this.camera.fov = 38; this.camera.updateProjectionMatrix(); }
+      if (this.camera.fov !== 30) { this.camera.fov = 30; this.camera.updateProjectionMatrix(); }
       const pitch = this.isoPitch, cp = Math.cos(pitch);
       const pos = this.camera.position;
       pos.set(this.focus.x + Math.sin(this.isoYaw) * cp * this.topDist, Math.sin(pitch) * this.topDist, this.focus.z + Math.cos(this.isoYaw) * cp * this.topDist);

@@ -32,7 +32,7 @@ import { buildZoneVisual, type ZoneVisual } from './render/WorldBuilder';
 import { seaState, waveHeight } from './render/waves';
 
 /** Bascule des navires vers la caméra en vue aérienne (radians) : rendu de trois-quarts. */
-const SHIP_VIEW_TILT = -0.55;
+const SHIP_VIEW_TILT = 0; // la caméra oblique montre déjà les navires de trois-quarts
 const INTERP = 0.12; // délai d'interpolation (s)
 const ARC = 0.6; // demi-angle de tir des sabords (rad), identique au serveur
 
@@ -914,6 +914,8 @@ export class Game {
 
     const flash = this.sky.update(this.t, dt, this.day, this.zone.ambiance.fog * (inGame ? 1 : 0.6), inGame ? this.weather.fog : 1, storm, inGame ? this.zone.ambiance.turbidity : 2.2, this.camera.position, focus, this.wind);
     const fog = this.scene.fog as THREE.FogExp2;
+    // Vue aérienne : brume très légère, pour que îles et navires restent nets sur tout l'écran.
+    if (inGame && this.rig.mode === 'dessus') fog.density *= 0.3;
     const ou = this.ocean.uniforms;
     ou.uTime.value = this.t;
     (ou.uSunDir.value as THREE.Vector3).copy(this.sky.sunDir);
