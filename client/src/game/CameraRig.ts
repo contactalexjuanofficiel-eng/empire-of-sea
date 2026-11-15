@@ -19,11 +19,11 @@ export class CameraRig {
   /** « dessus » : vue plongeante nord en haut (par défaut) ; « 3d » : derrière le navire. */
   mode: 'dessus' | '3d' = 'dessus';
   readonly pan = new THREE.Vector3();
-  private topDist = 300;
+  private topDist = 620;
   /** Vue aérienne : orientation (0 = nord en haut) et inclinaison (≈ 55°, façon isométrique). */
   isoYaw = 0;
   private isoYawTarget = 0;
-  readonly isoPitch = 0.87; // ≈ 50° : vue de trois-quarts façon MMORPG naval classique
+  readonly isoPitch = 1.3; // ≈ 75° : vue plongeante façon MMORPG naval classique, navires petits au centre
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
@@ -54,7 +54,7 @@ export class CameraRig {
   }
 
   zoom(delta: number) {
-    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 130, 900); return; }
+    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 200, 1300); return; }
     this.targetDist = THREE.MathUtils.clamp(this.targetDist * Math.exp(delta * 0.0012), this.minDist, this.maxDist);
   }
 

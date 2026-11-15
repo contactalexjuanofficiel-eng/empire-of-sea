@@ -440,7 +440,7 @@ export class Game {
       if (meta.loot === 'caisse') e.obj.scale.setScalar(1.6);
       this.scene.add(e.obj);
     }
-    if (id !== this.myId && meta.kind !== 'fort' && meta.kind !== 'loot') {
+    if (meta.kind !== 'fort' && meta.kind !== 'loot') { // y compris notre propre navire : pseudo et vie sous la coque
       e.label = document.createElement('div');
       e.label.className = 'elabel';
       this.labelsEl.appendChild(e.label);
@@ -537,7 +537,10 @@ export class Game {
         }
       }
       const txt = document.createElement('span');
-      if (m.kind === 'player') txt.textContent = `${m.tag ? `[${m.tag}] ` : ''}${m.name}`;
+      if (m.kind === 'player') {
+        if (m.tag) { const tg = document.createElement('span'); tg.className = 'gtag'; tg.textContent = `[${m.tag}]`; name.appendChild(tg); }
+        txt.textContent = m.name;
+      }
       else if (m.kind === 'npc') txt.textContent = m.faction === 'monstre' ? `${m.name} (Monstre)` : `${m.name} · ${FACTION_LABEL[m.faction]} (PNJ)`;
       else if (m.kind === 'boss') txt.textContent = `☠ ${m.name} (BOSS)`;
       else txt.textContent = m.name;
@@ -554,7 +557,7 @@ export class Game {
       }
       const r = this.relation(m);
       e.label.dataset.kind = m.kind;
-      e.label.dataset.rel = r.friend ? 'ami' : r.hostile ? 'ennemi' : 'neutre';
+      e.label.dataset.rel = e.id === this.myId ? 'moi' : r.friend ? 'ami' : r.hostile ? 'ennemi' : 'neutre';
     }
   }
 
@@ -894,6 +897,7 @@ export class Game {
     (ou.uFogColor.value as THREE.Color).copy(fog.color);
     ou.uFogDensity.value = fog.density;
     ou.uNight.value = this.sky.night;
+    ou.uAerial.value = this.rig.mode === 'dessus' ? 1 : 0;
     this.ocean.follow(this.camera.position);
     this.renderer.toneMappingExposure = (0.48 + this.sky.night * 0.4 + flash * 0.4) * (s.settings.brightness ?? 1.3);
 
@@ -1242,7 +1246,8 @@ export class Game {
     const cam = this.camera.position;
     for (const e of this.ents.values()) {
       if (!e.label) continue;
-      const c = e.cur;
+      // Notre navire est affiché à sa position prédite : l'étiquette suit la même position.
+      const c = e.id === this.myId && this.pred ? { ...e.cur, x: this.pred.x, z: this.pred.z } : e.cur;
       const d = Math.hypot(cam.x - c.x, cam.z - c.z);
       const maxD = e.meta.kind === 'loot' ? 900 : e.meta.kind === 'boss' ? 4000 : 1500;
       let v: THREE.Vector3, below = false;
@@ -1261,7 +1266,7 @@ export class Game {
       e.label.style.opacity = String(clamp(1.3 - d / maxD, 0.25, 1));
       if (e.hpBar) e.hpBar.style.width = `${Math.max(0, c.hp * 100)}%`;
       const pvp = e.meta.kind === 'player' && (c.flags & F_PVP) && !(c.flags & F_SAFE);
-      if (e.meta.kind === 'player') e.label.dataset.rel = e.meta.friend ? 'ami' : pvp || this.zone.pvp === 'libre' ? 'pvp' : 'neutre';
+      if (e.meta.kind === 'player') e.label.dataset.rel = e.id === this.myId ? 'moi' : e.meta.friend ? 'ami' : pvp || this.zone.pvp === 'libre' ? 'pvp' : 'neutre';
     }
     for (const l of this.worldLabels) {
       const d = Math.hypot(cam.x - l.x, cam.z - l.z);

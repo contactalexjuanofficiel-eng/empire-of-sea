@@ -41,6 +41,7 @@ uniform sampler2D uNormalMap;
 uniform sampler2D uDepthMap;
 uniform float uZoneHalf;
 uniform float uNight;
+uniform float uAerial;
 varying vec3 vWorld;
 varying vec3 vNormalW;
 varying float vCrest;
@@ -97,6 +98,26 @@ void main() {
   float foam = clamp(crestFoam * 0.9 + shoreFoam, 0.0, 1.0);
   vec3 foamCol = mix(vec3(0.9, 0.93, 0.95), uSunColor * 0.6 + uSkyHorizon * 0.5, 0.3) * mix(0.2, 1.0, 1.0 - uNight);
   col = mix(col, foamCol, foam * detailFade);
+
+  // Vue aérienne (style MMORPG naval classique) : bleu roi profond, réseau de reflets lumineux
+  // qui ondulent (caustiques), turquoise sur les hauts-fonds, écume seulement sur les rivages.
+  if (uAerial > 0.5) {
+    vec2 q = vWorld.xz * 0.045;
+    vec2 w = vec2(vnoise(q + uTime * 0.05), vnoise(q * 1.3 - uTime * 0.04 + 7.0));
+    float c1 = abs(vnoise(q * 3.2 + w * 1.6 + uTime * 0.03) - 0.5);
+    float c2 = abs(vnoise(q * 6.0 - w * 1.2 - uTime * 0.05 + 3.0) - 0.5);
+    float caus = (1.0 - smoothstep(0.0, 0.045, c1)) * 0.38 + (1.0 - smoothstep(0.0, 0.035, c2)) * 0.22;
+    vec3 deepA = vec3(0.018, 0.045, 0.30);
+    vec3 midA = vec3(0.035, 0.085, 0.42);
+    vec3 shoalA = vec3(0.05, 0.42, 0.55);
+    vec3 a = mix(deepA, midA, vnoise(vWorld.xz * 0.004) * 0.8);
+    a = mix(a, shoalA, shallow * 0.9);
+    a += vec3(0.05, 0.10, 0.32) * caus * (1.0 - shallow * 0.5);
+    a += spec * 0.25;
+    a = mix(a, vec3(0.75, 0.85, 0.9), shoreFoam * 0.9);
+    a *= mix(0.4, 1.0, 1.0 - uNight);
+    col = a;
+  }
 
   // Brouillard.
   float f = 1.0 - exp(-uFogDensity * uFogDensity * vDist * vDist);
@@ -155,6 +176,7 @@ export class Ocean {
       uSunColor: { value: new THREE.Color(1, 0.95, 0.85) },
       uSkyZenith: { value: new THREE.Color(0.25, 0.45, 0.7) },
       uSkyHorizon: { value: new THREE.Color(0.7, 0.78, 0.85) },
+      uAerial: { value: 0 },
       uDeep: { value: new THREE.Color(0x0b2a3a) },
       uShallow: { value: new THREE.Color(0x2f6f73) },
       uFogColor: { value: new THREE.Color(0.7, 0.78, 0.85) },

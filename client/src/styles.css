@@ -880,3 +880,14 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .confirm-box p { margin: 0 0 14px; font-size: 1rem; }
 .confirm-box .row { display: flex; gap: 10px; justify-content: center; }
 @keyframes frame-open-c { from { transform: scale(0.95); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Notre propre navire : pseudo blanc, tag de guilde doré, barre de vie verte (comme les autres joueurs, en plus lisible) */
+.elabel[data-rel='moi'] { color: #ffffff; font-weight: 600; }
+.elabel[data-rel='moi'] .hb i { background: #4fd16a; }
+.elabel .gtag { color: #ffd34a; font-weight: 700; margin-right: 2px; }
+.elabel .n { font-size: 0.8rem; }
+.elabel .hb { width: 70px; height: 3px; }
+/* Annonces sous l'encart du tutoriel, barre du boss au-dessus */
+.hud .notices { top: 200px; }
+.hud .bossbar { top: 62px; z-index: 5; }
+.tuto { top: 92px; }
