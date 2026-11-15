@@ -476,7 +476,7 @@ export class Zone {
       case 'kit': s.repairing = 6; break;
       case 'seau': s.burning = 0; break;
       case 'poudre': s.powder = it.duration!; break;
-      case 'reparation': s.hp = Math.min(s.stats.hp, s.hp + s.stats.hp * it.value!); break;
+      case 'reparation': s.hp = Math.min(s.stats.hp, s.hp + s.stats.hp * it.value! * s.stats.repair); break;
       case 'vitesse': s.fx.speed = it.duration!; break;
       case 'bouclier': s.fx.shield = it.duration!; break;
       case 'fumigene':
@@ -484,7 +484,7 @@ export class Zone {
         for (const o of this.ships.values()) if (o.ai && o.ai.target === s.id) { o.ai.target = 0; o.ai.mode = 'patrouille'; }
         this.emit({ k: 'boom', x: r1(s.k.x), z: r1(s.k.z) }, s.k.x, s.k.z);
         break;
-      case 'harpon_bronze': case 'harpon_argent': case 'harpon_or': boom(target!, it.value!, false); break;
+      case 'harpon_bronze': case 'harpon_argent': case 'harpon_or': boom(target!, it.value! * s.stats.harpon, false); break;
       case 'feu_gregeois': boom(target!, it.value!, true); target!.burning = Math.max(target!.burning, it.duration!); break;
       case 'brulot':
         this.emit({ k: 'boom', x: r1(target!.k.x), z: r1(target!.k.z), big: true }, target!.k.x, target!.k.z);

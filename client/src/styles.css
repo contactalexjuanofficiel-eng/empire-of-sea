@@ -531,3 +531,8 @@ td { padding: 5px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-
 .grade-lys { font-size: 0.95rem; }
 .metal-or { color: #ffd36a; } .metal-argent { color: #e8eef8; } .metal-bronze { color: #e0965a; } .metal-fer { color: #9a9a9a; }
 @media (max-width: 1100px) { .ranks { grid-template-columns: 1fr; } }
+
+.elite-levels { grid-column: 1 / -1; max-height: 34vh; overflow: auto; }
+.elite-levels tr.me td { color: var(--gold-hi); background: rgba(201, 162, 74, 0.14); }
+.elite-levels tr.done td { color: #8fe0a2; }
+.sig { color: #ffd36a; font-weight: 700; }

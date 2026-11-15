@@ -1,7 +1,8 @@
 // Systèmes de progression secondaires : grades de tir et de pêche, pêche, ponts décorés,
 // forge du matelot de pont, capitaines recrutés, points élite. Partagé client/serveur.
 import type { Profile } from './protocol.ts';
-import type { StatBonus } from './ships.ts';
+import type { ShipDef, StatBonus } from './ships.ts';
+import { eliteBonus } from './elite.ts';
 import { BATTLE_STEPS, battlePoints, battleThreshold, stepOf } from './ranks.ts';
 
 type Price = { or?: number; perles?: number; diamants?: number };
@@ -98,7 +99,7 @@ export const CAPTAIN_BY_ID: Record<string, CaptainDef> = Object.fromEntries(CAPT
 
 // --- Bonus cumulés d'un capitaine ---------------------------------------------
 export function playerBonus(p: Pick<Profile, 'shootXp' | 'forge' | 'skin' | 'captainsActive'>): { stat: StatBonus; econ: Required<Econ> } {
-  const stat: Required<StatBonus> = { hp: 0, dmg: 0, armor: 0, speed: 0, reload: 0, range: 0 };
+  const stat: Required<StatBonus> = { hp: 0, dmg: 0, armor: 0, speed: 0, reload: 0, range: 0, harpon: 0, repair: 0, canons: 0 };
   const econ: Required<Econ> = { gold: 0, xp: 0, elite: 0, fish: 0 };
   const add = (b: StatBonus) => { for (const k of Object.keys(b) as (keyof StatBonus)[]) stat[k] += b[k] ?? 0; };
   stat.dmg += 0.01 * Math.floor(stepOf(battlePoints(p.shootXp ?? 0), battleThreshold, BATTLE_STEPS) / 4); // +1 % de dégâts tous les 4 rangs de bataille
@@ -135,4 +136,13 @@ export const DAILY_BY_ID = Object.fromEntries(DAILY.map((d) => [d.id, d])) as Re
 /** Mission de niveau : à chaque niveau, couler un nombre d'ennemis de niveau suffisant. */
 export function levelMission(level: number) {
   return { goal: 5 + Math.ceil(level / 2), minLevel: Math.max(1, level - 3), xpShare: 0.45, or: 1500 * level };
+}
+
+/** Bonus complets pour un navire : capitaine (grades, forge, ponts, capitaines) + niveau élite du navire. */
+export function shipBonus(p: Profile, def: ShipDef | undefined): StatBonus {
+  const a = playerBonus(p).stat as Required<StatBonus>;
+  const b = eliteBonus(def, p.elite ?? 0);
+  const out: StatBonus = { ...a };
+  for (const k of Object.keys(b) as (keyof StatBonus)[]) out[k] = (out[k] ?? 0) + (b[k] ?? 0);
+  return out;
 }

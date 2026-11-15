@@ -21,7 +21,7 @@ import { Effects, WakeTrail } from './render/Effects';
 import { Ocean } from './render/Ocean';
 import { ShipModel } from './render/ShipModel';
 import { MonsterModel } from './render/MonsterModel';
-import { playerBonus } from '../../../shared/extras';
+import { shipBonus } from '../../../shared/extras';
 import { GRADES } from '../../../shared/ranks';
 import { SkyEnv } from './render/SkyEnv';
 import { buildZoneVisual, type ZoneVisual } from './render/WorldBuilder';
@@ -375,7 +375,7 @@ export class Game {
     if (!p) return;
     const s = p.ships.find((x) => x.uid === p.active) ?? p.ships[0];
     if (!s) return;
-    this.myStats = computeStats(SHIP_BY_ID[s.def], s.up, p.skills, s.fit, playerBonus(p).stat);
+    this.myStats = computeStats(SHIP_BY_ID[s.def], s.up, p.skills, s.fit, shipBonus(p, SHIP_BY_ID[s.def]));
     this.rig.setShip(this.myStats.length);
   }
 

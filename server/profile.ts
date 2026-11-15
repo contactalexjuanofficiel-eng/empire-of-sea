@@ -2,7 +2,7 @@
 import crypto from 'node:crypto';
 import { AMMO_ORDER, CONSUMABLE_ORDER } from '../shared/items.ts';
 import { EQUIP_ORDER, type EquipId } from '../shared/equipment.ts';
-import { CAPTAIN_BY_ID, DAILY_BY_ID, playerBonus, SKINS } from '../shared/extras.ts';
+import { CAPTAIN_BY_ID, DAILY_BY_ID, shipBonus, SKINS } from '../shared/extras.ts';
 import { levelFromXp } from '../shared/progression.ts';
 import type { FlagChoice, OwnedShip, Profile } from '../shared/protocol.ts';
 import { computeStats, NO_SKILLS, NO_UPGRADES, SHIP_BY_ID, SHIP_CLASSES } from '../shared/ships.ts';
@@ -125,7 +125,7 @@ export const skillPointsLeft = (p: Profile) => {
 export function activeStats(p: Profile) {
   const s = activeShip(p);
   const def = SHIP_BY_ID[s.def];
-  return { def, stats: computeStats(def, s.up, p.skills, s.fit, playerBonus(p).stat), tier: SHIP_CLASSES[def.cls].tier };
+  return { def, stats: computeStats(def, s.up, p.skills, s.fit, shipBonus(p, def)), tier: SHIP_CLASSES[def.cls].tier };
 }
 
 export function cargoUsed(p: Profile) {

@@ -207,3 +207,16 @@ test('cartes bonus : fermées hors du dimanche, ouvertes le dimanche', () => {
   assert.equal(isBonusDay(new Date('2026-11-15T12:00:00+01:00')), true); // dimanche
   assert.equal(isBonusDay(new Date('2026-11-16T12:00:00+01:00')), false); // lundi
 });
+
+test('niveaux élite : un navire élite progresse avec les points élite et a sa spécialité', async () => {
+  const { eliteLevel, eliteBonus } = await import('../shared/elite.ts');
+  assert.equal(eliteLevel(0).level, 1);
+  assert.equal(eliteLevel(80000).level, 3);
+  assert.equal(eliteLevel(1e9).level, 15);
+  const def = SHIP_BY_ID.aigle_blanc;
+  const low = computeStats(def, undefined, undefined, undefined, eliteBonus(def, 0));
+  const high = computeStats(def, undefined, undefined, undefined, eliteBonus(def, 1e9));
+  assert.ok(high.hp > low.hp && high.broadside > low.broadside && high.harpon > low.harpon);
+  assert.ok(low.range > computeStats(def).range, 'spécialité de l\'Aigle Blanc : portée');
+  assert.deepEqual(eliteBonus(SHIP_BY_ID.bayonnaise, 1e9), {}, 'aucun bonus élite pour un navire ordinaire');
+});

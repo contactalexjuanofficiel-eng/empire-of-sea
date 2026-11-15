@@ -170,12 +170,13 @@ export interface ShipStats {
   balls: number; // boulets visibles par bordée
   dispersion: number; // radians
   repair: number; // multiplicateur de réparation
+  harpon: number; // multiplicateur des dégâts des harpons
   length: number;
   beam: number;
 }
 
 /** Bonus multiplicatifs venant du capitaine : grades, ponts forgés, capitaines recrutés, pont décoré. */
-export interface StatBonus { hp?: number; dmg?: number; armor?: number; speed?: number; reload?: number; range?: number }
+export interface StatBonus { hp?: number; dmg?: number; armor?: number; speed?: number; reload?: number; range?: number; harpon?: number; repair?: number; canons?: number }
 
 export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: Skills = NO_SKILLS, fit?: Fit, bonus: StatBonus = {}): ShipStats {
   const c = SHIP_CLASSES[def.cls];
@@ -186,7 +187,7 @@ export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: S
   const turn = c.turn * (m.turn ?? 1) * (1 + 0.05 * up.voiles) * (1 + 0.03 * sk.navigation);
   const reload = c.reload * (m.reload ?? 1) * (1 - 0.04 * up.canons) * eq.reload * (1 - (bonus.reload ?? 0));
   const range = c.range * (m.range ?? 1) * (1 + 0.05 * up.boulets) * eq.range * (1 + (bonus.range ?? 0));
-  const broadside = (def.canons / 2) * 14 * c.caliber * (1 + 0.07 * up.canons) * (1 + 0.03 * sk.artillerie) * eq.damage * (1 + (bonus.dmg ?? 0));
+  const broadside = ((def.canons + (bonus.canons ?? 0)) / 2) * 14 * c.caliber * (1 + 0.07 * up.canons) * (1 + 0.03 * sk.artillerie) * eq.damage * (1 + (bonus.dmg ?? 0));
   return {
     hp: Math.round(hp),
     sailHp: Math.round(hp * 0.5),
@@ -200,7 +201,8 @@ export function computeStats(def: ShipDef, up: ShipUpgrades = NO_UPGRADES, sk: S
     broadside,
     balls: Math.min(14, Math.round(4 + def.canons / 10)),
     dispersion: 0.05 * (1 - 0.1 * up.boulets),
-    repair: 1 + 0.1 * sk.charpenterie,
+    repair: (1 + 0.1 * sk.charpenterie) * (1 + (bonus.repair ?? 0)),
+    harpon: 1 + (bonus.harpon ?? 0),
     length: c.length,
     beam: c.beam,
   };

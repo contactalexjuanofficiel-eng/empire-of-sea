@@ -1,6 +1,7 @@
 // Fenêtres de la deuxième livraison : missions, boutique, capitaines, cartes bonus, matelot de pont, navires élites.
 import { useEffect, useState } from 'react';
-import { CAPTAIN_CATS, CAPTAINS, DAILY, DAILY_SLOTS, FORGE, levelMission, SKINS, type SkinId } from '../../../shared/extras';
+import { CAPTAIN_CATS, CAPTAINS, DAILY, DAILY_SLOTS, FORGE, levelMission, shipBonus, SKINS, type SkinId } from '../../../shared/extras';
+import { ELITE_LEVELS, ELITE_SIGNATURES, eliteLevel } from '../../../shared/elite';
 import { CONSUMABLE_ORDER, CONSUMABLES, ITEM_CATS } from '../../../shared/items';
 import { fmt } from '../../../shared/math';
 import { levelFromXp } from '../../../shared/progression';
@@ -267,7 +268,9 @@ export function EliteShipsTab() {
   const next = ELITE_SHIPS.find((s) => s.elite! > p.elite);
   const sel = ELITE_SHIPS.find((s) => s.id === preview) ?? ELITE_SHIPS[0];
   useEffect(() => { if (!ELITE_SHIPS.some((s) => s.id === preview)) store.set({ preview: ELITE_SHIPS[0].id }); }, [preview]);
-  const st = computeStats(sel);
+  const st = computeStats(sel, undefined, p.skills, undefined, shipBonus(p, sel));
+  const lvl = eliteLevel(p.elite);
+  const nextLvl = ELITE_LEVELS.find((l) => l.points > p.elite);
   return (
     <div className="elite">
       <div className="elite-grid">
@@ -286,10 +289,25 @@ export function EliteShipsTab() {
         <h3>{sel.name}</h3>
         <p className="muted">{SHIP_CLASSES[sel.cls].name} · {sel.canons} canons</p>
         <p className="history">{sel.history}</p>
+        <p className="sig">✦ {ELITE_SIGNATURES[sel.id]?.label}</p>
         <StatBar label="Résistance" value={st.hp} max={20000} />
         <StatBar label="Vitesse" value={st.speed} max={22} fmtValue={`${(st.speed * 0.7).toFixed(1)} nds`} />
         <StatBar label="Puissance de feu" value={st.broadside} max={2000} fmtValue={`${Math.round(st.broadside)}`} />
         {p.elite >= sel.elite! ? <button className="btn-gold big" onClick={() => send({ t: 'shop', a: 'eliteShip', ship: sel.id })}>Sélectionner</button> : <span className="war">Il faut {fmt(sel.elite!)} points élite</span>}
+      </div>
+      <div className="elite-levels">
+        <h4>Niveau élite {lvl.level} / {ELITE_LEVELS.length}{nextLvl ? ` — prochain niveau à ${fmt(nextLvl.points)} points` : ' — niveau maximal'}</h4>
+        <table className="mk">
+          <thead><tr><th>Niveau</th><th>Points élite</th><th>Santé</th><th>Vitesse</th><th>Bonus</th></tr></thead>
+          <tbody>
+            {ELITE_LEVELS.map((l) => (
+              <tr key={l.level} className={l.level === lvl.level ? 'me' : l.level < lvl.level ? 'done' : ''}>
+                <td>{l.level}</td><td>{fmt(l.points)}</td><td>+{Math.round(l.hp * 100)} %</td><td>+{(l.speed * 100).toFixed(1).replace('.', ',')} %</td><td>{l.feature}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="muted small">Les bonus de niveau élite s'appliquent quand vous commandez un navire élite, en plus de sa spécialité.</p>
       </div>
       <div className="elite-foot">
         <span>Vos points élite actuels : <b>{fmt(p.elite)}</b></span>

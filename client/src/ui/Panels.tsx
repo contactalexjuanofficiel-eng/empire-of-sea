@@ -8,7 +8,7 @@ import { computeStats, RARITY_COLOR, SHIP_BY_ID, SHIP_CLASSES } from '../../../s
 import { FACTION_LABEL, MAX_TIER, tierRequirement, ZONES, ZONE_BY_ID } from '../../../shared/zones';
 import { saveSettings, store, useStore } from '../store';
 import { EQUIP_NAME, EQUIP_ORDER } from '../../../shared/equipment';
-import { playerBonus } from '../../../shared/extras';
+import { shipBonus } from '../../../shared/extras';
 import { BATTLE_STEPS, battlePoints, battleThreshold, FISH_STEPS, fishThreshold, GRADES, stepOf } from '../../../shared/ranks';
 import { defaultKeys, KEY_DEFS, keyLabel } from '../game/Input';
 import { Frame, game, Icon, PORTRAITS, PORTRAIT_NAMES, send } from './common';
@@ -58,7 +58,7 @@ export function ProfilePanel() {
   const guild = useStore((s) => s.guild);
   const lv = levelFromXp(p.xp);
   const ship = p.ships.find((s) => s.uid === p.active)!;
-  const st = computeStats(SHIP_BY_ID[ship.def], ship.up, p.skills, ship.fit, playerBonus(p).stat);
+  const st = computeStats(SHIP_BY_ID[ship.def], ship.up, p.skills, ship.fit, shipBonus(p, SHIP_BY_ID[ship.def]));
   const zonesDisc = ZONES.map((z) => ({ z, n: p.discovered.filter((d) => d.startsWith(z.id + ':')).length }));
   return (
     <Frame title="Profil du capitaine" icon="profil" onClose={close}>

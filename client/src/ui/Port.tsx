@@ -9,7 +9,7 @@ import { computeStats, PLAYER_SHIPS, RARITY_COLOR, RARITY_LABEL, SHIP_BY_ID, SHI
 import { ZONE_BY_ID } from '../../../shared/zones';
 import { store, useStore } from '../store';
 import { EliteShipsTab, MatelotTab } from './Panels2';
-import { FISH, FISH_ORDER, playerBonus } from '../../../shared/extras';
+import { FISH, FISH_ORDER, shipBonus } from '../../../shared/extras';
 import { Frame, game, Icon, Price, send, StatBar } from './common';
 
 const TABS: [string, string, string][] = [
@@ -198,7 +198,7 @@ function Equipement() {
   const [qty, setQty] = useState(10);
   const ship = p.ships.find((s) => s.uid === p.active)!;
   const def = SHIP_BY_ID[ship.def];
-  const st = computeStats(def, ship.up, p.skills, ship.fit, playerBonus(p).stat);
+  const st = computeStats(def, ship.up, p.skills, ship.fit, shipBonus(p, def));
   const ids = kind === 'canon' ? CANNON_ORDER : MAST_ORDER;
   const cap = kind === 'canon' ? def.canons : MAST_CAPACITY[def.cls];
   const used = fitCount(ship.fit, kind);
