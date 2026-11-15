@@ -5,7 +5,7 @@ import { AMMO, CONSUMABLES } from '../shared/items.ts';
 import { levelFromXp } from '../shared/progression.ts';
 import { PROTOCOL_VERSION, TICK_RATE, type C2S, type ChatChannel, type GuildInfo, type LeaderEntry, type MissionOffer, type Profile, type S2C } from '../shared/protocol.ts';
 import { SHIP_BY_ID } from '../shared/ships.ts';
-import { MAX_TIER, START_ZONE, tierRequirement, ZONE_BY_ID, ZONES } from '../shared/zones.ts';
+import { BONUS_ZONES, isBonusDay, MAX_TIER, START_ZONE, tierRequirement, ZONE_BY_ID, ZONES } from '../shared/zones.ts';
 import type { Store } from './db.ts';
 import { acceptMission, portPrices, shop } from './game/economy.ts';
 import { dailyAbandon, dailyStart } from './game/progress.ts';
@@ -24,6 +24,7 @@ interface Session extends PlayerLink {
   msgBudget: number;
   offers: MissionOffer[];
   created: boolean;
+  lastHardBonus: number;
 }
 
 interface Group { id: string; leader: string; members: Set<string> }
@@ -47,7 +48,7 @@ export class Hub {
 
   constructor(private store: Store) {
     this.guilds = new Guilds(store);
-    for (const def of ZONES) {
+    for (const def of [...ZONES, ...BONUS_ZONES]) {
       this.zones.set(def.id, new Zone(def, {
         relation: (a, b) => this.relation(a, b),
         broadcastChat: (text) => this.systemAll(text),
@@ -86,7 +87,10 @@ export class Hub {
     this.mapsTimer -= dt;
     if (this.mapsTimer <= 0) {
       this.mapsTimer = 3;
-      const list = [...this.zones.values()].map((z) => ({ id: z.def.id, players: z.links.size, owner: this.owners.get(z.def.id) ?? null }));
+      const open = isBonusDay();
+      const list = [...this.zones.values()].map((z) => ({ id: z.def.id, players: z.links.size, owner: this.owners.get(z.def.id) ?? null, ...(z.def.bonus ? { kills: z.bonusKills, bossAt: z.def.bonus.bossAfter, boss: !!z.bossId, open } : {}) }));
+      // Lundi : les capitaines encore sur une carte bonus rentrent sur leur carte habituelle.
+      if (!open) for (const z of this.zones.values()) if (z.def.bonus) for (const l of [...z.links.values()]) this.relocate(l as Session, ZONES.filter((x) => x.tier === Math.min(l.profile.tier, MAX_TIER))[0].id, 'Les cartes bonus sont fermées jusqu\'à dimanche prochain.');
       for (const s of this.sessions.values()) s.send({ t: 'maps', list });
     }
     for (const s of this.sessions.values()) {
@@ -131,7 +135,7 @@ export class Hub {
       input: { sail: 0, rudder: 0 }, seq: 0, pvp: false, hpRatio: 1, sailRatio: 1,
       known: new Set(), deadTimer: 0, groupId: null, guildTag: this.guilds.of(name)?.tag ?? null,
       nav: null, targetId: 0, attacking: false, fishing: false, fishTimer: 0,
-      dirty: false, sentProfileAt: 0, savedAt: performance.now(), lastChat: 0, msgBudget: 80, offers: [], created: profile.created,
+      dirty: false, sentProfileAt: 0, savedAt: performance.now(), lastChat: 0, msgBudget: 80, offers: [], created: profile.created, lastHardBonus: 0,
     };
     this.sessions.set(accountId, s);
     this.byName.set(lc(name), s);
@@ -150,6 +154,11 @@ export class Hub {
   }
 
   private enter(s: Session) {
+    if (ZONE_BY_ID[s.profile.zone]?.bonus && !isBonusDay()) {
+      const def = ZONES.filter((x) => x.tier === Math.min(s.profile.tier, MAX_TIER))[0];
+      s.profile.zone = def.id;
+      s.port = s.profile.port = def.ports[0].id;
+    }
     const zone = this.zones.get(s.profile.zone) ?? this.zones.get(START_ZONE)!;
     zone.addPlayer(s, true);
     s.send({ t: 'welcome', id: s.entityId, name: s.name, profile: s.profile, zone: zone.def.id, port: s.port, st: zone.time });
@@ -269,7 +278,14 @@ export class Hub {
         const def = ZONE_BY_ID[String(m.zone)];
         if (!def) return err('Carte inconnue.');
         if (def.id === s.zoneId) return;
-        if (def.tier > s.profile.tier) return err(`Carte ${def.code} verrouillée : accomplissez la mission de passage de l'étage ${s.profile.tier}.`);
+        if (def.bonus) {
+          const lvl = playerLevel(s.profile);
+          if (!isBonusDay()) return err('Les cartes bonus ne sont ouvertes que le dimanche.');
+          if (lvl < def.bonus.minLevel) return err(`${def.name} : niveau ${def.bonus.minLevel} requis.`);
+          if (def.bonus.maxLevel && lvl > def.bonus.maxLevel) return err(`${def.name} est réservée aux capitaines de niveau ${def.bonus.maxLevel} au plus.`);
+          if (def.bonus.rank === 'debutant' && Date.now() - s.lastHardBonus < 15 * 60 * 1000) return err('Vous sortez d\'une carte bonus plus dure : patientez 15 minutes.');
+          if (def.bonus.rank !== 'debutant') s.lastHardBonus = Date.now();
+        } else if (def.tier > s.profile.tier) return err(`Carte ${def.code} verrouillée : accomplissez la mission de passage de l'étage ${s.profile.tier}.`);
         if (s.deadTimer > 0) return;
         if (ship && zone.time - ship.lastHit < 10) return err('Impossible de changer de carte en plein combat.');
         const atSea = !s.docked && !!ship;
@@ -297,6 +313,23 @@ export class Hub {
         this.group(s, m.a, m.name);
         break;
     }
+  }
+
+  /** Envoie un joueur sur une autre carte, à quai dans le port principal. */
+  private relocate(s: Session, zoneId: string, why: string) {
+    const from = this.zones.get(s.zoneId);
+    const def = ZONE_BY_ID[zoneId];
+    if (!from || !def) return;
+    from.removePlayer(s);
+    s.nav = null; s.targetId = 0; s.attacking = false; s.fishing = false;
+    s.port = def.ports.find((p) => p.main)?.id ?? def.ports[0].id;
+    s.profile.zone = def.id;
+    s.profile.port = s.port;
+    this.zones.get(def.id)!.addPlayer(s, true);
+    s.touch();
+    s.send({ t: 'zone', zone: def.id, port: s.port, id: s.entityId });
+    this.sendPort(s);
+    s.notify(why, 'event');
   }
 
   /** Mission de passage : couler assez d'ennemis à son étage le plus haut pour débloquer le suivant. */

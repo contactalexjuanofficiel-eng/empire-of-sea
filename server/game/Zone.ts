@@ -1,6 +1,6 @@
 // Simulation autoritaire d'une zone maritime : un « shard » indépendant.
 // Le serveur peut faire tourner chaque zone dans son propre processus plus tard (voir docs/ARCHITECTURE.md).
-import { AMMO, type AmmoId, type ConsumableId } from '../../shared/items.ts';
+import { AMMO, CONSUMABLES, type AmmoId, type ConsumableId } from '../../shared/items.ts';
 import type { EquipId } from '../../shared/equipment.ts';
 import { clamp, dist2, wrapAngle } from '../../shared/math.ts';
 import { combatHelm, steerTo } from '../../shared/autopilot.ts';
@@ -63,6 +63,9 @@ export class Zone {
   time = 0;
   /** Réapparition des PNJ : chaque navire coulé revient 5 minutes plus tard (type tiré au sort). */
   private respawns: number[] = [];
+  /** Cartes bonus : navires coulés depuis le dernier boss, dégâts cumulés par joueur sur le boss. */
+  bonusKills = 0;
+  private bonusDmg = new Map<number, number>();
   /** Coffres flottants : récompense tirée au sort, réapparition ailleurs 60 à 120 s après ouverture. */
   private chestTimers: number[] = [];
   get chestTarget() { return 8 + this.def.tier; }
@@ -191,7 +194,7 @@ export class Zone {
       input: { sail: 0, rudder: 0 },
       hp: stats.hp, sailHp: stats.sailHp,
       reload: [0, 0], ammo: 'rond', burning: 0, repairing: 0, powder: 0, crewPenalty: 0,
-      cd: { kit: 0, seau: 0, poudre: 0 },
+      cd: {}, fx: { speed: 0, shield: 0, slow: 0, smoke: 0 },
       sinking: -1, dmgBy: new Map(), lastHit: -999, tier: SHIP_CLASSES[def.cls].tier, dmgMul: 1,
     };
   }
@@ -232,25 +235,30 @@ export class Zone {
   }
 
   private spawnBoss() {
-    const def = SHIP_BY_ID.spectre;
-    const level = this.def.levels[1];
+    const bonus = this.def.bonus;
+    const def = bonus ? SHIP_BY_ID[bonus.boss] : SHIP_BY_ID.spectre;
+    const level = this.def.levels[1] + (bonus ? 5 : 0);
     const stats = computeStats(def, { coque: 2, voiles: 0, canons: 2, boulets: 2 });
-    const scale = 0.35 + level / 22;
+    const scale = (0.35 + level / 22) * (bonus ? 8 : 1);
     stats.hp = Math.round(stats.hp * scale);
     stats.sailHp = Math.round(stats.hp * 0.5);
     const pos = this.randomSeaPoint(2000, 700);
-    const s = this.makeShip(allocId(), 'boss', def, stats, level, 'spectre', def.name, pos.x, pos.z, Math.random() * 6.28);
-    s.dmgMul = 0.22 * scale + 0.1;
+    const bossName = bonus?.bossName ?? def.name;
+    const s = this.makeShip(allocId(), 'boss', def, stats, level, bonus ? 'pirate' : 'spectre', bossName, pos.x, pos.z, Math.random() * 6.28);
+    s.dmgMul = bonus ? 0.9 : 0.22 * scale + 0.1;
     s.ai = { mode: 'patrouille', target: 0, wx: pos.x, wz: pos.z, think: 0, homeX: pos.x, homeZ: pos.z, aggro: 1500, accuracy: 0.7, side: 1 };
     newWaypoint(this, s);
     this.ships.set(s.id, s);
     this.bossId = s.id;
     this.bossAge = 0;
-    const msg = `Le brouillard se lève sur ${this.def.name}… ${def.name} a été aperçu ! Unissez vos forces pour le couler.`;
+    const msg = bonus
+      ? `${bossName} apparaît sur ${this.def.name} ! Chaque tranche de 10 000 dégâts rapporte ${bonus.per10k.elite} points élite et ${bonus.per10k.xp} XP.`
+      : `Le brouillard se lève sur ${this.def.name}… ${def.name} a été aperçu ! Unissez vos forces pour le couler.`;
     for (const l of this.links.values()) {
       l.notify(msg, 'event');
-      l.send({ t: 'boss', active: true, hp: s.hp, maxHp: s.stats.hp, name: def.name, x: Math.round(pos.x), z: Math.round(pos.z) });
+      l.send({ t: 'boss', active: true, hp: s.hp, maxHp: s.stats.hp, name: bossName, x: Math.round(pos.x), z: Math.round(pos.z) });
     }
+    if (bonus) { this.bonusKills = 0; return; }
     this.weather = { kind: 'brume', intensity: 1, fog: 3 };
     this.nextWeather = 'brume';
     this.weatherTimer = 200;
@@ -441,17 +449,79 @@ export class Zone {
     }
   }
 
+  /** Objets de la Boutique de l'Amirauté et équipements de base, utilisés en mer. */
   useItem(s: ShipEnt, id: ConsumableId): string | null {
-    const p = s.link!.profile;
-    if (s.sinking >= 0) return null;
-    if ((p.items[id] ?? 0) <= 0) return 'Vous n\'en avez plus. Achetez-en au port.';
-    if (s.cd[id] > 0) return null;
+    const link = s.link!;
+    const p = link.profile;
+    const it = CONSUMABLES[id];
+    if (!it || s.sinking >= 0) return null;
+    if ((p.items[id] ?? 0) <= 0) return 'Vous n\'en avez plus : rendez-vous à la Boutique.';
+    if ((s.cd[id] ?? 0) > 0) return `${it.name} : encore ${Math.ceil(s.cd[id]!)} s.`;
     if (id === 'seau' && s.burning <= 0) return 'Aucun incendie à bord.';
-    p.items[id]--;
-    s.link!.touch();
-    if (id === 'kit') { s.repairing = 6; s.cd.kit = 25; }
-    if (id === 'seau') { s.burning = 0; s.cd.seau = 12; }
-    if (id === 'poudre') { s.powder = 20; s.cd.poudre = 60; }
+    let target: ShipEnt | undefined;
+    if (it.target) {
+      const t = link.targetId ? this.ships.get(link.targetId) : undefined;
+      if (!t || t.sinking >= 0 || !this.canHarm(s, t)) return 'Sélectionnez d\'abord une cible ennemie.';
+      if (dist2(s.k.x, s.k.z, t.k.x, t.k.z) > (it.range ?? 300) ** 2) return `Cible trop loin (${it.range} m maximum).`;
+      target = t;
+    }
+    p.items[id] = (p.items[id] ?? 0) - 1;
+    link.touch();
+    s.cd[id] = it.cooldown;
+    const boom = (t: ShipEnt, dmg: number, fire: boolean) => {
+      this.emit({ k: 'hit', pid: 0, id: t.id, x: r1(t.k.x), y: 5, z: r1(t.k.z), dmg: Math.round(dmg * (1 - t.stats.armor)), by: s.id, fire, crit: true }, t.k.x, t.k.z);
+      this.damage(t, dmg, dmg * 0.3, 'rond', s, fire);
+    };
+    switch (id) {
+      case 'kit': s.repairing = 6; break;
+      case 'seau': s.burning = 0; break;
+      case 'poudre': s.powder = it.duration!; break;
+      case 'reparation': s.hp = Math.min(s.stats.hp, s.hp + s.stats.hp * it.value!); break;
+      case 'vitesse': s.fx.speed = it.duration!; break;
+      case 'bouclier': s.fx.shield = it.duration!; break;
+      case 'fumigene':
+        s.fx.smoke = it.duration!;
+        for (const o of this.ships.values()) if (o.ai && o.ai.target === s.id) { o.ai.target = 0; o.ai.mode = 'patrouille'; }
+        this.emit({ k: 'boom', x: r1(s.k.x), z: r1(s.k.z) }, s.k.x, s.k.z);
+        break;
+      case 'harpon_bronze': case 'harpon_argent': case 'harpon_or': boom(target!, it.value!, false); break;
+      case 'feu_gregeois': boom(target!, it.value!, true); target!.burning = Math.max(target!.burning, it.duration!); break;
+      case 'brulot':
+        this.emit({ k: 'boom', x: r1(target!.k.x), z: r1(target!.k.z), big: true }, target!.k.x, target!.k.z);
+        boom(target!, target!.stats.hp * it.value! * (target!.kind === 'boss' ? 0.2 : 1), true);
+        target!.burning = Math.max(target!.burning, it.duration!);
+        break;
+      case 'corne':
+        for (const o of this.ships.values()) {
+          if (o === s || !this.canHarm(s, o) || dist2(s.k.x, s.k.z, o.k.x, o.k.z) > it.range! ** 2) continue;
+          o.fx.slow = it.duration!;
+        }
+        link.notify('La Corne de Neptune résonne : les ennemis proches sont ralentis !', 'event');
+        break;
+      case 'lanterne': {
+        const until = Date.now() + it.duration! * 1000;
+        for (const l of this.links.values()) {
+          const o = this.ships.get(l.entityId);
+          const ally = l === link || (l.groupId && l.groupId === link.groupId);
+          if (!ally || !o || dist2(s.k.x, s.k.z, o.k.x, o.k.z) > it.range! ** 2) continue;
+          l.profile.buffs.lanterne = until;
+          l.notify('Lanterne de Saint-Elme : +50 % d\'XP et de points élite pendant 10 minutes !', 'event');
+          l.touch();
+        }
+        break;
+      }
+      case 'parchemin':
+        p.buffs.xp2 = Date.now() + it.duration! * 1000;
+        link.notify('Parchemin du Grand Navigateur : expérience doublée pendant 30 minutes !', 'event');
+        break;
+      case 'coffre_amiral': {
+        const R = Math.random;
+        const roll = R();
+        const r = roll < 0.4 ? { or: 20000 + R() * 40000 } : roll < 0.65 ? { diamants: 2 + Math.floor(R() * 4) } : roll < 0.85 ? { equip: { c60: 2 + Math.floor(R() * 4) } } : roll < 0.97 ? { equip: { riga: 3 + Math.floor(R() * 5) } } : { diamants: 15 };
+        grant(link, r, 'Coffre de l\'Amiral ouvert');
+        break;
+      }
+    }
     return null;
   }
 
@@ -519,6 +589,8 @@ export class Zone {
           for (const l of this.links.values()) { l.notify(`${b.name} disparaît dans la brume…`, 'event'); l.send({ t: 'boss', active: false }); }
         }
         this.bossTimer = BOSS_INTERVAL;
+      } else if (this.def.bonus) {
+        if (this.bonusKills >= this.def.bonus.bossAfter) this.spawnBoss();
       } else if (this.links.size > 0) {
         this.bossTimer -= dt;
         if (this.bossTimer <= 0) this.spawnBoss();
@@ -545,13 +617,15 @@ export class Zone {
     }
     if (s.ai) thinkNPC(this, s, dt);
     const slow = s.sailHp / s.stats.sailHp;
-    stepShip(s.k, s.stats, s.input, this.wind, dt, { sailRatio: slow });
+    const speedMul = (1 + (s.fx.speed > 0 ? 0.5 : 0)) * (s.fx.slow > 0 ? 0.5 : 1);
+    stepShip(s.k, s.stats, s.input, this.wind, dt, { sailRatio: slow, speedMul });
     const shock = collideShip(s.k, s.stats, this.world, this.def.half);
     if (shock > 6) this.damage(s, shock * s.stats.hp * 0.004 * dt * 20, 0, 'rond', null, false);
 
     s.reload[0] = Math.max(0, s.reload[0] - dt);
     s.reload[1] = Math.max(0, s.reload[1] - dt);
-    for (const k of ['kit', 'seau', 'poudre'] as const) s.cd[k] = Math.max(0, s.cd[k] - dt);
+    for (const k of Object.keys(s.cd) as ConsumableId[]) s.cd[k] = Math.max(0, (s.cd[k] ?? 0) - dt);
+    for (const k of ['speed', 'shield', 'slow', 'smoke'] as const) s.fx[k] = Math.max(0, s.fx[k] - dt);
     s.powder = Math.max(0, s.powder - dt);
     if (s.burning > 0) {
       s.burning -= dt;
@@ -718,7 +792,7 @@ export class Zone {
   // ------------------------------------------------------------------ dégâts
   damage(s: ShipEnt, hull: number, sail: number, ammo: AmmoId, attacker: ShipEnt | FortEnt | null, fire: boolean) {
     if (s.sinking >= 0) return;
-    const real = hull * (1 - s.stats.armor);
+    const real = hull * (1 - s.stats.armor) * (s.fx.shield > 0 ? 0.6 : 1);
     s.hp -= real;
     s.sailHp = Math.max(0, s.sailHp - sail);
     if (attacker) {
@@ -728,6 +802,17 @@ export class Zone {
         attacker.link.profile.stats.damage += real;
         onDamage(attacker.link, real, ammo, s.kind === 'player');
         if (s.kind === 'boss') progressMission(attacker.link, 'boss', 'spectre', real);
+        if (s.kind === 'boss' && this.def.bonus) {
+          // Cartes bonus : gains par tranche de 10 000 dégâts infligés au boss.
+          const id = attacker.id;
+          let acc = (this.bonusDmg.get(id) ?? 0) + real;
+          while (acc >= 10000) {
+            acc -= 10000;
+            attacker.link.profile.elite += this.def.bonus.per10k.elite;
+            grant(attacker.link, { xp: this.def.bonus.per10k.xp }, `${s.name} : 10 000 dégâts (+${this.def.bonus.per10k.elite} points élite)`);
+          }
+          this.bonusDmg.set(id, acc);
+        }
       }
       if (s.ai && 'k' in attacker && s.ai.mode === 'patrouille') { s.ai.target = attacker.id; s.ai.mode = 'combat'; }
     }
@@ -822,7 +907,10 @@ export class Zone {
       for (const l of this.links.values()) { l.send({ t: 'boss', active: false }); l.notify(`${s.name} sombre dans les abysses ! La brume se dissipe.`, 'event'); }
       this.hooks.broadcastChat?.(`${s.name} a été vaincu dans ${this.def.name} !`);
     }
-    if (s.kind === 'npc') this.respawns.push(this.time + Zone.NPC_RESPAWN);
+    if (s.kind === 'npc') {
+      this.respawns.push(this.time + (this.def.bonus ? 60 : Zone.NPC_RESPAWN));
+      if (this.def.bonus) this.bonusKills++;
+    }
     // Épave flottante à repêcher.
     const id = allocId();
     const R = Math.random;
@@ -907,7 +995,7 @@ export class Zone {
         reload: me ? [r1(me.reload[0]), r1(me.reload[1])] : [0, 0],
         reloadMax: me ? r1(me.stats.reload) : 1,
         ammo: me ? me.ammo : 'rond',
-        cd: me ? { kit: r1(me.cd.kit), seau: r1(me.cd.seau), poudre: r1(me.cd.poudre) } : {},
+        cd: me ? Object.fromEntries(Object.entries(me.cd).filter(([, v]) => (v ?? 0) > 0).map(([k, v]) => [k, r1(v!)])) : {},
         seq: link.seq,
         dead: link.deadTimer > 0 ? r1(link.deadTimer) : 0,
         powder: me ? r1(me.powder) : 0,

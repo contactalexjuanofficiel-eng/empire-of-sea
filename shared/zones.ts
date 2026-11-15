@@ -37,6 +37,8 @@ export interface ZoneDef {
   variant: 1 | 2; // /1 = carte calme, /2 = carte de guerre (PvP libre, meilleures récompenses)
   code: string; // « 3/1 »
   rewardMul: number;
+  /** Carte bonus (ouverte le dimanche) : boss qui surgit après un nombre de navires coulés. */
+  bonus?: BonusDef;
   name: string;
   desc: string;
   levels: [number, number];
@@ -283,7 +285,62 @@ export const ZONES: ZoneDef[] = SEAS.map((s, i) => ({ ...s, enemies: [...s.enemi
   return [calm, war];
 });
 
-export const ZONE_BY_ID: Record<string, ZoneDef> = Object.fromEntries(ZONES.map((z) => [z.id, z]));
+export interface BonusDef {
+  rank: 'debutant' | 'confirme' | 'elite';
+  boss: string; // navire du boss
+  bossName: string;
+  bossAfter: number; // navires coulés sur la carte avant l'apparition du boss
+  per10k: { elite: number; xp: number }; // gains par tranche de 10 000 dégâts infligés au boss
+  minLevel: number;
+  maxLevel?: number;
+  color: string;
+}
+
+/** Cartes bonus : ouvertes uniquement le dimanche, pour gagner beaucoup d'expérience et de points élite. */
+export const BONUS_ZONES: ZoneDef[] = [
+  {
+    ...SEAS[4], id: 'bonus-galions', sea: 'caraibes', tier: 0, variant: 1, code: 'B1', rewardMul: 1.8, seed: 31415,
+    name: 'Le Cimetière des Galions', pvp: 'consentement', npcCount: 30, boss: true, islands: 22, half: 3800,
+    desc: 'Un lagon couvert d\'épaves espagnoles où rôdent pilleurs et contrebandiers. Quand 60 navires ont sombré, la Grande Caraque, chargée d\'or, sort de la brume. Combat entre joueurs interdit ; réservé aux capitaines de niveau 25 au plus, et fermé 15 minutes à ceux qui sortent d\'une carte bonus plus dure.',
+    ports: [{ id: 'havre_epaves', name: 'Havre des Épaves', x: -2200, z: 2200, r: 300, main: true, produces: ['rhum', 'sucre'], demands: ['armes', 'vin'] }],
+    enemies: [
+      { ship: 'chasse_maree', faction: 'pirate', level: 4, weight: 4 }, { ship: 'pirate_brick', faction: 'pirate', level: 6, weight: 4 },
+      { ship: 'hollandais_fregate', faction: 'hollandais', level: 10, weight: 3 }, { ship: 'crocodile', faction: 'monstre', level: 6, weight: 2 },
+    ],
+    bonus: { rank: 'debutant', boss: 'galion_pirate', bossName: 'La Grande Caraque', bossAfter: 60, per10k: { elite: 1200, xp: 700 }, minLevel: 3, maxLevel: 25, color: '#6fbf73' },
+  },
+  {
+    ...SEAS[6], id: 'bonus-krakens', sea: 'brumes', tier: 0, variant: 2, code: 'B2', rewardMul: 2.2, seed: 27182,
+    name: 'La Fosse aux Krakens', pvp: 'libre', npcCount: 32, boss: true, islands: 16, half: 3800,
+    desc: 'Une mer d\'encre où les monstres pullulent. Après 80 prises, le Kraken Ancestral remonte des abysses. Combat entre joueurs libre.',
+    ports: [{ id: 'fort_abysses', name: 'Fort des Abysses', x: 0, z: 2800, r: 300, main: true, produces: ['armes'], demands: ['rhum', 'epices'] }],
+    enemies: [
+      { ship: 'requin', faction: 'monstre', level: 14, weight: 4 }, { ship: 'serpent', faction: 'monstre', level: 18, weight: 4 },
+      { ship: 'kraken', faction: 'monstre', level: 22, weight: 2 }, { ship: 'flibustier', faction: 'flibustier', level: 20, weight: 2 },
+    ],
+    bonus: { rank: 'confirme', boss: 'leviathan', bossName: 'Le Kraken Ancestral', bossAfter: 80, per10k: { elite: 1800, xp: 1100 }, minLevel: 12, color: '#5aa6e8' },
+  },
+  {
+    ...SEAS[3], id: 'bonus-roi-soleil', sea: 'mediterranee', tier: 0, variant: 2, code: 'B3', rewardMul: 2.8, seed: 16431,
+    name: 'Les Eaux du Roi-Soleil', pvp: 'libre', npcCount: 34, boss: true, islands: 20, half: 4000,
+    desc: 'Les meilleures escadres ennemies gardent le trésor de Versailles. Après 100 navires coulés apparaît le Vaisseau d\'Or, navire amiral couvert de dorures. Combat entre joueurs libre. Réservée aux capitaines de niveau 20 et plus.',
+    ports: [{ id: 'port_vermeil', name: 'Port-Vermeil', x: -2400, z: -2400, r: 320, main: true, produces: ['soie', 'vin'], demands: ['armes', 'epices'] }],
+    enemies: [
+      { ship: 'anglais_74', faction: 'anglais', level: 24, weight: 4 }, { ship: 'anglais_3ponts', faction: 'anglais', level: 28, weight: 2 },
+      { ship: 'galion_pirate', faction: 'pirate', level: 24, weight: 3 }, { ship: 'corsaire_amiral', faction: 'pirate', level: 30, weight: 1 },
+    ],
+    bonus: { rank: 'elite', boss: 'corsaire_amiral', bossName: 'Le Vaisseau d\'Or', bossAfter: 100, per10k: { elite: 2600, xp: 1600 }, minLevel: 20, color: '#f0b54a' },
+  },
+];
+
+/** Les cartes bonus ne sont ouvertes que le dimanche (heure de Paris). BONUS_ALWAYS=1 pour les tests. */
+export function isBonusDay(now = new Date()) {
+  const g = globalThis as { process?: { env?: Record<string, string | undefined> } };
+  if (g.process?.env?.BONUS_ALWAYS === '1') return true;
+  return now.toLocaleString('en-US', { timeZone: 'Europe/Paris', weekday: 'short' }) === 'Sun';
+}
+
+export const ZONE_BY_ID: Record<string, ZoneDef> = Object.fromEntries([...ZONES, ...BONUS_ZONES].map((z) => [z.id, z]));
 export const START_ZONE = 'manche-1';
 export const MAX_TIER = SEAS.length;
 

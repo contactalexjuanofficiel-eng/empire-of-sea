@@ -86,8 +86,8 @@ export function shop(link: PlayerLink, zone: ZoneDef, act: ShopAction, nowSec: n
       const it = CONSUMABLES[act.item];
       const qty = Math.max(1, Math.min(20, Math.floor(act.qty) || 1));
       if (!it) return 'Objet inconnu.';
-      if (it.price.or * qty > p.or) return 'Fonds insuffisants.';
-      p.or -= it.price.or * qty;
+      const total = { or: (it.price.or ?? 0) * qty, perles: (it.price.perles ?? 0) * qty, diamants: (it.price.diamants ?? 0) * qty };
+      if (!pay(p, total)) return 'Fonds insuffisants.';
       p.items[it.id] = (p.items[it.id] ?? 0) + qty;
       break;
     }

@@ -5,7 +5,8 @@ import { stepShip, collideShip, windFactor } from '../shared/physics.ts';
 import type { S2C } from '../shared/protocol.ts';
 import { computeStats, SHIP_BY_ID, SHIPS } from '../shared/ships.ts';
 import { buildWorld, islandHeight } from '../shared/world.ts';
-import { ZONE_BY_ID, ZONES } from '../shared/zones.ts';
+import { BONUS_ZONES, isBonusDay, ZONE_BY_ID, ZONES } from '../shared/zones.ts';
+import { dailyStart } from '../server/game/progress.ts';
 import { shop } from '../server/game/economy.ts';
 import { Zone } from '../server/game/Zone.ts';
 import { createCharacter, newProfile } from '../server/profile.ts';
@@ -165,4 +166,44 @@ test('cartes et équipement : 20 cartes, ports propres, canons installés plus p
   assert.equal(shop(link, ZONE_BY_ID['manche-1'], { a: 'install', item: 'c50', qty: 50 }, 0), null);
   assert.equal(link.profile.ships[0].fit?.c50, 5);
   assert.match(shop(link, ZONE_BY_ID['manche-1'], { a: 'buyEquip', item: 'c60', qty: 1 }, 0)!, /Fonds/);
+});
+
+test('livraison 2 : monstres, coffres, îles fortifiées, boutique, missions, grades', () => {
+  const zone = new Zone(ZONE_BY_ID['manche-1'], { relation: () => 'neutral' });
+  // Coffres flottants et tours d'îles fortifiées présents dès le départ.
+  assert.ok([...zone.loot.values()].some((l) => l.kind === 'coffre'));
+  const towers = [...zone.forts.values()].filter((f) => f.def.faction === 'pirate');
+  assert.equal(towers.length % 3, 0);
+  assert.ok(towers.length >= 3);
+  // Un monstre mord au contact.
+  const link = fakeLink('Testeur2', 9);
+  zone.addPlayer(link, false);
+  const me = zone.ships.get(link.entityId)!;
+  for (const s of [...zone.ships.values()]) if (s.kind !== 'player') zone.ships.delete(s.id);
+  me.k.x = 0; me.k.z = 0;
+  const hp0 = me.hp;
+  const croco = { ...me, id: 999999, kind: 'npc' as const, def: SHIP_BY_ID.crocodile, faction: 'monstre' as const, link: undefined, reload: [0, 0] as [number, number], level: 3 };
+  zone.bite(croco, me);
+  assert.ok(me.hp < hp0, 'morsure');
+  // Boutique : harpon sur une cible.
+  zone.spawnNPC(true);
+  const npc = [...zone.ships.values()].find((s) => s.kind === 'npc')!;
+  npc.k.x = 100; npc.k.z = 0;
+  link.profile.items.harpon_or = 1;
+  link.targetId = npc.id;
+  const nhp = npc.hp;
+  assert.equal(zone.useItem(me, 'harpon_or'), null);
+  assert.ok(npc.hp < nhp || npc.sinking >= 0);
+  assert.equal(link.profile.items.harpon_or, 0);
+  // Grade de tir et points élite gagnés en infligeant des dégâts.
+  assert.ok(link.profile.shootXp > 0 && link.profile.elite > 0);
+  // Mission quotidienne : une seule à la fois, puis délai de 12 h.
+  assert.equal(dailyStart(link, 'monstres', 1), null);
+  assert.match(dailyStart(link, 'pirates', 1)!, /une seule/i);
+});
+
+test('cartes bonus : fermées hors du dimanche, ouvertes le dimanche', () => {
+  assert.equal(BONUS_ZONES.length, 3);
+  assert.equal(isBonusDay(new Date('2026-11-15T12:00:00+01:00')), true); // dimanche
+  assert.equal(isBonusDay(new Date('2026-11-16T12:00:00+01:00')), false); // lundi
 });

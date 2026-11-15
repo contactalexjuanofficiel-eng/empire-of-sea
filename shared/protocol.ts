@@ -46,7 +46,9 @@ export interface Profile {
   ships: OwnedShip[];
   active: string; // uid du navire actif
   ammo: Record<AmmoId, number>;
-  items: Record<ConsumableId, number>;
+  items: Partial<Record<ConsumableId, number>>;
+  /** Effets temporaires (horodatages de fin, en ms). */
+  buffs: { xp2?: number; lanterne?: number };
   cargo: Partial<Record<GoodId, number>>;
   skills: Skills;
   zone: string;
@@ -196,7 +198,7 @@ export type S2C =
   | { t: 'maps'; list: MapInfo[] }
   | { t: 'err'; text: string };
 
-export interface MapInfo { id: string; players: number; owner: string | null }
+export interface MapInfo { id: string; players: number; owner: string | null; kills?: number; bossAt?: number; boss?: boolean; open?: boolean }
 
 export interface GuildInfo {
   id: string;

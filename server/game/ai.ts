@@ -81,7 +81,7 @@ function retarget(z: Zone, s: ShipEnt) {
   // Cible la plus proche parmi les joueurs attaquables ; on se souvient de qui nous a frappé.
   let best = 0, bestD = ai.aggro * ai.aggro;
   for (const o of z.ships.values()) {
-    if (o.kind !== 'player' || o.sinking >= 0 || !z.canHarm(s, o)) continue;
+    if (o.kind !== 'player' || o.sinking >= 0 || o.fx.smoke > 0 || !z.canHarm(s, o)) continue;
     let d = dist2(s.k.x, s.k.z, o.k.x, o.k.z);
     if (s.dmgBy.has(o.id)) d *= 0.4;
     if (d < bestD) { bestD = d; best = o.id; }

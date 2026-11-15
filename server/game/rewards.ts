@@ -15,7 +15,9 @@ export function grant(link: PlayerLink, r: Reward, reason: string) {
   const parts: string[] = [];
   // Capitaines économiques : bonus d'or et d'expérience.
   const econ = playerBonus(p).econ;
-  r = { ...r, or: r.or ? r.or * (1 + econ.gold) : r.or, xp: r.xp ? r.xp * (1 + econ.xp) : r.xp };
+  const now = Date.now();
+  const xpMul = (1 + econ.xp) * ((p.buffs?.xp2 ?? 0) > now ? 2 : 1) * ((p.buffs?.lanterne ?? 0) > now ? 1.5 : 1);
+  r = { ...r, or: r.or ? r.or * (1 + econ.gold) : r.or, xp: r.xp ? r.xp * xpMul : r.xp };
   if (r.ferraille) { p.ferraille += Math.round(r.ferraille); parts.push(`+${fmt(r.ferraille)} ferraille`); }
   if (r.or) { p.or += Math.round(r.or); parts.push(`+${fmt(r.or)} or`); }
   if (r.xp) { p.xp += Math.round(r.xp); parts.push(`+${fmt(r.xp)} XP`); }

@@ -37,7 +37,9 @@ export interface ShipEnt {
   repairing: number;
   powder: number;
   crewPenalty: number;
-  cd: Record<ConsumableId, number>;
+  cd: Partial<Record<ConsumableId, number>>;
+  /** Effets temporaires (secondes restantes). */
+  fx: { speed: number; shield: number; slow: number; smoke: number };
   sinking: number; // < 0 : à flot ; >= 0 : secondes écoulées depuis le naufrage
   dmgBy: Map<number, number>;
   lastHit: number;

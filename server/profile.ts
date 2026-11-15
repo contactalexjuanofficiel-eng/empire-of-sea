@@ -59,6 +59,7 @@ export function newProfile(name: string): Profile {
     captains: [],
     captainsActive: {},
     daily: { active: [], cooldown: {} },
+    buffs: {},
     levelMission: { level: 1, progress: 0 },
   };
 }
@@ -92,6 +93,7 @@ export function sanitizeProfile(raw: Profile, name: string): Profile {
   p.daily = { active: (raw.daily?.active || []).filter((d) => DAILY_BY_ID[d.id]), cooldown: raw.daily?.cooldown || {} };
   p.levelMission = raw.levelMission || base.levelMission;
   p.fish = raw.fish || {};
+  p.buffs = raw.buffs || {};
   for (const m of p.missions) m.zone = migrateZoneId(m.zone);
   if (!ZONE_BY_ID[p.zone].ports.some((x) => x.id === p.port)) p.port = ZONE_BY_ID[p.zone].ports[0].id;
   if (p.created && !p.ships.length) giveShip(p, 'bayonnaise');

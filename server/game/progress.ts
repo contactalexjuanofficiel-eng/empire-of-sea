@@ -23,7 +23,7 @@ function shootGain(link: PlayerLink, pts: number) {
 export function onDamage(link: PlayerLink, real: number, ammo: AmmoId, targetIsPlayer: boolean) {
   const p = link.profile;
   shootGain(link, real * (targetIsPlayer ? SHOOT_XP.player : SHOOT_XP.npc));
-  p.elite += real * ELITE_RATE * (AMMO[ammo]?.elite ?? 1) * (1 + playerBonus(p).econ.elite);
+  p.elite += real * ELITE_RATE * (AMMO[ammo]?.elite ?? 1) * (1 + playerBonus(p).econ.elite) * ((p.buffs?.lanterne ?? 0) > Date.now() ? 1.5 : 1);
   dailyProgress(link, 'degats', real);
 }
 
