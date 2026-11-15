@@ -10,6 +10,7 @@ export const send: Game['net']['send'] = (m) => gameRef?.net.send(m);
 
 const P = (d: string) => <path d={d} />;
 const ICONS: Record<string, ReactNode> = {
+  porte: <>{P('M10 4h8v16h-8')}{P('M4 12h10')}{P('M10 8l4 4-4 4')}</>,
   ancre: <>{P('M12 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4z')}{P('M12 7v13')}{P('M7 11h10')}{P('M4 14c0 4 4 6 8 6s8-2 8-6')}{P('M4 14l-1.5 1.5M20 14l1.5 1.5')}</>,
   or: <><circle cx="12" cy="12" r="8" />{P('M12 7v10M9.5 9.5c0-1 1-1.6 2.5-1.6s2.5.7 2.5 1.7c0 2.5-5 1.4-5 4 0 1 1 1.7 2.5 1.7s2.5-.6 2.5-1.6')}</>,
   doublon: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="5" />{P('M12 9v6M9 12h6')}</>,

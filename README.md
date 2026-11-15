@@ -61,6 +61,18 @@ Le jeu se joue **à la souris**, en vue du dessus (la vue 3D derrière le navire
 
 **Toutes les touches se modifient dans Paramètres** (cliquez sur une touche puis appuyez sur la nouvelle).
 
+## Interface en mer
+
+- **Vue de dessus**, nord en haut : clic sur la mer pour naviguer (cercle vert), clic sur un ennemi pour l'attaquer
+  (tir automatique). Molette : zoom ; clic droit glissé : déplacer la vue ; touche V : vue 3D.
+- **Graduations sur les bords** : colonnes numérotées en haut, rangées lettrées à gauche (secteurs de 200 m).
+- **Barre du haut** : ressources, puis Menu, Port, Missions, Cartes bonus, Boutique, Événement, Classements,
+  Tableau, Sortie ; images/seconde et latence à droite.
+- **Haut gauche** : la cible (nom, faction, distance, vie). **Haut droite** : mini-carte, boutons ronds
+  (discussion, cartes, paramètres) et la ligne « (joueurs) carte secteur ⚓ » — l'ancre mène au port le plus proche.
+- **Onglets de droite** : Missions, Espion (navires proches), Groupe, Tableau (bilan du capitaine).
+- **Bas** : barre de vie, barre d'expérience, munitions (1–7) et objets (8–0).
+
 ## Cartes
 
 20 cartes : **1/1 à 5/2** par paires (/1 calme, /2 de guerre avec PvP libre et meilleur butin), puis **11 à 20**.

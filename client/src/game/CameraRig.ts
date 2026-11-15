@@ -19,7 +19,7 @@ export class CameraRig {
   /** « dessus » : vue plongeante nord en haut (par défaut) ; « 3d » : derrière le navire. */
   mode: 'dessus' | '3d' = 'dessus';
   readonly pan = new THREE.Vector3();
-  private topDist = 340;
+  private topDist = 560;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
@@ -40,7 +40,7 @@ export class CameraRig {
   }
 
   zoom(delta: number) {
-    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 140, 1100); return; }
+    if (this.mode === 'dessus') { this.topDist = THREE.MathUtils.clamp(this.topDist * Math.exp(delta * 0.0012), 180, 1500); return; }
     this.targetDist = THREE.MathUtils.clamp(this.targetDist * Math.exp(delta * 0.0012), this.minDist, this.maxDist);
   }
 
@@ -59,9 +59,9 @@ export class CameraRig {
 
   update(dt: number, t: number, target: THREE.Vector3, heading: number, aimMode: boolean) {
     if (this.mode === 'dessus') {
-      // Vue plongeante, nord en haut de l'écran, légèrement inclinée pour garder le relief des navires.
+      // Vue de dessus quasi verticale, nord en haut de l'écran (à peine inclinée pour garder un peu de relief).
       this.focus.copy(target).add(this.pan);
-      const pitch = 1.12;
+      const pitch = 1.45;
       const pos = this.camera.position;
       pos.set(this.focus.x, this.focus.y + Math.sin(pitch) * this.topDist, this.focus.z + Math.cos(pitch) * this.topDist);
       if (this.shake > 0) {

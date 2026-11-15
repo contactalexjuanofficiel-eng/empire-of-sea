@@ -318,3 +318,49 @@ export function EliteShipsTab() {
   );
 }
 
+
+/** Événements du moment : boss de la carte, cartes du dimanche, effets actifs, météo. */
+export function EventPanel() {
+  const boss = useStore((s) => s.boss);
+  const maps = useStore((s) => s.maps);
+  const zone = ZONE_BY_ID[useStore((s) => s.zone)];
+  const p = useStore((s) => s.profile)!;
+  const hud = useStore((s) => s.hud);
+  const now = useNow(5000);
+  const bonusOpen = BONUS_ZONES.some((z) => maps.find((m) => m.id === z.id)?.open);
+  const left = (t?: number) => (t && t > now ? `${Math.ceil((t - now) / 60000)} min` : null);
+  const meteo = { clair: 'Temps clair', brume: 'Brume', tempete: 'Tempête' }[hud.weather] ?? hud.weather;
+  return (
+    <Frame title="Événements" icon="drapeau" onClose={close}>
+      <div className="events">
+        <section className={`ev-card ${boss.active ? 'hot' : ''}`}>
+          <h4>Boss de la carte {zone?.code}</h4>
+          {boss.active ? (
+            <>
+              <p><b>{boss.name}</b> croise sur cette carte ! La guilde qui l'abat prend le contrôle de la carte.</p>
+              <div className="ms-prog"><i style={{ width: `${((boss.hp ?? 0) / (boss.maxHp || 1)) * 100}%` }} /><span>{fmt(boss.hp ?? 0)} / {fmt(boss.maxHp ?? 0)}</span></div>
+            </>
+          ) : <p className="muted">Aucun boss en mer pour l'instant. Il apparaît régulièrement : surveillez les annonces de l'Amirauté.</p>}
+        </section>
+        <section className={`ev-card ${bonusOpen ? 'hot' : ''}`}>
+          <h4>Cartes bonus du dimanche</h4>
+          <p>{bonusOpen ? 'Les cartes bonus sont ouvertes aujourd\'hui : idéal pour gagner des niveaux et des points élite.' : 'Fermées : elles ouvrent chaque dimanche (heure de Paris).'}</p>
+          <button className="btn" onClick={() => store.set({ panel: 'bonus' })}>Voir les cartes bonus</button>
+        </section>
+        <section className="ev-card">
+          <h4>Effets actifs</h4>
+          {left(p.buffs.xp2) || left(p.buffs.lanterne) ? (
+            <>
+              {left(p.buffs.xp2) && <p>Expérience doublée : encore {left(p.buffs.xp2)}</p>}
+              {left(p.buffs.lanterne) && <p>Lanterne du chasseur de trésors : encore {left(p.buffs.lanterne)}</p>}
+            </>
+          ) : <p className="muted">Aucun effet. La Boutique vend des parchemins d'expérience et des lanternes.</p>}
+        </section>
+        <section className="ev-card">
+          <h4>Météo</h4>
+          <p>{meteo}{hud.weather === 'tempete' ? ' — la visibilité baisse et les navires dérivent.' : '.'}</p>
+        </section>
+      </div>
+    </Frame>
+  );
+}

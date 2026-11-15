@@ -10,6 +10,7 @@ import { clamp, fmt, wrapAngle } from '../../../shared/math';
 import { collideShip, GRAVITY, stepShip, type ShipKinematics, type Wind } from '../../../shared/physics';
 import { F_BURNING, F_PVP, F_REPAIRING, F_SAFE, F_SINKING, type EntityMeta, type GameEvent, type MeState, type S2C, type Side, type WeatherState } from '../../../shared/protocol';
 import { computeStats, SHIP_BY_ID, type ShipStats } from '../../../shared/ships';
+import { rowLabel, SECTOR, sectorName } from '../../../shared/sector';
 import { DOCK_RADIUS, FACTION_LABEL, START_ZONE, ZONE_BY_ID, type ZoneDef } from '../../../shared/zones';
 import { terrainHeight } from '../../../shared/world';
 import { Connection } from '../net/Connection';
@@ -100,9 +101,11 @@ export class Game {
   private pingTimer = 0;
   private lastCannon = new Map<number, number>();
   private raycaster = new THREE.Raycaster();
+  private tmpV2 = new THREE.Vector2();
   private tmpV = new THREE.Vector3();
   private loadingZone = false;
   private navRing!: THREE.Mesh;
+  private sectorGrid: THREE.LineSegments | null = null;
   private targetRing!: THREE.Mesh;
   selectedId = 0;
   private fpsFrames = 0;
@@ -222,6 +225,7 @@ export class Game {
     this.zone = def;
     this.zoneVis = buildZoneVisual(def);
     this.scene.add(this.zoneVis.group);
+    this.buildSectorGrid(def.half);
     this.ocean.setDepthMap(this.zoneVis.depthTex, def.half);
     (this.ocean.uniforms.uDeep.value as THREE.Color).set(def.ambiance.deep);
     (this.ocean.uniforms.uShallow.value as THREE.Color).set(def.ambiance.shallow);
@@ -621,6 +625,71 @@ export class Game {
     }
     const lim = this.zone.half - 80;
     this.net.send({ t: 'move', x: Math.round(clamp(tx, -lim, lim)), z: Math.round(clamp(tz, -lim, lim)) });
+    this.navRing.userData.pulse = 1;
+  }
+
+  /** Quadrillage des secteurs, très discret, posé sur la mer (visible en vue du dessus). */
+  private buildSectorGrid(half: number) {
+    if (this.sectorGrid) { this.scene.remove(this.sectorGrid); this.sectorGrid.geometry.dispose(); }
+    const pts: number[] = [];
+    for (let v = -half; v <= half + 0.1; v += SECTOR) {
+      pts.push(v, 0, -half, v, 0, half);
+      pts.push(-half, 0, v, half, 0, v);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    this.sectorGrid = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xcfe8ff, transparent: true, opacity: 0.1, depthTest: false, depthWrite: false, fog: false }));
+    this.sectorGrid.position.y = 1.5;
+    this.sectorGrid.renderOrder = 2;
+    this.sectorGrid.frustumCulled = false;
+    this.scene.add(this.sectorGrid);
+  }
+
+  /** Graduations du bord de l'écran : numéros de colonnes en haut, lettres des rangées à gauche (en pixels CSS). */
+  screenGrid() {
+    const out = { cols: [] as { px: number; label: string }[], rows: [] as { px: number; label: string }[], sector: '' };
+    const el = this.renderer.domElement;
+    const W = el.clientWidth, H = el.clientHeight;
+    const half = this.zone.half;
+    if (this.pred) out.sector = sectorName(this.pred.x, this.pred.z, half);
+    if (this.rig.mode !== 'dessus' || !W) return out;
+    const hit = (sx: number, sy: number) => {
+      this.raycaster.setFromCamera(this.tmpV2.set((sx / W) * 2 - 1, -(sy / H) * 2 + 1), this.camera);
+      const r = this.raycaster.ray;
+      if (r.direction.y >= -0.001) return null;
+      const t = -r.origin.y / r.direction.y;
+      return { x: r.origin.x + r.direction.x * t, z: r.origin.z + r.direction.z * t };
+    };
+    const a = hit(0, H * 0.5), b = hit(W, H * 0.5), c = hit(W * 0.5, 0), d = hit(W * 0.5, H);
+    if (!a || !b || !c || !d) return out;
+    for (let i = Math.ceil((a.x + half) / SECTOR); i <= Math.floor((b.x + half) / SECTOR); i++) {
+      if (i < 0 || i > (2 * half) / SECTOR) continue;
+      const x = -half + i * SECTOR;
+      out.cols.push({ px: ((x - a.x) / (b.x - a.x)) * W, label: String(i + 1) });
+    }
+    for (let j = Math.ceil((c.z + half) / SECTOR); j <= Math.floor((d.z + half) / SECTOR); j++) {
+      if (j < 0 || j > (2 * half) / SECTOR) continue;
+      const z = -half + j * SECTOR;
+      out.rows.push({ px: ((z - c.z) / (d.z - c.z)) * H, label: rowLabel(j) });
+    }
+    return out;
+  }
+
+  /** Bouton ancre : accoster si possible, sinon naviguer vers le port le plus proche. */
+  goToPort() {
+    if (store.get().docked) { store.set({ panel: 'port' }); return; }
+    if (store.get().hud.canDock) { this.dock(); return; }
+    const docks = this.zoneVis?.world.docks;
+    if (!docks || !this.pred) return;
+    let best: { x: number; z: number } | null = null, bd = Infinity;
+    for (const p of this.zone.ports) {
+      const d = docks[p.id];
+      if (!d) continue;
+      const dist = Math.hypot(d.x - this.pred.x, d.z - this.pred.z);
+      if (dist < bd) { bd = dist; best = d; }
+    }
+    if (!best) return;
+    this.net.send({ t: 'move', x: Math.round(best.x), z: Math.round(best.z) });
     this.navRing.userData.pulse = 1;
   }
 
@@ -1105,6 +1174,7 @@ export class Game {
 
   private updateMarkers(show: boolean) {
     const me = this.me;
+    if (this.sectorGrid) this.sectorGrid.visible = show && this.rig.mode === 'dessus';
     const nav = me?.nav;
     this.navRing.visible = show && !!nav;
     if (nav) {
