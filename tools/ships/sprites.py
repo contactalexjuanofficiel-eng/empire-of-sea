@@ -40,7 +40,7 @@ for o in list(sc.objects):
 # Rendu : Cycles, fond transparent, ombre portée sur l'eau gardée (plan « attrape-ombre »).
 sc.render.engine = 'CYCLES'
 sc.cycles.device = 'CPU'
-sc.cycles.samples = 48
+sc.cycles.samples = arg('--samples', 48, int)
 sc.cycles.use_denoising = True
 sc.render.film_transparent = True
 sc.render.resolution_x = sc.render.resolution_y = PX
@@ -85,5 +85,8 @@ for k in range(N):
     bpy.ops.render.render(write_still=True)
     atlas.paste(Image.open(path), ((k % COLS) * PX, (k // COLS) * PX))
     print('image', k + 1, '/', N, flush=True)
-atlas.save(dst, optimize=True)
+if dst.endswith('.webp'):
+    atlas.save(dst, quality=90, method=6)
+else:
+    atlas.save(dst, optimize=True)
 print('planche', dst, atlas.size, round(os.path.getsize(dst) / 1e6, 2), 'Mo')
